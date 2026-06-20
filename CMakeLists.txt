@@ -46,6 +46,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ./Core/Src/app/app_main.cpp
     ./Core/Src/device/uart.cpp
+    ./Core/Src/device/led.cpp
 )
 
 # Add include paths
