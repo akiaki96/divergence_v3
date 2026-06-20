@@ -1,4 +1,5 @@
 #include "app/app_main.hpp"
+#include "common/debug.hpp"
 #include <cstdio>
 
 extern "C" {
@@ -7,16 +8,12 @@ extern "C" {
 }
 
 void app_main() {
-    printf("hello divergence_v3 !!\r\n");
+    LOG("Hello divergence_v3!!\r\n");
+    LOG("UART layer ready\r\n");
 
-    HAL_GPIO_WritePin(LED_1_GPIO_Port, LED_1_Pin, GPIO_PIN_SET);
-
+    uint16_t i = 0;
     while (true) {
-        HAL_Delay(1000);
-        printf("tick\r\n");
-        HAL_GPIO_WritePin(LED_1_GPIO_Port, LED_1_Pin, GPIO_PIN_SET);
-        HAL_Delay(1000);
-        printf("tick\r\n");
-        HAL_GPIO_WritePin(LED_1_GPIO_Port, LED_1_Pin, GPIO_PIN_RESET);
+        HAL_Delay(100);
+        LOG("tick %d\r\n", i++);
     }
 }
