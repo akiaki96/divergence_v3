@@ -42,11 +42,15 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
+file(GLOB_RECURSE APP_SOURCES
+    Core/Src/app/*.cpp
+    Core/Src/device/*.cpp
+    Core/Src/algorithm/*.cpp
+)
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
-    ./Core/Src/app/app_main.cpp
-    ./Core/Src/device/uart.cpp
-    ./Core/Src/device/led.cpp
+    ${APP_SOURCES}
 )
 
 # Add include paths
