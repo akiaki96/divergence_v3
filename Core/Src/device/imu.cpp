@@ -1,4 +1,5 @@
 #include "device/imu.hpp"
+#include "common/debug.hpp"
 #include "config/mouse_config.hpp"
 #include "device/ICM42688P_Register.hpp"
 #include "spi.h"
@@ -36,12 +37,14 @@ void Imu::readBurst() {
 
     HAL_GPIO_WritePin(SPI3_CS_GPIO_Port, SPI3_CS_Pin, GPIO_PIN_SET);
 
-    accelRawX_ = ( (int16_t)(rx_buf[1] << 8) | rx_buf[2] );
-    accelRawY_ = ( (int16_t)(rx_buf[3] << 8) | rx_buf[4] );
-    accelRawZ_ = ( (int16_t)(rx_buf[5] << 8) | rx_buf[6] );
-    gyroRawX_  = ( (int16_t)(rx_buf[7] << 8) | rx_buf[8] );
-    gyroRawY_  = ( (int16_t)(rx_buf[9] << 8) | rx_buf[10] );
-    gyroRawZ_  = ( (int16_t)(rx_buf[11] << 8) | rx_buf[12] );
+    accelRawX_ = ( (int16_t)((int16_t)rx_buf[1] << 8) | rx_buf[2] );
+    accelRawY_ = ( (int16_t)((int16_t)rx_buf[3] << 8) | rx_buf[4] );
+    accelRawZ_ = ( (int16_t)((int16_t)rx_buf[5] << 8) | rx_buf[6] );
+    gyroRawX_  = ( (int16_t)((int16_t)rx_buf[7] << 8) | rx_buf[8] );
+    gyroRawY_  = ( (int16_t)((int16_t)rx_buf[9] << 8) | rx_buf[10] );
+    gyroRawZ_  = ( (int16_t)((int16_t)rx_buf[11] << 8) | rx_buf[12] );
+    // LOG("raw ax=%d ay=%d az=%d\r\n",
+    //     accelRawX_, accelRawY_, accelRawZ_);
 }
 
 void Imu::raw2val() {
@@ -94,6 +97,9 @@ void Imu::update() {
     readBurst();
     raw2val();
     calibratingUpdate();
+    // LOG("raw ax=%d ay=%d az=%d\r\n",accelRawX_, accelRawY_, accelRawZ_);
+    // LOG("accel %d %d %d\r\n",accelRefX_, accelRefY_, accelRefZ_);
+    // LOG("accel %f %f %f\r\n",accelX_, accelY_, accelZ_);
 }
 
 void Imu::calibrate() {

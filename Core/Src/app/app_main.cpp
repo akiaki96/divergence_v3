@@ -25,19 +25,23 @@ void app_init() {
 void app_main() {
     app_init();
 
+    ledBar16.set(0xff00);
+    HAL_Delay(1000);
     ledBar16.set(0xffff);
-    HAL_Delay(500);
     imu.calibrate();
-    // HAL_Delay(1200);
+    HAL_Delay(1200);
     ledBar16.set(0x0000);
 
     uint16_t i = 0;
     while (true) {
         HAL_Delay(100);
-        LOG("encoderLeft %6.2fmm/s, encoderRight %6.2fmm/s, imu %6.2fmm/s\r\n", encoderLeft.velocity(), encoderRight.velocity(), imu.velX());
-        LOG("encoderLeft %6.2fmm, encoderRight %6.2fmm, imu %6.2fmm\r\n", encoderLeft.distance(), encoderRight.distance(), imu.posX());
-        LOG("%6.2f, %6.2f, %6.2f\r\n", imu.accelX(), imu.accelY(), imu.accelZ());
-        LOG("%6.2f, %6.2f, %6.2f\r\n\n", imu.gyroX(), imu.gyroY(), imu.gyroZ());
+        // LOG("encoderLeft %6.2fmm/s, encoderRight %6.2fmm/s, imu %6.2fmm/s\r\n", encoderLeft.velocity(), encoderRight.velocity(), imu.velX());
+        // LOG("encoderLeft %6.2fmm, encoderRight %6.2fmm, imu %6.2fmm\r\n", encoderLeft.distance(), encoderRight.distance(), imu.posX());
+        
+        // LOG("%6.2f, %6.2f, %6.2f\r\n\n", imu.accelX(), imu.accelY(), imu.accelZ());
+        // LOG("%6.2f, %6.2f, %6.2f\r\n\n", imu.velX(), imu.velY(), imu.velZ());
+        
+        // LOG("%6.2f, %6.2f, %6.2f\r\n\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());
         ledBar16.set(1<<(i&0xf));
         i++;
     }
