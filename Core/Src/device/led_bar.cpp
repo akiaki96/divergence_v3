@@ -24,8 +24,14 @@ void LedBar16::clear() {
     apply();
 }
 
-static constexpr uint8_t order[16] = {6,5,4,3,2,1,0,7,14,13,12,11,10,9,8,15};
 void LedBar16::apply() {
+    dirty_ = true;
+}
+
+static constexpr uint8_t order[16] = {6,5,4,3,2,1,0,7,14,13,12,11,10,9,8,15};
+void LedBar16::update() {
+    if (!dirty_) return;    
+
     HAL_GPIO_WritePin(SR_CLK_GPIO_Port, SR_CLK_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(SR_LATCH_GPIO_Port, SR_LATCH_Pin, GPIO_PIN_RESET);
 
