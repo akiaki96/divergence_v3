@@ -7,5 +7,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
         encoderLeft.update();
         encoderRight.update();
+    
+        imu.update();
     }
 }

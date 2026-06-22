@@ -20,7 +20,7 @@ void Encoder::update() {
     float delta_distance = count2distance(delta_count);
     distance_ += delta_distance;
     
-    velocity_ = delta_distance / config::control::CONTROL_PEROID_S;
+    velocity_ = delta_distance / config::control::DT_S;
 }
 
 
