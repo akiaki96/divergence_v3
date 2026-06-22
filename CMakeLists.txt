@@ -45,6 +45,11 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
+    -u
+    _printf_float
+)
+
 file(GLOB_RECURSE APP_SOURCES
     Core/Src/app/*.cpp
     Core/Src/device/*.cpp

@@ -11,5 +11,5 @@ public:
 private:
     void apply();
     uint16_t pattern_ = 0;
-    bool dirty_ = false;
+    bool dirty_ = true;
 };
