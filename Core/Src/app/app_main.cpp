@@ -41,10 +41,12 @@ void app_main() {
         // LOG("encoderLeft %6.2fmm/s, encoderRight %6.2fmm/s, imu %6.2fmm/s\r\n", encoderLeft.velocity(), encoderRight.velocity(), imu.velX());
         // LOG("encoderLeft %6.2fmm, encoderRight %6.2fmm, imu %6.2fmm\r\n", encoderLeft.distance(), encoderRight.distance(), imu.posX());
         
-        // LOG("%6.2f, %6.2f, %6.2f\r\n\n", imu.accelX(), imu.accelY(), imu.accelZ());
-        // LOG("%6.2f, %6.2f, %6.2f\r\n\n", imu.velX(), imu.velY(), imu.velZ());
+        // LOG("%6.2f, %6.2f, %6.2f\r\n", imu.accelX(), imu.accelY(), imu.accelZ());
+        // LOG("%6.2f, %6.2f, %6.2f\r\n", imu.velX(), imu.velY(), imu.velZ());
         
-        // LOG("%6.2f, %6.2f, %6.2f\r\n\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());
+        // LOG("%6.2f, %6.2f, %6.2f\r\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());
+
+        LOG("\n");
         ledBar16.set(1<<(i&0xf));
         i++;
     }
