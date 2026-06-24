@@ -26,3 +26,7 @@ inline constexpr float ACCEL_SENSITIVITY = 4096.f;
 
 inline constexpr float G = 9.80665f * 1000.f; // mm/s^2
 } // namespace config::imu
+
+namespace config::battery {
+inline constexpr float IIR_ALPHA = 0.1f;
+}

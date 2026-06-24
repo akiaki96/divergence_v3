@@ -35,6 +35,9 @@ void app_main() {
     uint16_t i = 0;
     while (true) {
         HAL_Delay(100);
+
+        LOG("%04d, %04d, %04d, %04d\r\n", adcValue.irL.filtered_,adcValue.irFL.filtered_, adcValue.irFR.filtered_, adcValue.irR.filtered_);
+
         // LOG("encoderLeft %6.2fmm/s, encoderRight %6.2fmm/s, imu %6.2fmm/s\r\n", encoderLeft.velocity(), encoderRight.velocity(), imu.velX());
         // LOG("encoderLeft %6.2fmm, encoderRight %6.2fmm, imu %6.2fmm\r\n", encoderLeft.distance(), encoderRight.distance(), imu.posX());
         
