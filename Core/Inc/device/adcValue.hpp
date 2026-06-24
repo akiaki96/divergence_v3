@@ -1,16 +1,9 @@
 #pragma once
 
 #include "device/battery.hpp"
+#include "device/ir.hpp"
 #include <cstdint>
 
-class IrSensor {
-public:
-    void init();
-
-    int16_t raw_on_;
-    int16_t raw_off_;
-    int16_t filtered_;
-};
 
 class AdcValue {
 public:
