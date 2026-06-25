@@ -33,29 +33,23 @@ void app_main() {
     // HAL_Delay(1200);
     // ledBar16.set(0x0000);
 
+    logger.start();
+
+    HAL_Delay(100);
+
     motor.enable();
+    motor.setDuty(0.1f, -0.1f);
+
+    HAL_Delay(1000);
+
+    motor.setDuty(0.f, 0.f);
+
+    logger.stop();
+
+    logger.dump();
 
     uint16_t i = 0;
     while (true) {
-        // motor.setDuty(0.1f, 0.f);
-        // LOG("0.1f\r\n");
-        // HAL_Delay(1000);
-        // motor.setDuty(-0.1f, 0.f);
-        // LOG("-0.1f\r\n");
-        // HAL_Delay(1000);
-        // motor.setBreak();
-        // LOG("break\r\n");
-        // HAL_Delay(1000);
-
-        motor.setDuty(0.f, 0.1f);
-        LOG("0.1f\r\n");
-        HAL_Delay(1000);
-        motor.setDuty(0.f, -0.1f);
-        LOG("-0.1f\r\n");
-        HAL_Delay(1000);
-        motor.setBreak();
-        LOG("break\r\n");
-        HAL_Delay(1000);
 
     
 

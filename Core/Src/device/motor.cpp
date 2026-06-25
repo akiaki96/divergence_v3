@@ -24,6 +24,8 @@ Motor::Motor(
 /* |duty| < 1.0f */
 void Motor::setDuty(float duty)
 {
+    duty_ = duty;
+    
     /* |pwm| < config::motor::MAX_PWM */
     uint16_t pwm = static_cast<uint16_t>(std::abs(duty) * config::motor::MAX_PWM);
 

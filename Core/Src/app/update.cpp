@@ -11,5 +11,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         encoderRight.update();
     
         imu.update();
+
+        logger.update();
     }
 }

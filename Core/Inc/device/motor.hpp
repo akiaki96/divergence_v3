@@ -19,6 +19,8 @@ public:
     void setDuty(float duty);
     void setBreak();
 
+    float getDuty() const { return duty_; }
+
 private:
     TIM_HandleTypeDef* const htim_;
     uint32_t const channel_;
@@ -30,4 +32,6 @@ private:
     uint16_t const ccwPin_;
 
     Direction const direction_;
+
+    float duty_ = 0.f;
 };
