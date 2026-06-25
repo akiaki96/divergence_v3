@@ -4,7 +4,7 @@
 #include "device/imu.hpp"
 #include "device/led_bar.hpp"
 #include "device/adcValue.hpp"
-#include "device/motor.hpp"
+#include "device/motorDriver.hpp"
 
 extern Encoder encoderLeft;
 extern Encoder encoderRight;
@@ -17,3 +17,4 @@ extern AdcValue adcValue;
 
 extern Motor motorLeft;
 extern Motor motorRight;
+extern MotorDriver motor;
