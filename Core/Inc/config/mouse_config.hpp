@@ -30,3 +30,7 @@ inline constexpr float G = 9.80665f * 1000.f; // mm/s^2
 namespace config::battery {
 inline constexpr float IIR_ALPHA = 0.1f;
 }
+
+namespace config::motor {
+inline constexpr uint16_t MAX_PWM = 950;
+}

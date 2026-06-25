@@ -1,11 +1,7 @@
 #pragma once
 #include <cstdint>
 #include "stm32f4xx_hal.h"
-
-enum class Direction {
-    Normal,
-    Reversed
-};
+#include "common/types.hpp"
 
 class Encoder {
 public:
