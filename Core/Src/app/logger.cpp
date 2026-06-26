@@ -5,6 +5,7 @@
 void Logger::start() {
     recording_ = true;
     writeIndex_ = 0;
+    timestamp_ms_ = 0;
     full_ = false;
 }
 
@@ -13,11 +14,13 @@ void Logger::stop() {
 }
 
 void Logger::update() {
+    timestamp_ms_ += 1;
     if (!recording_ || full_) {
         return;
     }
 
     LogRecord record;
+    record.time = static_cast<float>(timestamp_ms_) / 1000.f;
     record.battery = adcValue.batt.filtered();
     record.dutyL = motorLeft.getDuty();
     record.dutyR = motorRight.getDuty();
@@ -35,13 +38,9 @@ void Logger::update() {
 
 void Logger::dump() {
     printf("BIN_START\r\n");
-    printf("SIZE:%d\r\n", writeIndex_);
-    printf("battery,dutyL,dutyR,encoderL,encoderR,gyroZ\r\n");
+    printf("SIZE:%d\r\n", sizeof(LogRecord) * writeIndex_);
+    printf("time,battery,dutyL,dutyR,encoderL,encoderR,gyroZ\r\n");
 
-    for (uint16_t i = 0; i < writeIndex_; ++i) {
-        const LogRecord& record = buffer_[i];
-        // Here you would typically send the record to a serial port, file, or other output
-        // For example:
-        LOG("%f, %f, %f, %f, %f, %f\r\n", record.battery, record.dutyL, record.dutyR, record.encoderL, record.encoderR, record.gyroZ);
-    }
+    uart_write(reinterpret_cast<const uint8_t*>(&logger.buffer_), sizeof(LogRecord) * writeIndex_);
+    LOG("BIN_END\r\n");
 }

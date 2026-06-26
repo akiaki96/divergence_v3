@@ -47,5 +47,5 @@ if $flash; then
 fi
 
 if $monitor; then
-    scripts/monitor.sh
+    python tools/get_log.py
 fi

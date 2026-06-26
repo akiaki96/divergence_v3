@@ -3,7 +3,7 @@
 #include <cstdint>
 
 struct LogRecord {
-    // float time;
+    float time;
 
     float battery;
 
@@ -33,4 +33,5 @@ private:
 
     bool recording_ = false;
     bool full_ = false;
+    uint16_t timestamp_ms_ = 0;
 };
