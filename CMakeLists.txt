@@ -54,6 +54,7 @@ file(GLOB_RECURSE APP_SOURCES
     Core/Src/app/*.cpp
     Core/Src/device/*.cpp
     Core/Src/algorithm/*.cpp
+    Core/Src/menu/*.cpp
 )
 
 # Add sources to executable

@@ -34,3 +34,7 @@ inline constexpr float IIR_ALPHA = 0.1f;
 namespace config::motor {
 inline constexpr uint16_t MAX_PWM = 950;
 }
+
+namespace config::menu {
+inline constexpr uint8_t MAX_CHILDREN = 8;
+}
