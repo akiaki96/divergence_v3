@@ -8,17 +8,19 @@ class MenuController {
 public:
     MenuController();
 
-    MenuNode* next();
-    MenuNode* prev();
-    MenuNode* enter();
-    MenuNode* back();
+    void next();
+    void prev();
+    void enter();
+    void back();
 
-    MenuNode* selected() const;
+    const MenuNode* currentMenuNode() const;
+    void currentInfo() const;
+    void tree() const;
 
 private:
     Menu menu_;
 
-    MenuNode* currentMenuNode_ = menu_.root();
+    const MenuNode* currentMenuNode_ = menu_.root();
     uint8_t index_;
     uint8_t depth_;
 

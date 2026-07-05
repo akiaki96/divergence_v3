@@ -27,6 +27,6 @@ void MenuNode::setParentRec() {
     }
     for (uint8_t i = 0; i < childCount_; ++i) {
         children_[i]->parent_ = this;
-        setParentRec();
+        children_[i]->setParentRec();
     }
 }

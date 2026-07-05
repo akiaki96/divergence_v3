@@ -6,7 +6,7 @@ class Menu {
 public:
     Menu();
 
-    MenuNode* root() {
+    const MenuNode* root() {
         return &root_;
     };
 
