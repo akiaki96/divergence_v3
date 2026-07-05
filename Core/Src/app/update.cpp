@@ -1,4 +1,5 @@
 #include "device/device_instance.hpp"
+#include "menu/menuInstance.hpp"
 #include "tim.h"
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
@@ -13,5 +14,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         imu.update();
 
         logger.update();
+
+        menuInputController.syncUpdate();
     }
 }

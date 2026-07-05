@@ -13,9 +13,13 @@ public:
     void enter();
     void back();
 
+    void setChild(uint8_t index);
+
     const MenuNode* currentMenuNode() const;
     void currentInfo() const;
     void tree() const;
+
+    uint8_t index() const;
 
 private:
     Menu menu_;

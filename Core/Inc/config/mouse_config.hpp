@@ -38,3 +38,9 @@ inline constexpr uint16_t MAX_PWM = 950;
 namespace config::menu {
 inline constexpr uint8_t MAX_CHILDREN = 8;
 }
+
+namespace config::mode_selector {
+inline constexpr float ENC_THRESH = 10.f;
+inline constexpr float IR_THRESH = 500.f;
+inline constexpr float KORIKORI = 0.1f;
+}

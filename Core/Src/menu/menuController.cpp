@@ -6,26 +6,24 @@ MenuController::MenuController() {}
 void MenuController::next() {
     index_ = (index_ + 1) % currentMenuNode_->childCount();
     currentMenuNode_ = currentMenuNode_->parent()->child(index_);
-    currentMenuNode_->onSelected();
 }
 
 void MenuController::prev() {
-    index_ = (index_ - 1 + currentMenuNode_->childCount()) % currentMenuNode_->childCount();
+    index_ = (index_ + currentMenuNode_->childCount() - 1) % currentMenuNode_->childCount();
     currentMenuNode_ = currentMenuNode_->parent()->child(index_);
-    currentMenuNode_->onSelected();
 }
 
 void MenuController::enter() {
-    if (currentMenuNode_->isLeaf()) {
-        currentMenuNode_->onEnter();
-    } else if (currentMenuNode_ == nullptr) {
+    if (currentMenuNode_ == nullptr) {
         LOG("currentMenuNode got nullptr\r\n");
+        return;
+    }
+    if (currentMenuNode_->isLeaf()) {
         return;
     }
 
     ++depth_;
     currentMenuNode_ = currentMenuNode_->child(index_);
-    currentMenuNode_->onSelected();
 }
 
 void MenuController::back() {
@@ -37,7 +35,11 @@ void MenuController::back() {
 
     --depth_;
     currentMenuNode_ = currentMenuNode_->parent();
-    currentMenuNode_->onSelected();
+}
+
+void MenuController::setChild(uint8_t index) {
+    currentMenuNode_ = currentMenuNode_->child(index);
+    enter();
 }
 
 const MenuNode* MenuController::currentMenuNode() const {
@@ -47,10 +49,15 @@ const MenuNode* MenuController::currentMenuNode() const {
 void MenuController::currentInfo() const {
     printf("=== Selector ===\n");
     printf("Current Menu: %s\n", currentMenuNode_->name());
+    printf("Children Count: %d\r\n", currentMenuNode_->childCount());
     printf("Depth: %d\n", depth_);
     printf("================\n");
 }
 
 void MenuController::tree() const {
     menu_.tree();
+}
+
+uint8_t MenuController::index() const {
+    return index_;
 }

@@ -12,11 +12,12 @@ extern "C" {
 }
 
 void app_init() {
-    LOG("Hello divergence_v3!!\r\n");
 
     HAL_TIM_Base_Start_IT(&htim6);
     encoderLeft.init();
     encoderRight.init();
+
+    motor.enable();
 
     imu.init();
     motor.init();
@@ -34,18 +35,9 @@ void app_main() {
     // HAL_Delay(1200);
     // ledBar16.set(0x0000);
 
+    LOG("Hello divergence_v3!!\r\n");
     menuController.currentInfo();
     menuController.tree();
 
-
-    uint16_t i = 0;
-    while (true) {
-
-    
-
-        ledBar16.set(1<<(i&0xf));
-        i++;
-        // LOG("%d\r\n", i);
-        HAL_Delay(100);
-    }
+    menuInputController.asyncUpdate(); // LOOP!
 }
