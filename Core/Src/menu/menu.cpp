@@ -15,4 +15,5 @@ void Menu::buildTree() {
     motor_.setChildren(std::array{&motor_r_, &motor_l_});
     
     root_.setParentRec();
+    root_.setParent(&root_);
 }

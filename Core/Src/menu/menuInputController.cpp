@@ -27,19 +27,19 @@ void MenuInputController::syncUpdate() {
         motorRight.setDuty(-config::mode_selector::KORIKORI);
         ledBar16.set(1<<(controller_.index()));
         controller_.next();
-        onSelected_ = true;
+        isOnSelected_ = true;
         lock(10);
     } else if (encoderDistance_ < -config::mode_selector::ENC_THRESH) { // prev
         encoderDistance_ = 0.f;
         motorRight.setDuty(config::mode_selector::KORIKORI);
         ledBar16.set(1<<(controller_.index()));
         controller_.prev();
-        onSelected_ = true;
+        isOnSelected_ = true;
         lock(10);
     } else if (adcValue.irFL.filtered_ < config::mode_selector::IR_THRESH && adcValue.irFR.filtered_ > config::mode_selector::IR_THRESH) { // enter
         ledBar16.set(0x000F);
         controller_.enter();
-        onEnter_ = true;
+        isOnEnter_ = true;
         lock(300);
     }
 }
@@ -50,7 +50,7 @@ void MenuInputController::lock(uint32_t delay) {
 
 void MenuInputController::asyncUpdate() {
     while (true) {
-        if (onSelected_) {
+        if (isOnSelected_) {
             controller_.currentInfo();
 
             lock_ = true;
@@ -59,10 +59,10 @@ void MenuInputController::asyncUpdate() {
             } else {
                 LOG("on selected nullptr!!\r\n");
             }
-            onSelected_ = false;
+            isOnSelected_ = false;
             lock_ = false;
         }
-        if (onEnter_) {
+        if (isOnEnter_) {
             controller_.currentInfo();
 
             lock_ = true;
@@ -71,7 +71,7 @@ void MenuInputController::asyncUpdate() {
             } else {
                 LOG("on enter nullptr!!\r\n");
             }
-            onEnter_ = false;
+            isOnEnter_ = false;
             lock_ = false;
         }
 

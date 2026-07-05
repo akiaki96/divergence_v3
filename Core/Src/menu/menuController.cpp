@@ -5,12 +5,10 @@ MenuController::MenuController() {}
 
 void MenuController::next() {
     index_ = (index_ + 1) % currentMenuNode_->childCount();
-    currentMenuNode_ = currentMenuNode_->parent()->child(index_);
 }
 
 void MenuController::prev() {
     index_ = (index_ + currentMenuNode_->childCount() - 1) % currentMenuNode_->childCount();
-    currentMenuNode_ = currentMenuNode_->parent()->child(index_);
 }
 
 void MenuController::enter() {
@@ -51,6 +49,7 @@ void MenuController::currentInfo() const {
     printf("Current Menu: %s\n", currentMenuNode_->name());
     printf("Children Count: %d\r\n", currentMenuNode_->childCount());
     printf("Depth: %d\n", depth_);
+    printf("Child Name: %s\n", currentMenuNode_->child(index_)->name());
     printf("================\n");
 }
 

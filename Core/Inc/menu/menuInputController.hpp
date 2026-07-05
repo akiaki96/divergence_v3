@@ -22,6 +22,6 @@ private:
 
     bool lock_ = false;
 
-    bool onSelected_ = false;
-    bool onEnter_ = false;
+    bool isOnSelected_ = false;
+    bool isOnEnter_ = false;
 };

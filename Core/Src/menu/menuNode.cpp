@@ -30,3 +30,7 @@ void MenuNode::setParentRec() {
         children_[i]->setParentRec();
     }
 }
+
+void MenuNode::setParent(MenuNode* parent) {
+    parent_ = parent;
+}

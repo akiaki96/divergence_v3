@@ -39,5 +39,18 @@ void app_main() {
     menuController.currentInfo();
     menuController.tree();
 
-    menuInputController.asyncUpdate(); // LOOP!
+    menuController.currentInfo();
+
+    menuController.next();
+    menuController.currentInfo();
+    menuController.next();
+    menuController.currentInfo();
+    menuController.next();
+    menuController.currentInfo();
+
+    while (true) {
+    
+    }
+
+    // menuInputController.asyncUpdate(); // LOOP!
 }

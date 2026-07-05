@@ -42,6 +42,7 @@ public:
 
     void tree(uint8_t indent = 0) const;
     void setParentRec();
+    void setParent(MenuNode* parent);
 
     template<std::size_t N>
     void setChildren(const std::array<MenuNode*, N>& children) {
