@@ -9,18 +9,17 @@ MenuInputController::MenuInputController(MenuController& menuController)
 }
 
 void MenuInputController::syncUpdate() {
-    if (lock_) {
-        return;
-    }
-
-    encoderDistance_ += encoderRight.velocity() * config::control::DT_S;
-
     if (0 < lockUntil_) {
         --lockUntil_;
         return;
     }
 
     motorRight.setDuty(0.f);
+    if (lock_) {
+        return;
+    }
+
+    encoderDistance_ += encoderRight.velocity() * config::control::DT_S;
 
     if (encoderDistance_ > config::mode_selector::ENC_THRESH) { // next
         encoderDistance_ = 0.f;
@@ -54,8 +53,8 @@ void MenuInputController::asyncUpdate() {
             controller_.currentInfo();
 
             lock_ = true;
-            if (controller_.currentMenuNode()->onSelected() != nullptr) {
-                controller_.currentMenuNode()->onSelected()();
+            if (controller_.currentMenuNode()->child(controller_.index())->onSelected() != nullptr) {
+                controller_.currentMenuNode()->child(controller_.index())->onSelected()();
             } else {
                 LOG("on selected nullptr!!\r\n");
             }
@@ -66,8 +65,8 @@ void MenuInputController::asyncUpdate() {
             controller_.currentInfo();
 
             lock_ = true;
-            if (controller_.currentMenuNode()->onEnter() != nullptr) {
-                controller_.currentMenuNode()->onEnter()();
+            if (controller_.currentMenuNode()->child(controller_.index())->onSelected() != nullptr) {
+                controller_.currentMenuNode()->child(controller_.index())->onSelected()();
             } else {
                 LOG("on enter nullptr!!\r\n");
             }

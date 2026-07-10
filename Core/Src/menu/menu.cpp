@@ -1,7 +1,9 @@
 #include "menu/menu.hpp"
+#include "device/device_instance.hpp"
 
 Menu::Menu() {
     buildTree();
+    setFunction();
 }
 
 void Menu::buildTree() {
@@ -16,4 +18,15 @@ void Menu::buildTree() {
     
     root_.setParentRec();
     root_.setParent(&root_);
+}
+
+void run_onselect() {
+    for (uint8_t i = 0; i < 16; ++i) {
+        ledBar16.set(1<<i);
+        HAL_Delay(100);
+    }
+}
+
+void Menu::setFunction() {
+    device_.setOnSelected(run_onselect);
 }

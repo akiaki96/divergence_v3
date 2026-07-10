@@ -40,6 +40,14 @@ public:
         return onEnter_;
     }
 
+    void setOnSelected(MenuAction onSelected) {
+        onSelected_ = onSelected;
+    }
+
+    void setOnEnter(MenuAction onEnter) {
+        onEnter_ = onEnter;
+    }
+
     void tree(uint8_t indent = 0) const;
     void setParentRec();
     void setParent(MenuNode* parent);

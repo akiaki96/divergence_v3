@@ -28,29 +28,9 @@ void app_init() {
 void app_main() {
     app_init();
 
-    // ledBar16.set(0xff00);
-    // HAL_Delay(1000);
-    // ledBar16.set(0xffff);
-    // imu.calibrate();
-    // HAL_Delay(1200);
-    // ledBar16.set(0x0000);
-
     LOG("Hello divergence_v3!!\r\n");
     menuController.currentInfo();
     menuController.tree();
 
-    menuController.currentInfo();
-
-    menuController.next();
-    menuController.currentInfo();
-    menuController.next();
-    menuController.currentInfo();
-    menuController.next();
-    menuController.currentInfo();
-
-    while (true) {
-    
-    }
-
-    // menuInputController.asyncUpdate(); // LOOP!
+    menuInputController.asyncUpdate(); // LOOP!
 }

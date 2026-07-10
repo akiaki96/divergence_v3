@@ -49,7 +49,9 @@ void MenuController::currentInfo() const {
     printf("Current Menu: %s\n", currentMenuNode_->name());
     printf("Children Count: %d\r\n", currentMenuNode_->childCount());
     printf("Depth: %d\n", depth_);
-    printf("Child Name: %s\n", currentMenuNode_->child(index_)->name());
+    if (!currentMenuNode_->isLeaf()) {
+        printf("Child Name: %s\n", currentMenuNode_->child(index_)->name());
+    }
     printf("================\n");
 }
 

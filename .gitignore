@@ -5,3 +5,4 @@ latex
 tools/myenv/
 log/
 tools/__pycache__/plot_log.cpython-313.pyc
+.cache/

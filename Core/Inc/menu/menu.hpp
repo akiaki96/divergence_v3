@@ -16,6 +16,7 @@ public:
 
 private:
     void buildTree();
+    void setFunction();
 
 private:
     MenuNode root_{"Root"};
