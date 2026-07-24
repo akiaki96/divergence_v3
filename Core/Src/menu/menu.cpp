@@ -1,4 +1,5 @@
 #include "menu/menu.hpp"
+#include "common/debug.hpp"
 #include "device/device_instance.hpp"
 
 Menu::Menu() {
@@ -20,13 +21,34 @@ void Menu::buildTree() {
     root_.setParent(&root_);
 }
 
-void run_onselect() {
-    for (uint8_t i = 0; i < 16; ++i) {
-        ledBar16.set(1<<i);
-        HAL_Delay(100);
+
+onselect(run, 
+    ledManager.setall(true, true, false, false, false, false);
+)
+
+onselect(device,
+    ledManager.setall(true, true, true, true, true, true);
+)
+
+onselect(imu,
+    ledManager.setall(false, false, false, false, true, false);
+)
+
+onenter(imu_acc, 
+    while (true) {
+        LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.accelX(), imu.accelY(), imu.accelZ());
     }
-}
+)
+
+
 
 void Menu::setFunction() {
-    device_.setOnSelected(run_onselect);
+    run_.setOnSelected(run_onselect);
+    device_.setOnSelected(device_onselect);
+
+    imu_.setOnSelected(imu_onselect);
+
+    // ---------------------------
+
+    imu_acc_.setOnEnter(imu_acc_onenter);
 }

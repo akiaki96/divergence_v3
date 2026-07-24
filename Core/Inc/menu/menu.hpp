@@ -46,3 +46,14 @@ private:
     MenuNode motor_l_{"Motor Left"};
     MenuNode motor_r_{"Motor Right"};
 };
+
+
+#define onselect(nodeName, func)  \
+void nodeName##_onselect() { \
+    func \
+}
+
+#define onenter(nodeName, func) \
+void nodeName##_onenter() { \
+    func \
+}

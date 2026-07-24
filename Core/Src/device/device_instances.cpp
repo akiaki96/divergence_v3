@@ -7,6 +7,7 @@ Encoder encoderRight(&htim4, Direction::Reversed);
 Imu imu;
 
 LedBar16 ledBar16;
+LedManager ledManager;
 
 AdcValue adcValue;
 

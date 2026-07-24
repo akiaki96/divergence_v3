@@ -1,11 +1,12 @@
 #pragma once
 
 #include "device/led.hpp"
-#include "device/led_bar.hpp"
 
 class LedManager {
 public:
     LedManager();
+
+    void setall(bool blOut, bool brOut, bool blIn, bool brIn, bool brFront, bool blFront);
 
     Led lOut;
     Led rOut;
@@ -13,6 +14,4 @@ public:
     Led rIn;
     Led rFront;
     Led lFront;
-
-    LedBar16 bar;
 };
