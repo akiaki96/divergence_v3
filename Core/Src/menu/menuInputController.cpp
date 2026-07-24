@@ -3,6 +3,9 @@
 #include "device/device_instance.hpp"
 #include "config/mouse_config.hpp"
 
+std::array<MenuAction, 32> menuActionBuff;
+boost::circular_buffer<MenuAction> menuActionDeque(menuActionBuff.size(), menuActionBuff.data(), menuActionBuff.data() + menuActionBuff.size());
+
 MenuInputController::MenuInputController(MenuController& menuController)
     : controller_(menuController)
 {
@@ -65,8 +68,8 @@ void MenuInputController::asyncUpdate() {
             controller_.currentInfo();
 
             lock_ = true;
-            if (controller_.currentMenuNode()->child(controller_.index())->onSelected() != nullptr) {
-                controller_.currentMenuNode()->child(controller_.index())->onSelected()();
+            if (controller_.currentMenuNode()->child(controller_.index())->onEnter() != nullptr) {
+                controller_.currentMenuNode()->child(controller_.index())->onEnter()();
             } else {
                 LOG("on enter nullptr!!\r\n");
             }

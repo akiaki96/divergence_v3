@@ -23,14 +23,17 @@ void Menu::buildTree() {
 
 
 onselect(run, 
+    LOG("on run\r\n");
     ledManager.setall(true, true, false, false, false, false);
 )
 
 onselect(device,
+    LOG("on device\r\n");
     ledManager.setall(true, true, true, true, true, true);
 )
 
 onselect(imu,
+    LOG("on imu\r\n");
     ledManager.setall(false, false, false, false, true, false);
 )
 
