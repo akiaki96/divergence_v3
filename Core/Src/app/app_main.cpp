@@ -24,6 +24,10 @@ void app_init() {
 
 }
 
+// #include <etl/vector.h>
+// void foo() {
+//     etl::vector<uint8_t, 10> v;
+// }
 
 void app_main() {
     app_init();
