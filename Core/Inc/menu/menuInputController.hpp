@@ -2,11 +2,11 @@
 
 #include "menu/menuController.hpp"
 
-#include <array>
-#include <boost/circular_buffer.hpp>
+// #include <array>
+// #include <boost/circular_buffer.hpp>
 
-extern std::array<MenuAction, 32> menuActionBuff;
-extern boost::circular_buffer<MenuAction> menuActionDeque;
+// extern std::array<MenuAction, 32> menuActionBuff;
+// extern boost::circular_buffer<MenuAction> menuActionDeque;
 
 class MenuInputController {
 public:
