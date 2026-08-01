@@ -26,20 +26,30 @@ void MenuInputController::syncUpdate() {
         motorRight.setDuty(-config::mode_selector::KORIKORI);
         ledBar16.set(1<<(controller_.index()));
         controller_.next();
-        isOnSelected_ = true;
         lock(10);
+
+        onSelected_ = controller_.currentMenuNode()->child(controller_.index())->onSelected();
+        isOnSelected_ = true;
     } else if (encoderDistance_ < -config::mode_selector::ENC_THRESH) { // prev
         encoderDistance_ = 0.f;
         motorRight.setDuty(config::mode_selector::KORIKORI);
         ledBar16.set(1<<(controller_.index()));
         controller_.prev();
-        isOnSelected_ = true;
         lock(10);
+
+        onSelected_ = controller_.currentMenuNode()->child(controller_.index())->onSelected();
+        isOnSelected_ = true;
     } else if (adcValue.irFL.filtered_ < config::mode_selector::IR_THRESH && adcValue.irFR.filtered_ > config::mode_selector::IR_THRESH) { // enter
         ledBar16.set(0x000F);
         controller_.enter();
-        isOnEnter_ = true;
         lock(300);
+
+        onEnter_ = controller_.currentMenuNode()->onEnter();
+        isOnEnter_ = true;
+
+        if (controller_.currentMenuNode()->isLeaf()) {
+            controller_.back();
+        }
     }
 }
 
@@ -53,24 +63,26 @@ void MenuInputController::asyncUpdate() {
             controller_.currentInfo();
 
             lock_ = true;
-            if (controller_.currentMenuNode()->child(controller_.index())->onSelected() != nullptr) {
-                controller_.currentMenuNode()->child(controller_.index())->onSelected()();
+            if (onSelected_ != nullptr) {
+                onSelected_();
             } else {
                 LOG("on selected nullptr!!\r\n");
             }
             isOnSelected_ = false;
+            onSelected_ = nullptr;
             lock_ = false;
         }
         if (isOnEnter_) {
             controller_.currentInfo();
 
             lock_ = true;
-            if (controller_.currentMenuNode()->child(controller_.index())->onEnter() != nullptr) {
-                controller_.currentMenuNode()->child(controller_.index())->onEnter()();
+            if (onEnter_ != nullptr) {
+                onEnter_();
             } else {
                 LOG("on enter nullptr!!\r\n");
             }
             isOnEnter_ = false;
+            onEnter_ = nullptr;
             lock_ = false;
         }
 

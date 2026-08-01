@@ -40,8 +40,10 @@ private:
     MenuNode encoder_l_{"Encoder Left"};
     MenuNode encoder_r_{"Encoder Right"};
 
+    MenuNode imu_calib_{"IMU Calib"};
     MenuNode imu_acc_{"IMU Accel"};
     MenuNode imu_gyro_{"IMU Gyros"};
+    MenuNode imu_gyro_angle_{"IMU Gyros Angle"};
 
     MenuNode motor_l_{"Motor Left"};
     MenuNode motor_r_{"Motor Right"};

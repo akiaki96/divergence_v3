@@ -24,4 +24,7 @@ private:
 
     bool isOnSelected_ = false;
     bool isOnEnter_ = false;
+
+    MenuAction onSelected_ = nullptr;
+    MenuAction onEnter_ = nullptr;
 };
