@@ -3,9 +3,6 @@
 #include "device/device_instance.hpp"
 #include "config/mouse_config.hpp"
 
-// std::array<MenuAction, 32> menuActionBuff;
-// boost::circular_buffer<MenuAction> menuActionDeque(menuActionBuff.size(), menuActionBuff.data(), menuActionBuff.data() + menuActionBuff.size());
-
 MenuInputController::MenuInputController(MenuController& menuController)
     : controller_(menuController)
 {

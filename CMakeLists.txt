@@ -67,7 +67,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Inc
-    ${CMAKE_SOURCE_DIR}/external/boost
 )
 
 # Add project symbols (macros)
