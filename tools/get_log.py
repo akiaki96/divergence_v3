@@ -11,7 +11,8 @@ ser = serial.Serial("/dev/tty.usbmodem1103", 921600, timeout=5)
 # BIN_START待ち
 # =========================
 while True:
-    line = ser.readline().decode().strip()
+    line = ser.readline().decode().rstrip("\r\n")
+    # line = ser.readline().decode().strip()
     if not line:
         continue
     print("MCU:", line)

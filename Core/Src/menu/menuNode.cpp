@@ -13,7 +13,7 @@ MenuNode::MenuNode(const char* name, MenuAction onSelected, MenuAction onEnter)
 
 void MenuNode::tree(uint8_t indent) const {
     for (uint8_t i = 0; i < indent; ++i) {
-        LOG("  \r");
+        LOG("  ");
     }
     LOG("-%s\r\n", name_);
     for (uint8_t i = 0; i < childCount_; ++i) {
