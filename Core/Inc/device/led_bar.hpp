@@ -18,8 +18,8 @@ enum LedBarValMode {
 
 class LedBar16 {
 public:
-  void set(uint16_t pattern);
-  void set(uint16_t val, LedBarDotMode mode);
+  void set(const uint16_t pattern);
+  void set(const uint16_t val, const LedBarDotMode mode);
   void set(const float val, const LedBarValMode mode, const float maxabs);
   void setBit(uint8_t index, bool on);
   void clear();

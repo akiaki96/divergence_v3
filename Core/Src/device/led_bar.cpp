@@ -1,5 +1,6 @@
 #include "device/led_bar.hpp"
 #include "gpio.h"
+#include <cstdio>
 
 uint32_t bit_reverse(uint32_t b) {
    b = (b & 0xffff0000) >> 16 | (b & 0x0000ffff) << 16;
@@ -17,13 +18,14 @@ uint8_t bit_reverse(uint8_t b) {
    return b;
 }
 
-void LedBar16::set(uint16_t pattern) {
+void LedBar16::set(const uint16_t pattern) {
   pattern_ = pattern;
+  printf("%d: pattern\r\n", pattern);
   apply();
 }
 
-void LedBar16::set(uint16_t val, LedBarDotMode mode) {
-    switch (val) {
+void LedBar16::set(const uint16_t val, const LedBarDotMode mode) {
+    switch (mode) {
         case LedBarDotMode::normal:
         set(val);
         break;
