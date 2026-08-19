@@ -24,14 +24,14 @@ void MenuInputController::syncUpdate() {
     if (encoderDistance_ > config::mode_selector::ENC_THRESH) { // next
         encoderDistance_ = 0.f;
         motorRight.setDuty(-config::mode_selector::KORIKORI);
-        ledBar16.set(1<<(controller_.index()));
+        ledBar16.set(controller_.index(), LedBarDotMode::dot8);
         controller_.next();
         isOnSelected_ = true;
         lock(10);
     } else if (encoderDistance_ < -config::mode_selector::ENC_THRESH) { // prev
         encoderDistance_ = 0.f;
         motorRight.setDuty(config::mode_selector::KORIKORI);
-        ledBar16.set(1<<(controller_.index()));
+        ledBar16.set(controller_.index(), LedBarDotMode::dot8);
         controller_.prev();
         isOnSelected_ = true;
         lock(10);
