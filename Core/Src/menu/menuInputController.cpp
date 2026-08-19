@@ -25,6 +25,7 @@ void MenuInputController::syncUpdate() {
         encoderDistance_ = 0.f;
         motorRight.setDuty(-config::mode_selector::KORIKORI);
         controller_.next();
+        nowOnSelected = controller_.currentMenuNode()->onSelected();
         ledBar16.set(controller_.index(), LedBarDotMode::dot8);
         isOnSelected_ = true;
         lock(10);
@@ -33,10 +34,12 @@ void MenuInputController::syncUpdate() {
         motorRight.setDuty(config::mode_selector::KORIKORI);
         controller_.prev();
         ledBar16.set(controller_.index(), LedBarDotMode::dot8);
+        nowOnSelected = controller_.currentMenuNode()->onSelected();
         isOnSelected_ = true;
         lock(10);
     } else if (adcValue.irFL.filtered_ < config::mode_selector::IR_THRESH && adcValue.irFR.filtered_ > config::mode_selector::IR_THRESH) { // enter
         ledBar16.set(0x000F);
+        nowOnEntered = controller_.currentMenuNode()->onEnter();
         controller_.enter();
         isOnEnter_ = true;
         lock(300);
@@ -53,24 +56,26 @@ void MenuInputController::asyncUpdate() {
             controller_.currentInfo();
 
             lock_ = true;
-            if (controller_.currentMenuNode()->child(controller_.index())->onSelected() != nullptr) {
-                controller_.currentMenuNode()->child(controller_.index())->onSelected()();
+            if (nowOnSelected != nullptr) {
+                nowOnSelected();
             } else {
                 LOG("on selected nullptr!!\r\n");
             }
             isOnSelected_ = false;
+            nowOnSelected = nullptr;
             lock_ = false;
         }
         if (isOnEnter_) {
             controller_.currentInfo();
 
             lock_ = true;
-            if (controller_.currentMenuNode()->child(controller_.index())->onEnter() != nullptr) {
-                controller_.currentMenuNode()->child(controller_.index())->onEnter()();
+            if (nowOnEntered != nullptr) {
+                nowOnEntered();
             } else {
                 LOG("on enter nullptr!!\r\n");
             }
             isOnEnter_ = false;
+            nowOnEntered = nullptr;
             lock_ = false;
         }
 
