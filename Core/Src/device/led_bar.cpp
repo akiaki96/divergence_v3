@@ -20,7 +20,6 @@ uint8_t bit_reverse(uint8_t b) {
 
 void LedBar16::set(const uint16_t pattern) {
   pattern_ = pattern;
-  printf("%d: pattern\r\n", pattern);
   apply();
 }
 
