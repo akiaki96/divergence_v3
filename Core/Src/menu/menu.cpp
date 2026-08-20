@@ -1,6 +1,7 @@
 #include "menu/menu.hpp"
 #include "common/debug.hpp"
 #include "device/device_instance.hpp"
+#include "device/device_test.hpp"
 
 Menu::Menu() {
     buildTree();
@@ -38,21 +39,6 @@ onselect(imu,
     ledManager.setall(false, false, false, false, true, false);
 )
 
-onenter(imu_acc, 
-    while (true) {
-        LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.accelX(), imu.accelY(), imu.accelZ());
-        ledBar16.set(imu.accelZ(), pmbit8, 10.f);
-    }
-)
-
-onenter(imu_gyro, 
-    while (true) {
-        LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());
-        ledBar16.set(imu.gyroAngleZ(), pmlinear8, 360.f);
-    }
-)
-
-
 
 void Menu::setFunction() {
     run_.setOnSelected(run_onselect);
@@ -64,4 +50,6 @@ void Menu::setFunction() {
 
     imu_acc_.setOnEnter(imu_acc_onenter);
     imu_gyro_.setOnEnter(imu_gyro_onenter);
+    encoder_l_.setOnEnter(encoder_left_onenter);
+    encoder_r_.setOnEnter(encoder_right_onenter);
 }
