@@ -9,9 +9,10 @@ Menu::Menu() {
 }
 
 void Menu::buildTree() {
-    root_.setChildren(std::array{&run_, &device_});
+    root_.setChildren(std::array{&run_, &device_, &log_test_});
 
     device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
+    log_test_.setChildren(std::array{&log_wait_, &log_dump_});
 
     ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
     encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
@@ -39,8 +40,13 @@ onselect(imu,
     ledManager.setall(false, false, false, false, true, false);
 )
 
+onenter(log_dump, 
+    logger.dump();
+)
 
 void Menu::setFunction() {
+    // log_dump_.setOnEnter(log_dump_onenter);
+
     run_.setOnSelected(run_onselect);
     device_.setOnSelected(device_onselect);
 

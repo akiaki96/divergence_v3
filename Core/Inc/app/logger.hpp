@@ -17,6 +17,7 @@ public:
     static constexpr uint32_t MAX_FIELDS = 16;
     static constexpr uint32_t MAX_BUFFER_SIZE = 8 * 3000;
 
+    void initLoggedVal(void);
     bool add(const char* name, const float* value);
 
     void start(void);
@@ -44,38 +45,4 @@ private:
     bool isFull_ = false;
 
     LoggerState state_ = LoggerState::Idle;
-};
-
-struct LogRecord {
-    float time;
-
-    float battery;
-
-    float dutyL;
-    float dutyR;
-
-    float encoderL;
-    float encoderR;
-
-    float gyroZ;
-};
-
-class OldLogger {
-public:
-    void start();
-    void stop();
-
-    void update();
-    void dump();
-
-private:
-    static constexpr uint16_t MAX_ROWS = 2500;
-
-    LogRecord buffer_[MAX_ROWS];
-
-    uint16_t writeIndex_ = 0;
-
-    bool recording_ = false;
-    bool full_ = false;
-    uint16_t timestamp_ms_ = 0;
 };

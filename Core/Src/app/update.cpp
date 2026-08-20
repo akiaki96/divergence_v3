@@ -13,7 +13,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     
         imu.update();
 
-        logger.update();
+        logger.sample();
 
         menuInputController.syncUpdate();
     }

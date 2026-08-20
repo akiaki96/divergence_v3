@@ -29,3 +29,18 @@ onenter(encoder_left,
     }
 )
 
+
+onenter(log_wait, 
+    logger.initLoggedVal();
+    // logger.add("right_encoder_velocity", encoderRight.velocity());
+    // logger.add("left_encoder_velocity", encoderLeft.velocity());
+    float temp = 100.f;
+    logger.add("temp", &temp);
+
+    ledBar16.set(0xFFFF);
+    HAL_Delay(1000);
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(2000);
+    
+)

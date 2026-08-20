@@ -15,7 +15,7 @@ void MenuNode::tree(uint8_t indent) const {
     for (uint8_t i = 0; i < indent; ++i) {
         LOG("  \r");
     }
-    LOG("-%s\r\n", name_);
+    LOG("- %1d:%s\r\n", childCount_, name_);
     for (uint8_t i = 0; i < childCount_; ++i) {
         children_[i]->tree(indent + 1);
     }
