@@ -1,7 +1,10 @@
+from datetime import datetime
+
 from serial_receiver import SerialReceiver
 from parser import LogParser
 from realtime_plot import RealtimePlot
 from data_logger import CSVLogger
+from get_log import Saver
 
 
 receiver = SerialReceiver(
@@ -30,16 +33,19 @@ while True:
             "log.csv",
             headers
         )
-        received_size = 0
-        while received_size <= expected_size:
-            binary = receiver.read_bytes(FLOAT*len(headers))
-            if not binary:
-                break
-            received_size += FLOAT*len(binary)
-            rows = parser.parse(binary)
-            for row in rows:
-                logger.write(row)
-        logger.close()
+
+        binary = receiver.read_bytes(expected_size)
+        print("Actually revieved:", len(binary))
+
+        end_line = receiver.read_line()
+        if end_line != "BIN_END":
+            print("Warning: BIN_END not received correctly")
+
+        data = parser.parse(binary)
+        rows = (expected_size//4) // len(headers)
+        
+        saver = Saver()
+        filename = saver.save_to_csv(data, headers, rows)
 
     else:
         if line == "":

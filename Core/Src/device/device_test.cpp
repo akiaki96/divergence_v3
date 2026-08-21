@@ -47,6 +47,9 @@ onenter(log_wait,
     HAL_Delay(1000);
     ledBar16.set(0x0000);
     logger.start();
-    HAL_Delay(2000);
-    
+    HAL_Delay(1000);
+    logger.stop();
+
+    printf("%d, %d, %d\r\n", logger.dataSize(), logger.fieldCount(), logger.sampleCount());
+
 )

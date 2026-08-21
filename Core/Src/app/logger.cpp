@@ -5,6 +5,8 @@
 void Logger::initLoggedVal(void) {
     fieldCount_ = 0;
     maxSamples_ = MAX_BUFFER_SIZE;
+    isRecording_ = false;
+    isFull_ = false;
     add("Global_time", &globalTime);
     state_ = LoggerState::Idle;
 }
@@ -25,6 +27,8 @@ bool Logger::add(const char* name, const float* value) {
     };
     ++fieldCount_;
     maxSamples_ = MAX_BUFFER_SIZE / fieldCount_;
+    isRecording_ = false;
+    isFull_ = false;
     state_ = LoggerState::Idle;
 
     return true;
@@ -46,6 +50,8 @@ bool Logger::add(const char* name, Getter getter) {
     };
     ++fieldCount_;
     maxSamples_ = MAX_BUFFER_SIZE / fieldCount_;
+    isRecording_ = false;
+    isFull_ = false;
     state_ = LoggerState::Idle;
 
     return true;
@@ -53,14 +59,19 @@ bool Logger::add(const char* name, Getter getter) {
 
 void Logger::start(void) {
     sampleCount_ = 0;
+    isRecording_ = true;
+    isFull_ = false;
     state_ = LoggerState::Recording;
 }
 
 void Logger::stop(void) {
+    isRecording_ = false;
     state_ = LoggerState::Stopped;
 }
 
 void Logger::clear(void) {
+    isRecording_ = false;
+    isFull_ = false;
     state_ = LoggerState::Stopped;
     sampleCount_ = 0;
 }
@@ -71,6 +82,7 @@ void Logger::sample(void) {
     }
 
     if (sampleCount_ >= maxSamples_) {
+        isFull_ = true;
         stop();
         return;
     }
@@ -89,13 +101,16 @@ void Logger::sample(void) {
 }
 
 void Logger::dump() {
-    if (state_ == LoggerState::Idle) {
+    // Only a Stopped buffer is safe to transmit: dumping while
+    // Recording would race with the sampling ISR still writing into
+    // buffer_/sampleCount_ mid-transfer, tearing the sent data.
+    if (state_ != LoggerState::Stopped) {
         printf("no data to send!\r\n");
         return;
     }
 
     printf("BIN_START\r\n");
-    printf("SIZE:%u\r\n", static_cast<uint32_t>(dataSize()));
+    printf("SIZE:%lu\r\n", static_cast<uint32_t>(dataSize()));
     for (uint32_t i = 0; i < fieldCount_; ++i) {
         if (i > 0) {
             printf(",");

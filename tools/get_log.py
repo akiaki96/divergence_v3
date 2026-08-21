@@ -88,3 +88,26 @@ with open(filename, "w", newline="") as f:
 print("Saved:", filename)
 
 plot_csv(filename)
+
+
+class Saver:
+    def __init__(self):
+        pass
+
+    def save_to_csv(self, data, headers, rows):
+        # =========================
+        # CSV保存（年月日時刻入り）
+        # =========================
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"micromouse/divergence_v3/tools/log/log_{timestamp}.csv"
+        with open(filename, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(headers)
+
+            for i in range(rows):
+                start = i * len(headers)
+                end = start + len(headers)
+                writer.writerow(data[start:end])
+
+        print("Saved:", filename)
+        return filename
