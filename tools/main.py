@@ -11,6 +11,8 @@ receiver = SerialReceiver(
 
 
 while (line := receiver.read_line()) != "BIN_START":
+# while True:
+    # line = receiver.read_line()
     if line == "":
         continue
     print(line)
@@ -30,13 +32,14 @@ headers = [
     if h
 ]
 
+print(headers)
 
 parser = LogParser(headers)
 
 
-plot = RealtimePlot(
-    "velocity"
-)
+# plot = RealtimePlot(
+#     "velocity"
+# )
 
 
 logger = CSVLogger(
@@ -57,4 +60,4 @@ while True:
 
         logger.write(row)
 
-        plot.update(row)
+        # plot.update(row)

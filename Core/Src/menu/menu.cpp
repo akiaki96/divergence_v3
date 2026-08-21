@@ -45,7 +45,8 @@ onenter(log_dump,
 )
 
 void Menu::setFunction() {
-    // log_dump_.setOnEnter(log_dump_onenter);
+    log_dump_.setOnEnter(log_dump_onenter);
+    log_wait_.setOnEnter(log_wait_onenter);
 
     run_.setOnSelected(run_onselect);
     device_.setOnSelected(device_onselect);

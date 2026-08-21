@@ -38,8 +38,10 @@ onenter(log_wait,
         "left_encoder_velocity",
         etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderLeft)
     );
-    float temp = 100.f;
-    logger.add("temp", &temp);
+    logger.add(
+        "right_encoder_velocity",
+        etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderRight)
+    );
 
     ledBar16.set(0xFFFF);
     HAL_Delay(1000);

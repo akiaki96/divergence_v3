@@ -43,6 +43,10 @@ void MenuInputController::syncUpdate() {
         controller_.enter();
         isOnEnter_ = true;
         lock(300);
+    } else if (adcValue.irFL.filtered_ > config::mode_selector::IR_THRESH && adcValue.irFR.filtered_ < config::mode_selector::IR_THRESH) { // back
+        ledBar16.set(0xF000);
+        controller_.back();
+        lock(300);
     }
 }
 

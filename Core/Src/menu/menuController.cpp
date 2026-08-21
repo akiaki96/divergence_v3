@@ -4,11 +4,19 @@
 MenuController::MenuController() {}
 
 void MenuController::next() {
-    index_ = (index_ + 1) % currentMenuNode_->childCount();
+    if (currentMenuNode_->childCount() == 0) {
+        index_ = 0;
+    } else {
+        index_ = (index_ + 1) % currentMenuNode_->childCount();
+    }
 }
 
 void MenuController::prev() {
-    index_ = (index_ + currentMenuNode_->childCount() - 1) % currentMenuNode_->childCount();
+    if (currentMenuNode_->childCount() == 0) {
+        index_ = 0;
+    } else {
+        index_ = (index_ + currentMenuNode_->childCount() - 1) % currentMenuNode_->childCount();
+    }
 }
 
 void MenuController::enter() {
