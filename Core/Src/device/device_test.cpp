@@ -34,6 +34,10 @@ onenter(log_wait,
     logger.initLoggedVal();
     // logger.add("right_encoder_velocity", encoderRight.velocity());
     // logger.add("left_encoder_velocity", encoderLeft.velocity());
+    logger.add(
+        "left_encoder_velocity",
+        etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderLeft)
+    );
     float temp = 100.f;
     logger.add("temp", &temp);
 

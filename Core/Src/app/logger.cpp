@@ -20,6 +20,28 @@ bool Logger::add(const char* name, const float* value) {
     fields_[fieldCount_] = {
         .name = name,
         .value = value,
+        .getter = {},
+    };
+    ++fieldCount_;
+    maxSamples_ = MAX_BUFFER_SIZE / fieldCount_;
+    state_ = LoggerState::Idle;
+
+    return true;
+}
+
+bool Logger::add(const char* name, Getter getter) {
+    if (fieldCount_ >= MAX_FIELDS) {
+        return false;
+    }
+
+    if (name == nullptr || !getter.is_valid()) {
+        return false;
+    }
+
+    fields_[fieldCount_] = {
+        .name = name,
+        .value = nullptr,
+        .getter = getter,
     };
     ++fieldCount_;
     maxSamples_ = MAX_BUFFER_SIZE / fieldCount_;
@@ -48,14 +70,19 @@ void Logger::sample(void) {
     }
 
     if (sampleCount_ >= maxSamples_) {
-        state_ = LoggerState::Stopped;
+        stop();
         return;
     }
 
     const uint32_t offset = sampleCount_ * fieldCount_;
     for (uint32_t i = 0; i < fieldCount_; ++i) {
         const Filed& field = fields_[i];
-        buffer_[offset + i] = *field.value;
+        
+        if (field.value != nullptr) {
+            buffer_[offset + i] = *field.value;
+        } else {
+            buffer_[offset + i] = field.getter();
+        }
     }
     ++sampleCount_;
 }

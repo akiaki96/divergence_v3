@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <etl/delegate.h>
 
 enum class LoggerState {
     Idle,
@@ -10,15 +11,19 @@ enum class LoggerState {
 
 class Logger {
 public:
+    using Getter = etl::delegate<float()>;
+
     struct Filed {
         const char* name;
         const float* value;
+        Getter getter;
     };
     static constexpr uint32_t MAX_FIELDS = 16;
     static constexpr uint32_t MAX_BUFFER_SIZE = 8 * 3000;
 
     void initLoggedVal(void);
     bool add(const char* name, const float* value);
+    bool add(const char* name, Getter getter);
 
     void start(void);
     void stop(void);
