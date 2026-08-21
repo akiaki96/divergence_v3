@@ -22,6 +22,7 @@ void MenuController::enter() {
 
     ++depth_;
     currentMenuNode_ = currentMenuNode_->child(index_);
+    index_ = 0;
 }
 
 void MenuController::back() {
@@ -33,6 +34,7 @@ void MenuController::back() {
 
     --depth_;
     currentMenuNode_ = currentMenuNode_->parent();
+    index_ = 0;
 }
 
 void MenuController::setChild(uint8_t index) {
