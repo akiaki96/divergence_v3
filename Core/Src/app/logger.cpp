@@ -5,6 +5,7 @@
 void Logger::initLoggedVal(void) {
     fieldCount_ = 0;
     maxSamples_ = MAX_BUFFER_SIZE;
+    add("Global_time", &globalTime);
     state_ = LoggerState::Idle;
 }
 

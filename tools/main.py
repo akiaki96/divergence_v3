@@ -9,55 +9,39 @@ receiver = SerialReceiver(
     921600
 )
 
-
-while (line := receiver.read_line()) != "BIN_START":
-# while True:
-    # line = receiver.read_line()
-    if line == "":
-        continue
-    print(line)
-
-
-size_line = receiver.read_line()
-
-size = int(
-    size_line.split(":")[1]
-)
-
-
-header_line = receiver.read_line()
-
-headers = [
-    h for h in header_line.split(",")
-    if h
-]
-
-print(headers)
-
-parser = LogParser(headers)
-
-
-# plot = RealtimePlot(
-#     "velocity"
-# )
-
-
-logger = CSVLogger(
-    "log.csv",
-    headers
-)
-
+FLOAT = 4
 
 while True:
+    line = receiver.read_line()
 
-    binary = receiver.read_bytes(4*len(headers))
+    if line == "BIN_START":
+        size_line = receiver.read_line()
+        expected_size = int(
+            size_line.split(":")[1]
+        )
+        header_line = receiver.read_line()
+        headers = [
+            h for h in header_line.split(",")
+            if h
+        ]
+        print(headers)
+        parser = LogParser(headers)
+        logger = CSVLogger(
+            "log.csv",
+            headers
+        )
+        received_size = 0
+        while received_size <= expected_size:
+            binary = receiver.read_bytes(FLOAT*len(headers))
+            if not binary:
+                break
+            received_size += FLOAT*len(binary)
+            rows = parser.parse(binary)
+            for row in rows:
+                logger.write(row)
+        logger.close()
 
-
-    rows = parser.parse(binary)
-
-
-    for row in rows:
-
-        logger.write(row)
-
-        # plot.update(row)
+    else:
+        if line == "":
+            continue
+        print(line)

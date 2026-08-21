@@ -1,6 +1,8 @@
 #include "device/device_instance.hpp"
 #include "tim.h"
 
+float globalTime = 0.f; // sec
+
 Encoder encoderLeft(&htim8, Direction::Normal);
 Encoder encoderRight(&htim4, Direction::Reversed);
 

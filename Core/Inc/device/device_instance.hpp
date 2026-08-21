@@ -8,6 +8,8 @@
 #include "device/motorDriver.hpp"
 #include "app/logger.hpp"
 
+extern float globalTime;
+
 extern Encoder encoderLeft;
 extern Encoder encoderRight;
 

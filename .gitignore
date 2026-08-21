@@ -11,3 +11,4 @@ tools/__pycache__/
 .cache/
 .envrc
 >>>>>>> ser_py
+log.csv

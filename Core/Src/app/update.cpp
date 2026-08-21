@@ -4,6 +4,7 @@
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim6) {
+        globalTime += config::control::DT_S;
         
         ledBar16.update();
         adcValue.update();
