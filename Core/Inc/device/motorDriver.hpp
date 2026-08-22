@@ -2,6 +2,11 @@
 
 #include "device/motor.hpp"
 
+enum MotorDriverState {
+    setDuty,
+    lampDuty,
+};
+
 class MotorDriver {
 public:
     MotorDriver(Motor& left, Motor& right);
@@ -21,8 +26,15 @@ public:
         motorRight_.setBreak();
     }
 
+    float getLeftDuty(void) const;
+    float getRightDuty(void) const;
+    void setLampGrad(float lamp);
+
+    MotorDriverState state = MotorDriverState::setDuty;
 private:
     Motor& motorLeft_;
     Motor& motorRight_;
 
+
+    float lamp_grad_ = 0.f;
 };

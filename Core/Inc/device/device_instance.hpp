@@ -22,6 +22,6 @@ extern AdcValue adcValue;
 
 extern Motor motorLeft;
 extern Motor motorRight;
-extern MotorDriver motor;
+extern MotorDriver motorDriver;
 
 extern Logger logger;

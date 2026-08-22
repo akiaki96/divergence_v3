@@ -1,5 +1,6 @@
 #include "device/motor.hpp"
 #include "config/mouse_config.hpp"
+#include <cmath>
 #include <cstdlib>
 
 Motor::Motor(
@@ -24,7 +25,7 @@ Motor::Motor(
 /* |duty| < 1.0f */
 void Motor::setDuty(float duty)
 {
-    duty_ = duty;
+    duty_ = fmaxf(fminf(duty, config::motor::MAX_DUTY), -config::motor::MAX_DUTY);
     
     /* |pwm| < config::motor::MAX_PWM */
     uint16_t pwm = static_cast<uint16_t>(std::abs(duty) * config::motor::MAX_PWM);

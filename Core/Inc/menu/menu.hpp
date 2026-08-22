@@ -1,6 +1,7 @@
 #pragma once
 
 #include "menu/menuNode.hpp"
+#include "config/node_func_maker.hpp"
 
 class Menu {
 public:
@@ -39,6 +40,7 @@ private:
             MenuNode motor_r_{"Motor Right"};
             MenuNode motor_sysid_step_{"Motor sysid step"};
             MenuNode motor_sysid_lamp_{"Motor sysid Lamp"};
+                MenuNode lamp_001sec_{"lamp 0.01/sec"};
         MenuNode fan_{"Fan"};
         MenuNode ir_{"IR"};
             MenuNode ir_r_{"IR Right"};
@@ -49,14 +51,3 @@ private:
         MenuNode led_{"LED"};
 
 };
-
-
-#define onselect(nodeName, func)  \
-void nodeName##_onselect() { \
-    func \
-}
-
-#define onenter(nodeName, func) \
-void nodeName##_onenter() { \
-    func \
-}

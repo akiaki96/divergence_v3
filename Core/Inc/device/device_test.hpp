@@ -1,16 +1,7 @@
 #pragma once
 
 #include "device/device_instance.hpp"
-
-#define onselect(nodeName, func)  \
-void nodeName##_onselect() { \
-    func \
-}
-
-#define onenter(nodeName, func) \
-void nodeName##_onenter() { \
-    func \
-}
+#include "config/node_func_maker.hpp"
 
 void log_wait_onenter();
 

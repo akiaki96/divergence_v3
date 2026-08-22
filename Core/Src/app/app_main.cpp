@@ -17,10 +17,10 @@ void app_init() {
     encoderLeft.init();
     encoderRight.init();
 
-    motor.enable();
+    motorDriver.enable();
 
     imu.init();
-    motor.init();
+    motorDriver.init();
 
 }
 

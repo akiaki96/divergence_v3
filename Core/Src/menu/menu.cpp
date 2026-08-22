@@ -2,6 +2,7 @@
 #include "common/debug.hpp"
 #include "device/device_instance.hpp"
 #include "device/device_test.hpp"
+#include "test/motor_id.hpp"
 
 Menu::Menu() {
     buildTree();
@@ -11,14 +12,14 @@ Menu::Menu() {
 void Menu::buildTree() {
     root_.setChildren(std::array{&run_, &device_, &log_test_});
 
-    device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
-    log_test_.setChildren(std::array{&log_wait_, &log_dump_});
+        device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
+            ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
+            encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
+            imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
+            motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_sysid_lamp_, &motor_sysid_step_});
+                motor_sysid_lamp_.setChildren(std::array{&lamp_001sec_});
+        log_test_.setChildren(std::array{&log_wait_, &log_dump_});
 
-    ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
-    encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
-    // imu_.setChildren(std::array{&imu_acc_, &imu_gyro_});
-    imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
-    motor_.setChildren(std::array{&motor_r_, &motor_l_});
     
     root_.setParentRec();
     root_.setParent(&root_);
@@ -59,4 +60,6 @@ void Menu::setFunction() {
     imu_gyro_.setOnEnter(imu_gyro_onenter);
     encoder_l_.setOnEnter(encoder_left_onenter);
     encoder_r_.setOnEnter(encoder_right_onenter);
+
+    lamp_001sec_.setOnEnter(lamp_001sec_onenter);
 }

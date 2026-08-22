@@ -3,7 +3,7 @@
 
 class Battery {
 public:
-    uint16_t filtered() const { return filtered_; }
+    float filtered() const { return filtered_; }
     uint16_t raw_;
-    uint16_t filtered_;
+    float filtered_;
 };
