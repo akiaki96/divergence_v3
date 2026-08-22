@@ -18,10 +18,12 @@ public:
     void disable();
 
     void setDuty(float left, float right) {
+        state = MotorDriverState::setDuty;
         motorLeft_.setDuty(left);
         motorRight_.setDuty(right);
     }
     void setBreak() {
+        state = MotorDriverState::setDuty;
         motorLeft_.setBreak();
         motorRight_.setBreak();
     }

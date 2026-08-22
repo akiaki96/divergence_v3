@@ -38,9 +38,11 @@ private:
         MenuNode motor_{"Motor"};
             MenuNode motor_l_{"Motor Left"};
             MenuNode motor_r_{"Motor Right"};
+                MenuNode right_050_{"Motor Right 0.5"};
             MenuNode motor_sysid_step_{"Motor sysid step"};
             MenuNode motor_sysid_lamp_{"Motor sysid Lamp"};
                 MenuNode lamp_001sec_{"lamp 0.01/sec"};
+                MenuNode lamp_010sec_{"lamp 0.10/sec"};
         MenuNode fan_{"Fan"};
         MenuNode ir_{"IR"};
             MenuNode ir_r_{"IR Right"};

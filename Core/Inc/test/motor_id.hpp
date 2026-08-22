@@ -3,4 +3,6 @@
 #include "device/device_instance.hpp"
 #include "config/node_func_maker.hpp"
 
+void right_set050_onenter();
 void lamp_001sec_onenter();
+void lamp_010sec_onenter();
