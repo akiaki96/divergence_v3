@@ -3,6 +3,7 @@
 #include "device/motor.hpp"
 
 enum MotorDriverState {
+    modeSelecting,
     setDuty,
     lampDuty,
 };

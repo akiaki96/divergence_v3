@@ -14,7 +14,9 @@ void MenuInputController::syncUpdate() {
         return;
     }
 
-    motorRight.setDuty(0.f);
+    if (motorDriver.state == MotorDriverState::modeSelecting) {
+        motorRight.setDuty(0.f);
+    }
     if (lock_) {
         return;
     }
@@ -68,6 +70,7 @@ void MenuInputController::asyncUpdate() {
             isOnSelected_ = false;
             nowOnSelected = nullptr;
             lock_ = false;
+            motorDriver.state = MotorDriverState::modeSelecting;
         }
         if (isOnEnter_) {
             controller_.currentInfo();
@@ -81,8 +84,7 @@ void MenuInputController::asyncUpdate() {
             isOnEnter_ = false;
             nowOnEntered = nullptr;
             lock_ = false;
+            motorDriver.state = MotorDriverState::modeSelecting;
         }
-
-        // LOG("ENC_DIST: %2f, LOCK:%d\r\n", encoderDistance_, lockUntil_);
     }
 }

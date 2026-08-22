@@ -35,11 +35,11 @@ onenter(right_set050,
     ledBar16.set(0x0000);
     logger.start();
     HAL_Delay(100);
-    motorDriver.setDuty(0.f, 1.f);
-    HAL_Delay(200);
-    logger.stop();
+    motorDriver.setDuty(0.f, 0.5f);
+    HAL_Delay(1000);
     motorDriver.setBreak();
     HAL_Delay(500);
+    logger.stop();
     ledBar16.set(0xFFFF);
 )
 

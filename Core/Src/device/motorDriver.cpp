@@ -46,5 +46,8 @@ void MotorDriver::update() {
                 getRightDuty() + lamp_grad_*config::control::DT_S
             );
         break;
+
+        case MotorDriverState::modeSelecting:
+        break;
     }
 }
