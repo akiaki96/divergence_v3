@@ -5,10 +5,10 @@ latex
 tools/myenv/
 log/
 tools/__pycache__/
-<<<<<<< HEAD
-.cache/
-=======
 .cache/
 .envrc
->>>>>>> ser_py
 log.csv
+
+# matlab
+*.sid
+data_analysis/

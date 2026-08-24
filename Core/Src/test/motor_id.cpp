@@ -43,7 +43,7 @@ onenter(right_set050,
     ledBar16.set(0xFFFF);
 )
 
-onenter(lamp_001sec, 
+void lamp_tester(float lamp) {
     id_init_log();
     HAL_Delay(500);
 
@@ -53,28 +53,30 @@ onenter(lamp_001sec,
     ledBar16.set(0x0000);
     logger.start();
     HAL_Delay(100);
-    motorDriver.setLampGrad(0.01f);
+    motorDriver.setLampGrad(lamp);
     HAL_Delay(1000);
-    logger.stop();
     motorDriver.setBreak();
     HAL_Delay(500);
+    logger.stop();
     ledBar16.set(0xFFFF);
+}
+
+onenter(lamp_005sec, 
+    lamp_tester(0.05);
 )
 
 onenter(lamp_010sec, 
-    id_init_log();
-    HAL_Delay(500);
+    lamp_tester(0.1);
+)
 
-    motorDriver.state = MotorDriverState::lampDuty;
-    motorDriver.setLampGrad(0.f);
+onenter(lamp_030sec, 
+    lamp_tester(0.3);
+)
 
-    ledBar16.set(0x0000);
-    logger.start();
-    HAL_Delay(100);
-    motorDriver.setLampGrad(1.0f);
-    HAL_Delay(1000);
-    logger.stop();
-    motorDriver.setBreak();
-    HAL_Delay(500);
-    ledBar16.set(0xFFFF);
+onenter(lamp_050sec, 
+    lamp_tester(0.5);
+)
+
+onenter(lamp_070sec, 
+    lamp_tester(0.7);
 )

@@ -18,7 +18,7 @@ void Menu::buildTree() {
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_sysid_lamp_, &motor_sysid_step_});
                 motor_r_.setChildren(std::array{&right_050_});
-                motor_sysid_lamp_.setChildren(std::array{&lamp_001sec_, &lamp_010sec_, &log_dump_});
+                motor_sysid_lamp_.setChildren(std::array{&lamp_005sec_, &lamp_010sec_, &lamp_030sec_, &lamp_050sec_, &lamp_070sec_, &log_dump_});
         log_test_.setChildren(std::array{&log_wait_, &log_dump_});
 
     
@@ -63,6 +63,9 @@ void Menu::setFunction() {
     encoder_r_.setOnEnter(encoder_right_onenter);
 
     right_050_.setOnEnter(right_set050_onenter);
-    lamp_001sec_.setOnEnter(lamp_001sec_onenter);
+    lamp_005sec_.setOnEnter(lamp_005sec_onenter);
     lamp_010sec_.setOnEnter(lamp_010sec_onenter);
+    lamp_030sec_.setOnEnter(lamp_030sec_onenter);
+    lamp_050sec_.setOnEnter(lamp_050sec_onenter);
+    lamp_070sec_.setOnEnter(lamp_070sec_onenter);
 }
