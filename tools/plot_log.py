@@ -3,6 +3,7 @@ from matplotlib.widgets import CheckButtons
 import csv
 
 
+# in: filename(str, save_to_csv()が保存したCSVパス) / out: なし（グラフウィンドウを表示）
 def plot_csv(filename):
     with open(filename, newline="") as f:
         reader = csv.reader(f)

@@ -6,6 +6,7 @@ from collections import deque
 class RealtimePlot:
 
 
+    # in: channel(str, dataの中でプロットするキー名) / out: なし
     def __init__(self, channel):
 
         self.channel = channel
@@ -20,6 +21,7 @@ class RealtimePlot:
         self.counter = 0
 
 
+    # in: data(dict, 1サンプル分。self.channelキーを持つ) / out: なし（内部バッファに追加）
     def update(self, data):
 
         self.x.append(self.counter)
@@ -28,6 +30,7 @@ class RealtimePlot:
         self.counter += 1
 
 
+    # in: frame(FuncAnimationから渡されるフレーム番号、未使用) / out: 更新した線オブジェクトのtuple
     def animate(self, frame):
 
         self.line.set_data(
@@ -42,6 +45,7 @@ class RealtimePlot:
         return self.line,
 
 
+    # in: なし / out: なし（アニメーションを開始しグラフウィンドウを表示）
     def start(self):
 
         FuncAnimation(

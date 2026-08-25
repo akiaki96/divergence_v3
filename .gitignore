@@ -5,6 +5,7 @@ latex
 tools/myenv/
 log/
 tools/__pycache__/
+*.pyc
 .cache/
 .envrc
 log.csv

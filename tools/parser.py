@@ -3,10 +3,13 @@ import struct
 
 class LogParser:
 
+    # in: headers(list[str]) / out: なし
     def __init__(self, headers):
         self.headers = headers
 
 
+    # in: binary(bytes, リトルエンディアンfloat32の連続データ)
+    # out: list[dict]（1要素=1サンプル、キーはheaders、値はfloat）
     def parse(self, binary):
 
         count = len(binary)//4
