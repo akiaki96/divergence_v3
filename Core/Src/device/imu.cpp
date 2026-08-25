@@ -48,9 +48,9 @@ void Imu::readBurst() {
 }
 
 void Imu::raw2val() {
-	accelX_ = config::imu::ACCEL_X_SIGN * config::imu::G * (accelX_ - accelRefX_) / config::imu::ACCEL_SENSITIVITY;
-	accelY_ = config::imu::ACCEL_X_SIGN * config::imu::G * (accelY_ - accelRefY_) / config::imu::ACCEL_SENSITIVITY;
-	accelZ_ = config::imu::ACCEL_X_SIGN * config::imu::G * (accelZ_ - accelRefZ_) / config::imu::ACCEL_SENSITIVITY;
+	accelX_ = config::imu::ACCEL_X_SIGN * config::imu::G * (accelRawX_ - accelRefX_) / config::imu::ACCEL_SENSITIVITY;
+	accelY_ = config::imu::ACCEL_X_SIGN * config::imu::G * (accelRawY_ - accelRefY_) / config::imu::ACCEL_SENSITIVITY;
+	accelZ_ = config::imu::ACCEL_X_SIGN * config::imu::G * (accelRawZ_ - accelRefZ_) / config::imu::ACCEL_SENSITIVITY;
 
     gyroX_ = (gyroRawX_ - gyroRefX_) / config::imu::GYRO_SENSITIVITY;
     gyroY_ = (gyroRawY_ - gyroRefY_) / config::imu::GYRO_SENSITIVITY;
