@@ -39,8 +39,8 @@ onenter(log_wait,
         etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderLeft)
     );
     logger.add(
-        "right_encoder_velocity",
-        etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderRight)
+        "accel_x",
+        etl::delegate<float()>::create<Imu, &Imu::accelX>(imu)
     );
 
     ledBar16.set(0xFFFF);
@@ -49,6 +49,7 @@ onenter(log_wait,
     logger.start();
     HAL_Delay(1000);
     logger.stop();
+    ledBar16.set(0xFFFF);
 
     printf("%d, %d, %d\r\n", logger.dataSize(), logger.fieldCount(), logger.sampleCount());
 
