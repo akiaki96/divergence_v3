@@ -8,6 +8,7 @@
 
 ```
 "BIN_START"\r\n
+<dirName>\r\n
 "SIZE:<バイト数>"\r\n
 "<header1>,<header2>,...,<headerN>,"\r\n
 <バイナリデータ本体>  (SIZEバイト、ヘッダー行の直後から連続送信)

@@ -22,6 +22,7 @@ public:
     static constexpr uint32_t MAX_BUFFER_SIZE = 8 * 3000;
 
     void initLoggedVal(void);
+    void setDirName(const char* name);
     bool add(const char* name, const float* value);
     bool add(const char* name, Getter getter);
 
@@ -38,6 +39,8 @@ public:
 
     bool isRecording(void) const;
     bool isFull(void) const;
+
+    const char* dirName;
 
 private:
     Filed fields_[MAX_FIELDS];

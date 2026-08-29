@@ -29,6 +29,8 @@ while True:
     line = receiver.read_line()
 
     if line == "BIN_START":
+        # receiver.read_line() -> "DIR:<ディレクトリ名>"(str)
+        dirName = receiver.read_line()
         # receiver.read_line() -> "SIZE:<バイト数>"(str)
         size_line = receiver.read_line()
         expected_size = int(
@@ -60,7 +62,7 @@ while True:
 
         # saver.save_to_csv(data, headers) -> filename: str（保存先CSVパス）
         saver = Saver()
-        filename = saver.save_to_csv(data, headers)
+        filename = saver.save_to_csv(data, headers, dirName)
 
         # plot_csv(filename:str) -> なし（グラフウィンドウを表示）
         if not args.no_gui:

@@ -32,6 +32,7 @@ onenter(encoder_left,
 
 onenter(log_wait, 
     logger.initLoggedVal();
+    logger.dirName = "log_wait";
     // logger.add("right_encoder_velocity", encoderRight.velocity());
     // logger.add("left_encoder_velocity", encoderLeft.velocity());
     logger.add(

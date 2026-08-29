@@ -9,6 +9,11 @@ void Logger::initLoggedVal(void) {
     isFull_ = false;
     add("Global_time", &globalTime);
     state_ = LoggerState::Idle;
+    dirName = ".";
+}
+
+void Logger::setDirName(const char* name) {
+    dirName = name;
 }
 
 bool Logger::add(const char* name, const float* value) {
@@ -110,7 +115,8 @@ void Logger::dump() {
     }
 
     printf("BIN_START\r\n");
-    printf("SIZE:%lu\r\n", static_cast<uint32_t>(dataSize()));
+    printf("%s\r\n", dirName);
+    printf("SIZE:%u\r\n", static_cast<uint32_t>(dataSize()));
     for (uint32_t i = 0; i < fieldCount_; ++i) {
         if (i > 0) {
             printf(",");

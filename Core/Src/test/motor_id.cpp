@@ -31,6 +31,7 @@ void id_init_log(void) {
 
 onenter(right_set050, 
     id_init_log();
+    logger.dirName = "right_set0_50";
 
     ledBar16.set(0x0000);
     logger.start();
@@ -44,7 +45,6 @@ onenter(right_set050,
 )
 
 void lamp_tester(float lamp) {
-    id_init_log();
     HAL_Delay(500);
 
     motorDriver.state = MotorDriverState::lampDuty;
@@ -62,21 +62,31 @@ void lamp_tester(float lamp) {
 }
 
 onenter(lamp_005sec, 
+    id_init_log();
+    logger.dirName = "lamp_0_05sec";
     lamp_tester(0.05);
 )
 
 onenter(lamp_010sec, 
+    id_init_log();
+    logger.dirName = "lamp_0_10sec";
     lamp_tester(0.1);
 )
 
 onenter(lamp_030sec, 
+    id_init_log();
+    logger.dirName = "lamp_0_30sec";
     lamp_tester(0.3);
 )
 
 onenter(lamp_050sec, 
+    id_init_log();
+    logger.dirName = "lamp_0_50sec";
     lamp_tester(0.5);
 )
 
 onenter(lamp_070sec, 
+    id_init_log();
+    logger.dirName = "lamp_0_70sec";
     lamp_tester(0.7);
 )
