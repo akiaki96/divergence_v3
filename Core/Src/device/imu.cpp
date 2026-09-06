@@ -102,6 +102,7 @@ void Imu::update() {
     // LOG("accel %f %f %f\r\n",accelX_, accelY_, accelZ_);
 }
 
+// inline constexpr uint16_t REFFERENCE_NUM = 1000; (ms)
 void Imu::calibrate() {
     time_count_ = 0;
 

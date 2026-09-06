@@ -40,6 +40,9 @@ private:
             MenuNode motor_r_{"Motor Right"};
                 MenuNode right_050_{"Motor Right 0.5"};
             MenuNode motor_sysid_step_{"Motor sysid step"};
+                MenuNode step_01_{"step 0.1"};
+                MenuNode step_02_{"step 0.2"};
+                MenuNode step_log_{"step log"};
             MenuNode motor_sysid_lamp_{"Motor sysid Lamp"};
                 MenuNode lamp_005sec_{"lamp 0.05/sec"};
                 MenuNode lamp_010sec_{"lamp 0.10/sec"};

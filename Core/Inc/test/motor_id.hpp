@@ -9,3 +9,6 @@ void lamp_010sec_onenter();
 void lamp_030sec_onenter();
 void lamp_050sec_onenter();
 void lamp_070sec_onenter();
+
+void step_01_onenter();
+void step_02_onenter();

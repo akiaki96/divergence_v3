@@ -44,4 +44,6 @@ namespace config::mode_selector {
 inline constexpr float ENC_THRESH = 10.f;
 inline constexpr float IR_THRESH = 500.f;
 inline constexpr float KORIKORI = 0.1f;
+
+inline constexpr float ACC_THRESH = 0.f * config::imu::G; // mm/s^2
 }
