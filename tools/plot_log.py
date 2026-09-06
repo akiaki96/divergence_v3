@@ -1,3 +1,6 @@
+import matplotlib
+matplotlib.use("TkAgg")  # macosxバックエンドはウィンドウを閉じてもplt.show()から復帰せず固まることがあるため
+
 import matplotlib.pyplot as plt
 from matplotlib.widgets import CheckButtons
 import csv
@@ -44,6 +47,7 @@ def plot_csv(filename):
     check.on_clicked(toggle)
 
     plt.show()
+    plt.close(fig)
 
 if __name__ == "__main__":
     filename = input("Enter CSV filename to plot: ")
