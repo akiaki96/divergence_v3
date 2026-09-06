@@ -55,6 +55,8 @@ void Menu::setFunction() {
 
     imu_.setOnSelected(imu_onselect);
 
+    battery_.setOnEnter(battery_onenter);
+
     // ---------------------------
 
     imu_acc_.setOnEnter(imu_acc_onenter);

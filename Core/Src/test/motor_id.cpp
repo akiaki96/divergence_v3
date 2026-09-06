@@ -15,7 +15,7 @@ void id_init_log(void) {
     );
     logger.add(
         "battery",
-        etl::delegate<float()>::create<Battery, &Battery::filtered>(adcValue.batt)
+        etl::delegate<float()>::create<Battery, &Battery::voltage>(battery)
     );
     logger.add(
         "Left Duty",

@@ -39,13 +39,13 @@ void MenuInputController::syncUpdate() {
         nowOnSelected = controller_.currentMenuNode()->child(controller_.index())->onSelected();
         isOnSelected_ = true;
         lock(10);
-    } else if (adcValue.irFL.filtered_ < config::mode_selector::IR_THRESH && adcValue.irFR.filtered_ > config::mode_selector::IR_THRESH) { // enter
+    } else if (irFL.filtered_ < config::mode_selector::IR_THRESH && irFR.filtered_ > config::mode_selector::IR_THRESH) { // enter
         ledBar16.set(0x000F);
         nowOnEntered = controller_.currentMenuNode()->onEnter();
         controller_.enter();
         isOnEnter_ = true;
         lock(300);
-    } else if (adcValue.irFL.filtered_ > config::mode_selector::IR_THRESH && adcValue.irFR.filtered_ < config::mode_selector::IR_THRESH) { // back
+    } else if (irFL.filtered_ > config::mode_selector::IR_THRESH && irFR.filtered_ < config::mode_selector::IR_THRESH) { // back
         ledBar16.set(0xF000);
         controller_.back();
         lock(300);

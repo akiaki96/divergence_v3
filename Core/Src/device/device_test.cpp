@@ -4,7 +4,7 @@
 onenter(imu_acc, 
     while (true) {
         LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.accelX(), imu.accelY(), imu.accelZ());
-        ledBar16.set(imu.accelZ(), pmbit8, 10.f);
+        ledBar16.set(imu.accelZ(), pmbit8, 10.f * 1000.f);
     }
 )
 onenter(imu_gyro, 
@@ -29,6 +29,12 @@ onenter(encoder_left,
     }
 )
 
+onenter(battery, 
+    while (true) {
+        LOG("Battery raw: %04d, (V): %f\r\n", battery.raw_, battery.voltage());
+        ledBar16.set(battery.voltage(), pmbit8, 12.f);
+    }
+)
 
 onenter(log_wait, 
     logger.initLoggedVal();

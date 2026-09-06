@@ -20,6 +20,12 @@ extern LedManager ledManager;
 
 extern AdcValue adcValue;
 
+extern IrSensor irR;
+extern IrSensor irL;
+extern IrSensor irFR;
+extern IrSensor irFL;
+extern Battery battery;
+
 extern Motor motorLeft;
 extern Motor motorRight;
 extern MotorDriver motorDriver;

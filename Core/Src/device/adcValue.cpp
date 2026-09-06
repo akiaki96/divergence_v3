@@ -3,6 +3,7 @@
 #include "config/mouse_config.hpp"
 #include "tim.h"
 #include <algorithm>
+#include "device/device_instance.hpp"
 
 void AdcValue::init() {
 
@@ -15,7 +16,7 @@ void AdcValue::tim6_wait_us(uint32_t us) {
 }
 
 void AdcValue::filter() {
-    batt.filtered_ = batt.filtered_ + config::battery::IIR_ALPHA * ((float)batt.raw_ - batt.filtered_);
+    battery.filtered_ = battery.raw_ * 3.3f / 4096.f * (33000.f + 20000.f) / 20000.f;
     irR.filtered_ = std::max(0, irR.raw_on_ - irR.raw_off_);
     irFR.filtered_ = std::max(0, irFR.raw_on_ - irFR.raw_off_);
     irFL.filtered_ = std::max(0, irFL.raw_on_ - irFL.raw_off_);
@@ -71,7 +72,7 @@ void AdcValue::update() {
 
     HAL_ADC_Start(&hadc1);
     HAL_ADC_PollForConversion(&hadc1, 10);
-    batt.raw_ = HAL_ADC_GetValue(&hadc1);
+    battery.raw_ = HAL_ADC_GetValue(&hadc1);
 
     AdcValue::filter();
 }

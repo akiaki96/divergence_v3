@@ -10,12 +10,6 @@ public:
     void init();
     void update();
     
-    IrSensor irR;
-    IrSensor irL;
-    IrSensor irFR;
-    IrSensor irFL;
-    Battery batt;
-
 private:
     void tim6_wait_us(uint32_t us);
     void filter();
