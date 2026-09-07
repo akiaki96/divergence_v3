@@ -49,6 +49,16 @@ private:
                 MenuNode lamp_030sec_{"lamp 0.30/sec"};
                 MenuNode lamp_050sec_{"lamp 0.50/sec"};
                 MenuNode lamp_070sec_{"lamp 0.70/sec"};
+            MenuNode motor_sysid_prbs_{"Motor sysid PRBS"};
+                MenuNode prbs_0_{"prbs 0"};
+                MenuNode prbs_1_{"prbs 1"};
+                MenuNode prbs_2_{"prbs 2"};
+                MenuNode prbs_3_{"prbs 3"};
+                MenuNode prbs_4_{"prbs 4"};
+                MenuNode prbs_5_{"prbs 5"};
+                MenuNode prbs_6_{"prbs 6"};
+                MenuNode prbs_7_{"prbs 7"};
+
         MenuNode fan_{"Fan"};
         MenuNode ir_{"IR"};
             MenuNode ir_r_{"IR Right"};

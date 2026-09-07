@@ -1,11 +1,14 @@
 #pragma once
 
 #include "device/motor.hpp"
+#include "common/prbs.hpp"
 
 enum MotorDriverState {
+    off,
     modeSelecting,
     setDuty,
     lampDuty,
+    prbsDuty,
 };
 
 class MotorDriver {
@@ -28,6 +31,16 @@ public:
         motorRight_.setBreak();
     }
 
+    void setPRBS(PRBS* prbs) {
+        prbs_ = prbs;
+        state = MotorDriverState::prbsDuty;
+    }
+
+    bool isPRBSFinished() const {
+        return (state != MotorDriverState::prbsDuty);
+    }
+
+
     float getLeftDuty(void) const;
     float getRightDuty(void) const;
     void setLampGrad(float lamp);
@@ -36,7 +49,7 @@ public:
 private:
     Motor& motorLeft_;
     Motor& motorRight_;
-
+    PRBS* prbs_ = nullptr;
 
     float lamp_grad_ = 0.f;
 };

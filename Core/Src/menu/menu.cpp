@@ -16,10 +16,11 @@ void Menu::buildTree() {
             ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
-            motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_sysid_lamp_, &motor_sysid_step_});
+            motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_sysid_lamp_, &motor_sysid_step_, &motor_sysid_prbs_});
                 motor_r_.setChildren(std::array{&right_050_});
                 motor_sysid_step_.setChildren(std::array{&step_01_, &step_02_, &step_log_});
                 motor_sysid_lamp_.setChildren(std::array{&lamp_005sec_, &lamp_010sec_, &lamp_030sec_, &lamp_050sec_, &lamp_070sec_, &log_dump_});
+                motor_sysid_prbs_.setChildren(std::array{&prbs_0_, &prbs_1_, &prbs_2_, &prbs_3_, &prbs_4_, &prbs_5_, &prbs_6_, &prbs_7_});
         log_test_.setChildren(std::array{&log_wait_, &log_dump_});
 
     
@@ -75,4 +76,13 @@ void Menu::setFunction() {
     step_01_.setOnEnter(step_01_onenter);
     step_02_.setOnEnter(step_02_onenter);
     step_log_.setOnEnter(log_dump_onenter);
+
+    prbs_0_.setOnEnter(prbs_trans_t01_onenter);
+    prbs_1_.setOnEnter(prbs_trans_t02_onenter);
+    prbs_2_.setOnEnter(prbs_trans_t03_onenter);
+    prbs_3_.setOnEnter(prbs_trans_t04_onenter);
+    prbs_4_.setOnEnter(prbs_trans_t05_onenter);
+    prbs_5_.setOnEnter(prbs_trans_t06_onenter);
+    prbs_6_.setOnEnter(prbs_trans_val01_onenter);
+    prbs_7_.setOnEnter(prbs_trans_val02_onenter);
 }

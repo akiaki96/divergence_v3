@@ -37,6 +37,10 @@ void MotorDriver::setLampGrad(float lamp) {
 
 void MotorDriver::update() {
     switch (state) {
+        case MotorDriverState::off:
+            setDuty(0.f, 0.f);
+        break;
+
         case MotorDriverState::setDuty:
         break;
 
@@ -46,6 +50,17 @@ void MotorDriver::update() {
                 getRightDuty() + lamp_grad_*config::control::DT_S
             );
         break;
+
+        case MotorDriverState::prbsDuty: {
+            if (prbs_ == nullptr || prbs_->isFinished()) {
+                setBreak();
+                state = MotorDriverState::off;
+                break;
+            }
+            float duty = prbs_->update();
+            setDuty(duty, duty);   // 並進方向：左右同相
+            break;
+        }
 
         case MotorDriverState::modeSelecting:
         break;

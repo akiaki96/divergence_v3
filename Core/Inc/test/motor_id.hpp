@@ -12,3 +12,12 @@ void lamp_070sec_onenter();
 
 void step_01_onenter();
 void step_02_onenter();
+
+void prbs_trans_t01_onenter();
+void prbs_trans_t02_onenter();
+void prbs_trans_t03_onenter();
+void prbs_trans_t04_onenter();
+void prbs_trans_t05_onenter();
+void prbs_trans_t06_onenter();
+void prbs_trans_val01_onenter();
+void prbs_trans_val02_onenter();
