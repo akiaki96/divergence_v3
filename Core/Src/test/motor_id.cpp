@@ -296,3 +296,59 @@ onenter(rot_step_030,
     logger.dirName = "step_rot_0_30";
     step_rot(step);
 )
+
+
+struct RotWithTranslationParams {
+    float voltage_v_ff;         // 並進FF duty（両輪共通の基準値）
+    float voltage_diff_step;    // 回転励振のステップ振幅（duty_R - duty_L）
+    uint32_t accel_ticks;    // 並進を立ち上げるtick数
+    uint32_t test_ticks;     // 回転励振を入れるtick数
+};
+
+void rot_with_translation_tester(const RotWithTranslationParams& p) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    imu.calibrate();
+    HAL_Delay(1100);
+
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);   // 静止区間：オフセット推定用
+
+    // フェーズ1：並進速度を立ち上げる（回転励振なし）
+    motorDriver.setVoltage(p.voltage_v_ff, p.voltage_v_ff);
+    HAL_Delay(p.accel_ticks);
+
+    // フェーズ2：並進FFを維持しつつ回転差分をステップ印加
+    float half = p.voltage_diff_step / 2.f;
+    motorDriver.setVoltage(p.voltage_v_ff - half, p.voltage_v_ff + half);
+    HAL_Delay(p.test_ticks);
+
+    motorDriver.setBreak();
+    HAL_Delay(50);
+    logger.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+
+onenter(rot_step_v700_022,
+    id_init_log();
+    logger.dirName = "rot_step_v700_022";
+    rot_with_translation_tester({0.448f, 3.564f, 1400, 600});
+)
+
+onenter(rot_step_v700_025,
+    id_init_log();
+    logger.dirName = "rot_step_v700_025";
+    rot_with_translation_tester({0.448f, 4.05f, 1400, 600});
+)
+
+onenter(rot_step_v700_030,
+    id_init_log();
+    logger.dirName = "rot_step_v700_030";
+    rot_with_translation_tester({0.448f, 4.86f, 1400, 600});
+)

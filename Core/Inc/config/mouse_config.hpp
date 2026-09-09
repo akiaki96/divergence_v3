@@ -34,6 +34,7 @@ inline constexpr float IIR_ALPHA = 0.1f;
 namespace config::motor {
 inline constexpr float MAX_DUTY = 0.95;
 inline constexpr uint16_t MAX_PWM = 1000;
+inline constexpr float kVbattMinSafe = 5.0f;
 }
 
 namespace config::menu {

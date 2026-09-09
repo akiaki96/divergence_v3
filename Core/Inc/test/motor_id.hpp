@@ -28,3 +28,7 @@ void rot_step_020_onenter();
 void rot_step_022_onenter();
 void rot_step_025_onenter();
 void rot_step_030_onenter();
+
+void rot_step_v700_022_onenter();
+void rot_step_v700_025_onenter();
+void rot_step_v700_030_onenter();

@@ -65,6 +65,11 @@ private:
                 MenuNode rot_step_022_{"rot step 0.22"};
                 MenuNode rot_step_025_{"rot step 0.25"};
                 MenuNode rot_step_030_{"rot step 0.30"};
+            MenuNode motor_rot_step_v700_{"Motor rot step v700"};
+                MenuNode rot_step_v700_022_{"rot step v700 0.15"};
+                MenuNode rot_step_v700_025_{"rot step v700 0.19"};
+                MenuNode rot_step_v700_030_{"rot step v700 0.24"};
+
 
         MenuNode fan_{"Fan"};
         MenuNode ir_{"IR"};

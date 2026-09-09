@@ -1,4 +1,5 @@
 #include "device/motorDriver.hpp"
+#include "device/device_instance.hpp"
 #include "stm32f4xx_hal.h"
 #include "tim.h"
 #include "config/mouse_config.hpp"
@@ -35,6 +36,19 @@ void MotorDriver::setLampGrad(float lamp) {
     lamp_grad_ = lamp;
 }
 
+float MotorDriver::dutyFromVoltage(float voltage) const {
+    float vbatt = battery.voltage();
+    // 安全下限：Vbatt異常低下（センサ異常・切断等）時のゼロ割り/暴走防止
+    if (vbatt < config::motor::kVbattMinSafe) vbatt = config::motor::kVbattMinSafe;
+
+    float duty = voltage / vbatt;
+    // duty飽和処理
+    if (duty >  config::motor::MAX_DUTY) duty =  config::motor::MAX_DUTY;
+    if (duty < -config::motor::MAX_DUTY) duty = -config::motor::MAX_DUTY;
+    return duty;
+}
+
+
 void MotorDriver::update() {
     switch (state) {
         case MotorDriverState::off:
@@ -48,6 +62,13 @@ void MotorDriver::update() {
             setDuty(
                 getLeftDuty() + lamp_grad_*config::control::DT_S,
                 getRightDuty() + lamp_grad_*config::control::DT_S
+            );
+        break;
+
+        case MotorDriverState::setVoltage:
+            setDuty(
+                dutyFromVoltage(target_voltage_L_),
+                dutyFromVoltage(target_voltage_R_)
             );
         break;
 
