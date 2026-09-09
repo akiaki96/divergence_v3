@@ -235,3 +235,64 @@ onenter(prbs_trans_val02,
     logger.dirName = "prbs_trans_val02";
     prbs_trans_tester({0x1357, 0.08f, 0.16f, 0.15f, 3.0f});
 )
+
+void step_rot(const float step) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    imu.calibrate();
+    HAL_Delay(1100);
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);              // 静止区間
+    motorDriver.setDuty(step, -step);   // 左右逆相：回転励振
+    HAL_Delay(1500);             // 回転方向は並進より短時間で飽和しやすいので短め
+    motorDriver.setBreak();
+    HAL_Delay(50);
+    logger.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+onenter(rot_step_010,
+    constexpr float step = 0.1f;
+    id_init_log();
+    logger.dirName = "step_rot_0_10";
+    step_rot(step);
+)
+onenter(rot_step_015,
+    constexpr float step = 0.15f;
+    id_init_log();
+    logger.dirName = "step_rot_0_15";
+    step_rot(step);
+)
+
+onenter(rot_step_020,
+    constexpr float step = 0.2f;
+    id_init_log();
+    logger.dirName = "step_rot_0_20";
+    step_rot(step);
+)
+
+onenter(rot_step_022,
+    constexpr float step = 0.22f;
+    id_init_log();
+    logger.dirName = "step_rot_0_22";
+    step_rot(step);
+)
+
+onenter(rot_step_025,
+    constexpr float step = 0.25f;
+    id_init_log();
+    logger.dirName = "step_rot_0_25";
+    step_rot(step);
+)
+
+onenter(rot_step_030,
+    constexpr float step = 0.3f;
+    id_init_log();
+    logger.dirName = "step_rot_0_30";
+    step_rot(step);
+)

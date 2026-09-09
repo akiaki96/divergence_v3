@@ -21,3 +21,10 @@ void prbs_trans_t05_onenter();
 void prbs_trans_t06_onenter();
 void prbs_trans_val01_onenter();
 void prbs_trans_val02_onenter();
+
+void rot_step_010_onenter();
+void rot_step_015_onenter();
+void rot_step_020_onenter();
+void rot_step_022_onenter();
+void rot_step_025_onenter();
+void rot_step_030_onenter();
