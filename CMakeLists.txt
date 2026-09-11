@@ -36,6 +36,13 @@ enable_language(C ASM)
 
 add_subdirectory(external)
 
+# Maze-solving algorithm library, developed/verified against the desktop
+# simulator in external/micromouse_simulator (see that submodule's own
+# solver/CMakeLists.txt for details). Kept as a submodule + add_subdirectory
+# rather than copied in, so firmware always builds the exact same solver
+# sources the simulator verified.
+add_subdirectory(external/micromouse_simulator/solver)
+
 # Create an executable object type
 add_executable(${CMAKE_PROJECT_NAME})
 
@@ -83,6 +90,7 @@ list(REMOVE_ITEM CMAKE_C_IMPLICIT_LINK_LIBRARIES ob)
 target_link_libraries(${CMAKE_PROJECT_NAME}
     stm32cubemx
     etl
+    micromouse_solver
 
     # Add user defined libraries
 )
