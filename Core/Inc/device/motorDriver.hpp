@@ -1,7 +1,10 @@
 #pragma once
 
+#include "common/etc.hpp"
 #include "device/motor.hpp"
 #include "common/prbs.hpp"
+#include "config/mouse_config.hpp"
+#include "common/pid.hpp"
 
 enum MotorDriverState {
     off,
@@ -11,6 +14,7 @@ enum MotorDriverState {
     prbsDuty,
     setVoltage,    // 追加：電圧指令（毎tickでVbatt補償）
     prbsVoltage,   // 追加：電圧PRBS（毎tickでVbatt補償）
+    setVelocity 
 };
 
 class MotorDriver {
@@ -49,6 +53,12 @@ public:
         return (state != MotorDriverState::prbsDuty);
     }
 
+    void switchToVelocityX();
+
+    void setTargetVelocityX(float velocity_x) {
+        velocity_x_ = velocity_x;
+    }
+
 
     float getLeftDuty(void) const;
     float getRightDuty(void) const;
@@ -65,4 +75,7 @@ private:
     float lamp_grad_ = 0.f;
 
     float dutyFromVoltage(float voltage) const;
+
+    float velocity_x_ = 0.f;
+    PIDController pid_velocity_x_;
 };

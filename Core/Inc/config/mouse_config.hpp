@@ -37,6 +37,25 @@ inline constexpr uint16_t MAX_PWM = 1000;
 inline constexpr float kVbattMinSafe = 5.0f;
 }
 
+
+// lambda = 0.10 s
+// K_p = 1562.7 mm/s/V
+// T_{p1} = 0.459 s
+// K_c = \frac{T_{p1}}{K_p \lambda}
+namespace config::pid_velocity_x {
+inline constexpr float LAMBDA = 0.10f;
+inline constexpr float K_p = 1562.7f;
+inline constexpr float T_p1 = 0.459f;
+inline constexpr float Kc = T_p1 / (K_p * LAMBDA);
+inline constexpr float kp = Kc;
+inline constexpr float ki = Kc / T_p1;
+inline constexpr float kd = 0.0f;
+
+inline float a_gain = 1831.07f;
+inline float u0_deadzone = 0.141;
+inline float voltage_limit_ratio = 0.95f;
+}
+
 namespace config::menu {
 inline constexpr uint8_t MAX_CHILDREN = 8;
 }

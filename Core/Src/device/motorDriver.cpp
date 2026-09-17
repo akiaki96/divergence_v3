@@ -9,8 +9,19 @@ MotorDriver::MotorDriver(Motor& left, Motor& right)
     motorRight_(right)
 {}
 
-void MotorDriver::init() {
+float velocity_x_ff(float velocity_x) {
+    if (velocity_x == 0.f) return 0.f;
+    float sign = (velocity_x > 0.f) ? 1.f : -1.f;
+    return (velocity_x / config::pid_velocity_x::a_gain) + sign * config::pid_velocity_x::u0_deadzone;
+}
 
+void MotorDriver::init() {
+    pid_velocity_x_.setGains(
+        config::pid_velocity_x::kp,
+        config::pid_velocity_x::ki,
+        config::pid_velocity_x::kd,
+        velocity_x_ff
+    );
 }
 
 void MotorDriver::enable() {
@@ -46,6 +57,11 @@ float MotorDriver::dutyFromVoltage(float voltage) const {
     if (duty >  config::motor::MAX_DUTY) duty =  config::motor::MAX_DUTY;
     if (duty < -config::motor::MAX_DUTY) duty = -config::motor::MAX_DUTY;
     return duty;
+}
+
+void MotorDriver::switchToVelocityX() {
+    pid_velocity_x_.reset();
+    state = MotorDriverState::setVelocity;
 }
 
 
@@ -84,6 +100,14 @@ void MotorDriver::update() {
         }
 
         case MotorDriverState::modeSelecting:
+        break;
+
+        case MotorDriverState::setVelocity:
+            bool saturated = false;
+            float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
+            float base_batt = pid_velocity_x_.update(velocity_x_, (encoderLeft.velocity() + encoderRight.velocity()) / 2.f, limit, saturated);
+
+            setVoltage(base_batt, base_batt);
         break;
     }
 }

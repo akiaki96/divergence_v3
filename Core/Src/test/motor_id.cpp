@@ -352,3 +352,36 @@ onenter(rot_step_v700_030,
     logger.dirName = "rot_step_v700_030";
     rot_with_translation_tester({0.448f, 4.86f, 1400, 600});
 )
+
+void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    imu.calibrate();
+    HAL_Delay(1100);
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);
+    motorDriver.switchToVelocityX();
+    motorDriver.setTargetVelocityX(target_velocity_x);
+    HAL_Delay(duration_ms);
+    motorDriver.setBreak();
+    HAL_Delay(50);
+    logger.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+onenter(velocity_step_300,
+    id_init_log();
+    logger.dirName = "velocity_step_300";
+    velocity_step_tester(300.f, 1500);
+)
+
+onenter(velocity_step_600,
+    id_init_log();
+    logger.dirName = "velocity_step_600";
+    velocity_step_tester(600.f, 1500);
+)

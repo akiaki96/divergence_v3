@@ -9,3 +9,7 @@ void haltByAccZ(void) {
     }
     LOG("haltByAccZ end\r\n");
 }
+
+float zero_ff(float input) {
+    return 0.f;
+}
