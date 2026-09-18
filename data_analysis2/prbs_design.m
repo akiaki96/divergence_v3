@@ -37,15 +37,21 @@ fprintf('最大ゲイン点: duty%d%% (Kp=%.1f) ※距離の保守的評価に�
 fprintf('不感帯電圧 u0 = %.4f V\n', u0);
 
 %% クロック周期Tcの決定
+% 上限：最速点の時定数を粗く均さないため Tc <= τ_fast/2.8
+% 下限：LFSR段数n=8(実装済み)での最長パルス幅 nTc が最遅点に対し 2.5×τ_slow 以上必要
+n = 8;
 Tc_upper = Tp1(i_fast) / 2.8;
-Tc = 0.135;   % 採用値
+Tc_lower = 2.5 * Tp1(i_slow) / n;
 
-fprintf('\nTc上限 (τ_fast/2.8) = %.4f s\n', Tc_upper);
+fprintf('\nTc下限 (2.5×τ_slow/n) = %.4f s\n', Tc_lower);
+fprintf('Tc上限 (τ_fast/2.8)    = %.4f s\n', Tc_upper);
+assert(Tc_lower <= Tc_upper, 'Tc_lower > Tc_upperとなり両条件を同時に満たすTcが存在しません（n拡張を検討）');
+
+Tc = ceil(Tc_lower / 0.005) * 0.005;   % 下限を満たす直近の0.005s刻みを採用
 fprintf('採用 Tc = %.3f s\n', Tc);
-assert(Tc <= Tc_upper, 'Tcが速い極に対して粗すぎます（Tc <= τ_fast/2.8を満たしません）');
+assert(Tc >= Tc_lower && Tc <= Tc_upper, 'TcがTc_lower/Tc_upperの範囲外です');
 
 %% LFSR段数(n=8, 実装済み)でのカバレッジ確認
-n = 8;
 pulse_max = n * Tc;
 coverage_target = 2.5 * Tp1(i_slow);
 

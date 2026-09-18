@@ -128,10 +128,17 @@ writetable(final, fullfile(results_dir, 'step_identification_final.csv'));
 
 function [data, u_step] = load_step_data(filename)
     % CSVを読み込み，iddataを作成し，定常区間の実効入力電圧を返す
+    brake_margin = 0.06;   % ログ終端の約50~60msはブレーキモードで同定に使えないため除外
+
     T = readtable(filename);
 
     t  = T.Global_time - T.Global_time(1);
     Ts = median(diff(t));
+
+    % ログ終端はブレーキ指令により減速するため，同定対象から除外する
+    valid = t <= (t(end) - brake_margin);
+    T = T(valid, :);
+    t = t(valid);
 
     v     = (T.left_encoder_velocity + T.right_encoder_velocity) / 2;
     u_eff = T.Left_Duty .* T.battery;   % 実効入力電圧 u = duty × Vbatt
