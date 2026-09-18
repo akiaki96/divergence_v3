@@ -79,8 +79,10 @@ public:
     float getTargetVelocityX() const {
         return velocity_x_;
     }
+    // 直近tickで実際に印加されたduty差を返す（PRBS駆動中はその出力値，
+    // 静的setDutyDiff()時はその値）。ログ用にupdate()内で毎tick更新される
     float getDutyDiff() const {
-        return duty_diff_;
+        return applied_duty_diff_;
     }
 
     // PI+FF診断用ログ：積分ワインドアップ・feedforward寄与・飽和状態を確認するため
@@ -113,6 +115,7 @@ private:
 
     float velocity_x_ = 0.f;
     float duty_diff_ = 0.f;
+    float applied_duty_diff_ = 0.f;   // ログ用：直近tickで実際に印加されたduty差
     PRBS* prbs_rot_diff_ = nullptr;
     PIDController pid_velocity_x_;
     bool velocity_pid_saturated_ = false;

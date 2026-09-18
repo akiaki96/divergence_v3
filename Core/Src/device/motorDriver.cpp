@@ -69,6 +69,7 @@ float MotorDriver::dutyFromVoltage(float voltage) const {
 void MotorDriver::switchToVelocityX() {
     pid_velocity_x_.reset();
     duty_diff_ = 0.f;
+    applied_duty_diff_ = 0.f;
     prbs_rot_diff_ = nullptr;
     state = MotorDriverState::setVelocity;
 }
@@ -127,6 +128,7 @@ void MotorDriver::update() {
             if (prbs_rot_diff_ != nullptr && !prbs_rot_diff_->isFinished()) {
                 diff = prbs_rot_diff_->update();
             }
+            applied_duty_diff_ = diff;   // ログ用：PRBS駆動時もgetDutyDiff()で実値を参照できるようにする
             float base_duty = dutyFromVoltage(base_batt);
             float half_diff = diff / 2.f;
             setDuty(base_duty - half_diff, base_duty + half_diff);
