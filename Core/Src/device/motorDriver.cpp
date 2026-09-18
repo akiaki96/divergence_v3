@@ -115,7 +115,10 @@ void MotorDriver::update() {
             float base_batt = pid_velocity_x_.update(velocity_x_, (encoderLeft.velocity() + encoderRight.velocity()) / 2.f, limit, saturated);
             velocity_pid_saturated_ = saturated;
 
-            setVoltage(base_batt, base_batt);
+            // 注意：setVoltage()はstateをMotorDriverState::setVoltageへ書き換えてしまうため，
+            // ここで呼ぶとPIDが次tickから二度と回らなくなる（固定電圧のstep入力に化ける）。
+            // stateをsetVelocityに保ったまま，直接duty変換のみ行う。
+            setDuty(dutyFromVoltage(base_batt), dutyFromVoltage(base_batt));
             break;
         }
     }
