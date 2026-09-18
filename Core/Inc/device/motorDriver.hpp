@@ -75,6 +75,31 @@ public:
         return (prbs_rot_diff_ == nullptr) || prbs_rot_diff_->isFinished();
     }
 
+    // 回転角速度の閉ループ制御（PI，FFなし）。setVelocityX()と併用することで
+    // 並進速度・角速度を同時に制御できる。setDutyDiff()/setPRBSDutyDiff()より優先度は低い
+    // （それらは同定用の明示的な励振指令のため）
+    void enableOmegaControl() {
+        omega_control_enabled_ = true;
+        pid_omega_.reset();
+    }
+    void disableOmegaControl() {
+        omega_control_enabled_ = false;
+        target_omega_ = 0.f;
+    }
+    void setTargetOmega(float omega_dps) {
+        target_omega_ = omega_dps;
+    }
+
+    float getTargetOmega() const {
+        return target_omega_;
+    }
+    float getOmegaIntegralTerm() const {
+        return pid_omega_.getIntegralTerm();
+    }
+    float getOmegaSaturated() const {
+        return omega_saturated_ ? 1.f : 0.f;
+    }
+
     // 追従性検証用ログ（target_velocity_x）で参照する
     float getTargetVelocityX() const {
         return velocity_x_;
@@ -119,4 +144,9 @@ private:
     PRBS* prbs_rot_diff_ = nullptr;
     PIDController pid_velocity_x_;
     bool velocity_pid_saturated_ = false;
+
+    bool omega_control_enabled_ = false;
+    float target_omega_ = 0.f;
+    PIDController pid_omega_;
+    bool omega_saturated_ = false;
 };

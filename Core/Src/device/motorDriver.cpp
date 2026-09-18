@@ -21,6 +21,13 @@ float velocity_x_ff(float velocity_x) {
     return (velocity_x / config::pid_velocity_x::A_GAIN) + sign * config::pid_velocity_x::U0_DEADZONE;
 }
 
+// 回転角速度PI制御用feedforward：2自由度制御ではなく純粋PIとするため常に0を返す
+// （config::pid_omega参照：Kp_rotの不確かさが大きく，FFのモデル誤差より
+// 積分によるロバストな追従を優先する設計）
+float omega_ff_zero(float) {
+    return 0.f;
+}
+
 void MotorDriver::init() {
     pid_velocity_x_.setGains(
         config::pid_velocity_x::kp,
@@ -28,6 +35,13 @@ void MotorDriver::init() {
         config::pid_velocity_x::kd,
         velocity_x_ff,
         config::pid_velocity_x::BACK_CALC_TT
+    );
+    pid_omega_.setGains(
+        config::pid_omega::kp,
+        config::pid_omega::ki,
+        config::pid_omega::kd,
+        omega_ff_zero,
+        config::pid_omega::BACK_CALC_TT
     );
 }
 
@@ -71,6 +85,9 @@ void MotorDriver::switchToVelocityX() {
     duty_diff_ = 0.f;
     applied_duty_diff_ = 0.f;
     prbs_rot_diff_ = nullptr;
+    omega_control_enabled_ = false;
+    target_omega_ = 0.f;
+    pid_omega_.reset();
     state = MotorDriverState::setVelocity;
 }
 
@@ -123,12 +140,16 @@ void MotorDriver::update() {
             // stateをsetVelocityに保ったまま，直接duty変換のみ行う。
             // duty_diff_（回転方向のstep/PRBS同定用）はduty空間で左右に重畳する：
             // v_L = v* - diff/2, v_R = v* + diff/2 のkinematic配分に対応。
-            // prbs_rot_diff_が設定されていればPRBS出力を優先する（回転PRBS同定用）。
+            // 優先度：PRBS励振(同定用) > 角速度PI閉ループ(enableOmegaControl) > 静的setDutyDiff()
             float diff = duty_diff_;
             if (prbs_rot_diff_ != nullptr && !prbs_rot_diff_->isFinished()) {
                 diff = prbs_rot_diff_->update();
+            } else if (omega_control_enabled_) {
+                bool omega_sat = false;
+                diff = pid_omega_.update(target_omega_, imu.gyroZ(), config::pid_omega::DUTY_DIFF_LIMIT, omega_sat);
+                omega_saturated_ = omega_sat;
             }
-            applied_duty_diff_ = diff;   // ログ用：PRBS駆動時もgetDutyDiff()で実値を参照できるようにする
+            applied_duty_diff_ = diff;   // ログ用：PRBS/PI駆動時もgetDutyDiff()で実値を参照できるようにする
             float base_duty = dutyFromVoltage(base_batt);
             float half_diff = diff / 2.f;
             setDuty(base_duty - half_diff, base_duty + half_diff);

@@ -84,6 +84,11 @@ private:
                 MenuNode prbs_rot_3_{"rot prbs 3"};
                 MenuNode prbs_rot_4_{"rot prbs val0"};
                 MenuNode prbs_rot_5_{"rot prbs val1"};
+            MenuNode motor_omega_step_{"Motor omega step"};
+                MenuNode omega_step_pos200_{"omega step +200"};
+                MenuNode omega_step_pos400_{"omega step +400"};
+                MenuNode omega_step_neg200_{"omega step -200"};
+                MenuNode omega_step_neg400_{"omega step -400"};
             MenuNode motor_velocity_x_{"Motor velocity X"};
                 MenuNode velocity_step_300_{"v step +300"};
                 MenuNode velocity_step_600_{"v step +600"};

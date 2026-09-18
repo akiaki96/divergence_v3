@@ -547,6 +547,89 @@ onenter(prbs_rot_val02,
     prbs_rot_tester(config::prbs_rot::SEED_VAL02);
 )
 
+// 回転角速度PI制御（2自由度ではなく純粋PI, config::pid_omega）の追従性検証用ログ：
+// rot_v700診断フィールドに加え，目標角速度・積分項・飽和状態も記録する
+void id_init_log_omega(void) {
+    id_init_log_rot_v700();
+    logger.add(
+        "target_omega",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetOmega>(motorDriver)
+    );
+    logger.add(
+        "omega_integral_term",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getOmegaIntegralTerm>(motorDriver)
+    );
+    logger.add(
+        "omega_saturated",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getOmegaSaturated>(motorDriver)
+    );
+}
+
+// 並進速度700mm/sを閉ループで維持しつつ，目標角速度target_omegaへステップ指令する。
+// FFなしの純粋PI（config::pid_omega）が実際にgyro_zへ追従できるか検証する
+void rot_omega_step_tester(float target_omega, uint32_t duration_ms) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    imu.calibrate();
+    HAL_Delay(1100);
+
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);   // 静止区間：オフセット推定用
+
+    // フェーズ1：並進速度700mm/sを閉ループで立ち上げる（回転励振なし）
+    motorDriver.switchToVelocityX();
+    motorDriver.setTargetVelocityX(config::rot_step_v700::TRANSLATION_VELOCITY_MM_S);
+    HAL_Delay(config::rot_step_v700::ACCEL_MS);
+
+    // フェーズ2：並進速度700mm/sを維持しつつ角速度PIを有効化しステップ指令
+    motorDriver.enableOmegaControl();
+    motorDriver.setTargetOmega(target_omega);
+    HAL_Delay(duration_ms);
+
+    motorDriver.setBreak();
+    motorDriver.disableOmegaControl();
+    HAL_Delay(50);
+    logger.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+onenter(omega_step_pos200,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_pos200");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(200.f, 800);
+)
+
+onenter(omega_step_pos400,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_pos400");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(400.f, 800);
+)
+
+onenter(omega_step_neg200,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_neg200");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(-200.f, 800);
+)
+
+onenter(omega_step_neg400,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_neg400");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(-400.f, 800);
+)
+
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
 // target_velocity_xへステップ指令し，実速度(left/right_encoder_velocity平均)の追従を
 // ログから確認する。duration_msは閉ループ時定数λ=0.1s基準で整定後も十分保持できる長さとする。

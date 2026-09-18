@@ -48,6 +48,11 @@ void prbs_rot_t04_onenter();
 void prbs_rot_val01_onenter();
 void prbs_rot_val02_onenter();
 
+void omega_step_pos200_onenter();
+void omega_step_pos400_onenter();
+void omega_step_neg200_onenter();
+void omega_step_neg400_onenter();
+
 void velocity_step_300_onenter();
 void velocity_step_600_onenter();
 void velocity_step_900_onenter();

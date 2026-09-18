@@ -122,6 +122,36 @@ inline constexpr uint16_t SEED_VAL01 = 0x7D93;
 inline constexpr uint16_t SEED_VAL02 = 0x4B26;
 }
 
+// 回転角速度PI制御（2自由度(FF)ではなく純粋PI。gain不確かさへの頑健性を優先）
+//
+// [設計方針] rot_step_v700_report.mdより，回転方向のプラントゲインKpは707〜2815dps/duty
+// と振幅依存で大きく変動し（±正負非対称・duty不感帯突入による構造変化あり），単一のFFでは
+// モデル誤差が大きい。PI（特に積分項）は定常ゲインの不確かさに対してロバストなため，FFを
+// 使わずI主体で目標角速度へ追従させる。IMC整定 Kc=Tp1/(Kp*λ), Ki=Kc/Tp1 において
+// Tp1_ROTが23ms程度と非常に小さいため，Ki/Kp比は自然に約1/Tp1≈43倍となり，
+// 結果的に「Iゲインが大きい」制御になる。
+//
+// [要調整] KP_ROTはduty_diff=0.20水準（整定確認済みの中では最大）の実測平均を保守的に採用。
+// TP1_ROTはprbs_rot_identification_report.mdのPRBS本同定値。LAMBDA_ROTは未実験の初期値
+// （やや保守的に設定）。DUTY_DIFF_LIMITはrot_step_v700で線形性・整定を確認済みの範囲。
+// いずれも実機でオーバーシュート・整定時間・430dps付近での挙動を見ながら調整すること。
+namespace config::pid_omega {
+inline constexpr float KP_ROT  = 1250.f;   // [dps/duty] duty_diff=±0.20実測平均（保守的）
+inline constexpr float TP1_ROT = 0.0231f;  // [s] PRBS本同定（prbs_rot_identification_report.md）
+
+inline constexpr float LAMBDA_ROT = 0.05f;  // [s] 閉ループ時定数（初期値，要実機調整）
+inline constexpr float Kc_rot = TP1_ROT / (KP_ROT * LAMBDA_ROT);
+inline constexpr float kp = Kc_rot;
+inline constexpr float ki = Kc_rot / TP1_ROT;
+inline constexpr float kd = 0.0f;
+
+inline constexpr float BACK_CALC_TT = TP1_ROT;
+
+// 出力(duty_diff)飽和：rot_step_v700で線形性・整定を確認済みの範囲に制限
+// （±0.20は整定を確認済み。±0.28は600msで未整定のため含めない）
+inline constexpr float DUTY_DIFF_LIMIT = 0.20f;
+}
+
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
 // Tc下限(LFSRカバレッジ): 2.5*tau_slow/n, Tc上限(速い極を粗く均さない): tau_fast/2.8
 // 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16]
