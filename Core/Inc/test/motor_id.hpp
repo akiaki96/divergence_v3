@@ -25,16 +25,12 @@ void prbs_trans_t08_onenter();
 void prbs_trans_val01_onenter();
 void prbs_trans_val02_onenter();
 
-void rot_step_010_onenter();
-void rot_step_015_onenter();
-void rot_step_020_onenter();
-void rot_step_022_onenter();
-void rot_step_025_onenter();
-void rot_step_030_onenter();
-
-void rot_step_v700_002_onenter();
-void rot_step_v700_004_onenter();
-void rot_step_v700_006_onenter();
+void rot_step_v700_pos_002_onenter();
+void rot_step_v700_pos_004_onenter();
+void rot_step_v700_pos_006_onenter();
+void rot_step_v700_neg_002_onenter();
+void rot_step_v700_neg_004_onenter();
+void rot_step_v700_neg_006_onenter();
 
 void velocity_step_300_onenter();
 void velocity_step_600_onenter();
