@@ -58,26 +58,30 @@ inline float voltage_limit_ratio = 0.95f;
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
 // Tc下限(LFSRカバレッジ): 2.5*tau_slow/n, Tc上限(速い極を粗く均さない): tau_fast/2.8
-// 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16], 1試行3.0s
+// 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16]
+// 1試行の長さは走行距離を抑えるため3.0s→2.4s(80%)へ短縮。1試行あたりの励振ビット数が
+// 減る分，同定用試行を6→8に増やしてデータの多様性を確保している（検証用2試行は据え置き）
 namespace config::prbs_trans {
 inline constexpr float TC_SEC       = 0.145f;
 inline constexpr float DUTY_MIN     = 0.08f;
 inline constexpr float DUTY_MAX     = 0.16f;
-inline constexpr float DURATION_SEC = 3.0f;
+inline constexpr float DURATION_SEC = 2.4f;
 
-// 同定用6試行 + 検証(holdout)用2試行のPRBSシード
+// 同定用8試行 + 検証(holdout)用2試行のPRBSシード
 inline constexpr uint16_t SEED_T01   = 0x1A2B;
 inline constexpr uint16_t SEED_T02   = 0x3C4D;
 inline constexpr uint16_t SEED_T03   = 0x5E6F;
 inline constexpr uint16_t SEED_T04   = 0x7890;
 inline constexpr uint16_t SEED_T05   = 0xABCD;
 inline constexpr uint16_t SEED_T06   = 0xEF01;
+inline constexpr uint16_t SEED_T07   = 0x4E2A;
+inline constexpr uint16_t SEED_T08   = 0x9D31;
 inline constexpr uint16_t SEED_VAL01 = 0x2468;
 inline constexpr uint16_t SEED_VAL02 = 0x1357;
 }
 
 namespace config::menu {
-inline constexpr uint8_t MAX_CHILDREN = 8;
+inline constexpr uint8_t MAX_CHILDREN = 10;  // motor_sysid_prbs_(prbs 0~9)が最大
 }
 
 namespace config::mode_selector {

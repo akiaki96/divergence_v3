@@ -59,6 +59,8 @@ private:
                 MenuNode prbs_5_{"prbs 5"};
                 MenuNode prbs_6_{"prbs 6"};
                 MenuNode prbs_7_{"prbs 7"};
+                MenuNode prbs_8_{"prbs 8"};
+                MenuNode prbs_9_{"prbs 9"};
             MenuNode motor_rot_step1_{"Motor rot step"};
                 MenuNode rot_step_010_{"rot step 0.10"};
                 MenuNode rot_step_015_{"rot step 0.15"};

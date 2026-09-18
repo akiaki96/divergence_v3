@@ -244,6 +244,22 @@ onenter(prbs_trans_t06,
     prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T06));
 )
 
+onenter(prbs_trans_t07,
+    id_init_log();
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t07");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T07));
+)
+
+onenter(prbs_trans_t08,
+    id_init_log();
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t08");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T08));
+)
+
 onenter(prbs_trans_val01,
     id_init_log();
     logger.setDirName("prbs_trans_x");
