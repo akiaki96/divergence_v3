@@ -1,6 +1,7 @@
 #include "test/motor_id.hpp"
 #include "common/etc.hpp"
 #include "common/prbs.hpp"
+#include "config/mouse_config.hpp"
 
 void id_init_log(void) {
     motorDriver.state = MotorDriverState::setDuty;
@@ -157,6 +158,16 @@ struct PRBSTransParams {
 
 PRBS g_prbs;
 
+// duty_min/duty_max/Tc/durationはmouse_config.hpp(config::prbs_trans)の設計値を使用し，
+// 試行ごとに異なるseedのみを差し替える
+PRBSTransParams prbs_trans_params(uint16_t seed) {
+    return {seed,
+            config::prbs_trans::DUTY_MIN,
+            config::prbs_trans::DUTY_MAX,
+            config::prbs_trans::TC_SEC,
+            config::prbs_trans::DURATION_SEC};
+}
+
 void prbs_trans_tester(const PRBSTransParams& p) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -187,50 +198,66 @@ void prbs_trans_tester(const PRBSTransParams& p) {
 
 onenter(prbs_trans_t01,
     id_init_log();
-    logger.dirName = "prbs_trans_t01";
-    prbs_trans_tester({0x1A2B, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t01");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T01));
 )
 
 onenter(prbs_trans_t02,
     id_init_log();
-    logger.dirName = "prbs_trans_t02";
-    prbs_trans_tester({0x3C4D, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t02");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T02));
 )
 
 onenter(prbs_trans_t03,
     id_init_log();
-    logger.dirName = "prbs_trans_t03";
-    prbs_trans_tester({0x5E6F, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t03");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T03));
 )
 
 onenter(prbs_trans_t04,
     id_init_log();
-    logger.dirName = "prbs_trans_t04";
-    prbs_trans_tester({0x7890, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t04");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T04));
 )
 
 onenter(prbs_trans_t05,
     id_init_log();
-    logger.dirName = "prbs_trans_t05";
-    prbs_trans_tester({0xABCD, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t05");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T05));
 )
 
 onenter(prbs_trans_t06,
     id_init_log();
-    logger.dirName = "prbs_trans_t06";
-    prbs_trans_tester({0xEF01, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_t06");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_T06));
 )
 
 onenter(prbs_trans_val01,
     id_init_log();
-    logger.dirName = "prbs_trans_val01";
-    prbs_trans_tester({0x2468, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_val01");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_VAL01));
 )
 
 onenter(prbs_trans_val02,
     id_init_log();
-    logger.dirName = "prbs_trans_val02";
-    prbs_trans_tester({0x1357, 0.08f, 0.16f, 0.15f, 3.0f});
+    logger.setDirName("prbs_trans_x");
+    logger.setFileName("prbs_trans_val02");
+    logger.setIncludeTimestamp(false);
+    prbs_trans_tester(prbs_trans_params(config::prbs_trans::SEED_VAL02));
 )
 
 void step_rot(const float step) {
