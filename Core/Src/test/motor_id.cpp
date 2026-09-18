@@ -368,6 +368,22 @@ onenter(rot_step_v700_pos_006,
     rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_3);
 )
 
+onenter(rot_step_v700_pos_010,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_pos010");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_4);
+)
+
+onenter(rot_step_v700_pos_014,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_pos014");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_5);
+)
+
 onenter(rot_step_v700_neg_002,
     id_init_log_rot_v700();
     logger.setDirName("rot_step_v700_x");
@@ -390,6 +406,22 @@ onenter(rot_step_v700_neg_006,
     logger.setFileName("rot_step_v700_duty_neg006");
     logger.setIncludeTimestamp(false);
     rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_3);
+)
+
+onenter(rot_step_v700_neg_010,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_neg010");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_4);
+)
+
+onenter(rot_step_v700_neg_014,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_neg014");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_5);
 )
 
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。

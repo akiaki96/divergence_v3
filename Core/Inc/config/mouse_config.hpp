@@ -75,8 +75,14 @@ inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 
 // 回転方向のstep応答事前同定（system_identification_flow.md §2 [2]）
 // 並進速度を閉ループでTRANSLATION_VELOCITY_MM_Sに固定した状態で，左右duty差
-// （DUTY_DIFF_1/2/3, R-L）をステップ印加し非線形性・IMU飽和有無を確認する。
-// [要調整] 値は保守的な初期値。IMU飽和(±2000dps)に注意しながら実機で見直すこと。
+// （DUTY_DIFF_1〜5, R-L）をステップ印加し非線形性・IMU飽和有無を確認する。
+//
+// duty_diff0.02/0.04/0.06実測結果（data_analysis2/rot_step_v700_report.md）：
+//  - 定常ヨーレートは60dps止まり（IMU飽和±2000dpsの3%）で大きく余裕あり
+//  - duty水準が大きいほどゲインも大きくなる非線形性を確認（707→804 dps/duty）
+// 上記を踏まえ0.10, 0.14を追加。並進700mm/s時の基準duty実測値は約0.0714で，
+// DUTY_DIFF_5=0.14は左右差の半分(0.07)が基準dutyとほぼ一致する上限
+// （これを超えると片輪のduty符号が反転し，動作レジームが大きく変わる）。
 namespace config::rot_step_v700 {
 inline constexpr float TRANSLATION_VELOCITY_MM_S = 700.f;
 inline constexpr uint32_t ACCEL_MS = 800;   // 並進速度700mm/sを閉ループで立ち上げる時間
@@ -85,6 +91,8 @@ inline constexpr uint32_t TEST_MS  = 600;   // duty差を保持する時間（�
 inline constexpr float DUTY_DIFF_1 = 0.02f;
 inline constexpr float DUTY_DIFF_2 = 0.04f;
 inline constexpr float DUTY_DIFF_3 = 0.06f;
+inline constexpr float DUTY_DIFF_4 = 0.10f;
+inline constexpr float DUTY_DIFF_5 = 0.14f;
 }
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
