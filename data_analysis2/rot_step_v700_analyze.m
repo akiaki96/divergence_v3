@@ -1,6 +1,6 @@
 %% 回転方向 事前同定（並進700mm/s固定 + 左右duty差ステップ）
 %
-% tools/log/rot_step_v700_x/rot_step_v700_duty_{pos,neg}{002,004,006,010,014}.csv を読み込み，
+% tools/log/rot_step_v700_x/rot_step_v700_duty_{pos,neg}{002,004,006,010,014,020,028}.csv を読み込み，
 % 並進速度700mm/s一定下での左右duty差(R-L)ステップに対するヨーレート(gyro_z)応答を解析する。
 % system_identification_flow.md §2 [2]「回転step実験」に対応。
 %
@@ -21,8 +21,10 @@ if ~exist(results_dir, 'dir')
     mkdir(results_dir);
 end
 
-labels    = {'pos002', 'pos004', 'pos006', 'pos010', 'pos014', 'neg002', 'neg004', 'neg006', 'neg010', 'neg014'};
-duty_vals = [0.02, 0.04, 0.06, 0.10, 0.14, -0.02, -0.04, -0.06, -0.10, -0.14];   % ラベルに対応する符号付きduty_diff
+labels    = {'pos002', 'pos004', 'pos006', 'pos010', 'pos014', 'pos020', 'pos028', ...
+             'neg002', 'neg004', 'neg006', 'neg010', 'neg014', 'neg020', 'neg028'};
+duty_vals = [0.02, 0.04, 0.06, 0.10, 0.14, 0.20, 0.28, ...
+             -0.02, -0.04, -0.06, -0.10, -0.14, -0.20, -0.28];   % ラベルに対応する符号付きduty_diff
 
 n = numel(labels);
 gyro_ss   = zeros(n, 1);
@@ -58,6 +60,17 @@ for i = 1:n
     if target_ss ~= 0
         reached = find(abs(gyro_win) >= 0.9 * abs(target_ss), 1, 'first');
         settle_ms(i) = t_rel(reached) * 1000;
+    end
+
+    % 収束判定：末尾1/6区間と，その直前1/6区間の平均値を比較し，15%以上動いていれば
+    % 励振時間内に整定しきっていない可能性が高いとして警告する
+    n_win = numel(gyro_win);
+    last_sixth  = gyro_win(round(n_win * 5 / 6) + 1:end);
+    prev_sixth  = gyro_win(round(n_win * 4 / 6) + 1:round(n_win * 5 / 6));
+    rel_change  = abs(mean(last_sixth) - mean(prev_sixth)) / max(abs(mean(last_sixth)), 1e-6);
+    if rel_change > 0.15
+        fprintf('  [警告] %s: 末尾で依然%.0f%%変化しており，600msでは整定しきっていない可能性\n', ...
+            labels{i}, rel_change * 100);
     end
 
     fprintf('%s: duty_diff=%+.2f, gyro_ss=%+.1f dps, |gyro|max=%.1f dps, v_avg_ss=%.0f mm/s, 90%%整定=%.0f ms\n', ...
