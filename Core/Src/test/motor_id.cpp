@@ -424,6 +424,129 @@ onenter(rot_step_v700_neg_014,
     rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_5);
 )
 
+// 実運用目標（700mm/s時，角加速度目安2500deg/s^2・最高角速度目安430deg/s）に対し，
+// duty_diff<=0.14までの実測ではヨーレートが最大171dps程度までしか届いておらず，
+// 運用域に向けた特性把握のため追加した大振幅水準（片輪はさらに深く負転する）
+onenter(rot_step_v700_pos_020,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_pos020");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_6);
+)
+
+onenter(rot_step_v700_pos_028,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_pos028");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_7);
+)
+
+onenter(rot_step_v700_neg_020,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_neg020");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_6);
+)
+
+onenter(rot_step_v700_neg_028,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_neg028");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_7);
+)
+
+// 回転方向PRBS本同定（data_analysis2/prbs_rot_design.m）。
+// 並進速度700mm/sを閉ループで維持しつつ，duty_diffをPRBS（±0.06, Tc=4ms）で励振する。
+PRBS g_prbs_rot;
+
+void prbs_rot_tester(uint16_t seed) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    imu.calibrate();
+    HAL_Delay(1100);
+
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);   // 静止区間：オフセット推定用
+
+    // フェーズ1：並進速度700mm/sを閉ループで立ち上げる（回転励振なし）
+    motorDriver.switchToVelocityX();
+    motorDriver.setTargetVelocityX(config::prbs_rot::TRANSLATION_VELOCITY_MM_S);
+    HAL_Delay(config::prbs_rot::ACCEL_MS);
+
+    // フェーズ2：並進速度700mm/sを維持しつつduty_diffをPRBS励振
+    uint32_t ticks_per_clock = static_cast<uint32_t>(config::prbs_rot::TC_SEC * 1000.f + 0.5f);
+    uint32_t total_ticks     = static_cast<uint32_t>(config::prbs_rot::DURATION_SEC * 1000.f + 0.5f);
+    g_prbs_rot.configure(seed, -config::prbs_rot::DUTY_DIFF_AMP, config::prbs_rot::DUTY_DIFF_AMP,
+                          ticks_per_clock, total_ticks);
+    motorDriver.setPRBSDutyDiff(&g_prbs_rot);
+
+    HAL_Delay(static_cast<uint32_t>(config::prbs_rot::DURATION_SEC * 1000.f) + 100);
+
+    motorDriver.setBreak();
+    motorDriver.setPRBSDutyDiff(nullptr);
+    motorDriver.setDutyDiff(0.f);   // 次回の試行に持ち越さない
+    HAL_Delay(50);
+    logger.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+onenter(prbs_rot_t01,
+    id_init_log_rot_v700();
+    logger.setDirName("prbs_rot_v700_x");
+    logger.setFileName("prbs_rot_t01");
+    logger.setIncludeTimestamp(false);
+    prbs_rot_tester(config::prbs_rot::SEED_T01);
+)
+
+onenter(prbs_rot_t02,
+    id_init_log_rot_v700();
+    logger.setDirName("prbs_rot_v700_x");
+    logger.setFileName("prbs_rot_t02");
+    logger.setIncludeTimestamp(false);
+    prbs_rot_tester(config::prbs_rot::SEED_T02);
+)
+
+onenter(prbs_rot_t03,
+    id_init_log_rot_v700();
+    logger.setDirName("prbs_rot_v700_x");
+    logger.setFileName("prbs_rot_t03");
+    logger.setIncludeTimestamp(false);
+    prbs_rot_tester(config::prbs_rot::SEED_T03);
+)
+
+onenter(prbs_rot_t04,
+    id_init_log_rot_v700();
+    logger.setDirName("prbs_rot_v700_x");
+    logger.setFileName("prbs_rot_t04");
+    logger.setIncludeTimestamp(false);
+    prbs_rot_tester(config::prbs_rot::SEED_T04);
+)
+
+onenter(prbs_rot_val01,
+    id_init_log_rot_v700();
+    logger.setDirName("prbs_rot_v700_x");
+    logger.setFileName("prbs_rot_val01");
+    logger.setIncludeTimestamp(false);
+    prbs_rot_tester(config::prbs_rot::SEED_VAL01);
+)
+
+onenter(prbs_rot_val02,
+    id_init_log_rot_v700();
+    logger.setDirName("prbs_rot_v700_x");
+    logger.setFileName("prbs_rot_val02");
+    logger.setIncludeTimestamp(false);
+    prbs_rot_tester(config::prbs_rot::SEED_VAL02);
+)
+
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
 // target_velocity_xへステップ指令し，実速度(left/right_encoder_velocity平均)の追従を
 // ログから確認する。duration_msは閉ループ時定数λ=0.1s基準で整定後も十分保持できる長さとする。

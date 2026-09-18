@@ -72,6 +72,18 @@ private:
                 MenuNode rot_step_v700_neg_006_{"rot v700 -duty0.06"};
                 MenuNode rot_step_v700_neg_010_{"rot v700 -duty0.10"};
                 MenuNode rot_step_v700_neg_014_{"rot v700 -duty0.14"};
+            MenuNode motor_rot_step_v700_xl_{"Motor rot step v700 XL"};
+                MenuNode rot_step_v700_pos_020_{"rot v700 +duty0.20"};
+                MenuNode rot_step_v700_pos_028_{"rot v700 +duty0.28"};
+                MenuNode rot_step_v700_neg_020_{"rot v700 -duty0.20"};
+                MenuNode rot_step_v700_neg_028_{"rot v700 -duty0.28"};
+            MenuNode motor_rot_prbs_v700_{"Motor rot PRBS v700"};
+                MenuNode prbs_rot_0_{"rot prbs 0"};
+                MenuNode prbs_rot_1_{"rot prbs 1"};
+                MenuNode prbs_rot_2_{"rot prbs 2"};
+                MenuNode prbs_rot_3_{"rot prbs 3"};
+                MenuNode prbs_rot_4_{"rot prbs val0"};
+                MenuNode prbs_rot_5_{"rot prbs val1"};
             MenuNode motor_velocity_x_{"Motor velocity X"};
                 MenuNode velocity_step_300_{"v step +300"};
                 MenuNode velocity_step_600_{"v step +600"};

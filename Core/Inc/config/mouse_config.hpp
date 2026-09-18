@@ -93,6 +93,33 @@ inline constexpr float DUTY_DIFF_2 = 0.04f;
 inline constexpr float DUTY_DIFF_3 = 0.06f;
 inline constexpr float DUTY_DIFF_4 = 0.10f;
 inline constexpr float DUTY_DIFF_5 = 0.14f;
+// 実運用目標（700mm/s時：角加速度目安2500deg/s^2，最高角速度目安430deg/s）に対し，
+// duty_diff<=0.14までの実測ではヨーレートが最大でも171dps程度までしか届いておらず
+// 大幅に不足している。運用域に向けた特性把握のため追加した水準（片輪はさらに深く
+// 負転する領域に入る）
+inline constexpr float DUTY_DIFF_6 = 0.20f;
+inline constexpr float DUTY_DIFF_7 = 0.28f;
+}
+
+// 回転方向PRBS本同定（data_analysis2/prbs_rot_design.m，system_identification_flow.md §2 [3]）
+// duty_diff振幅はrot_step_v700で確認した「クリーン」線形領域の上限(±0.06)を採用。
+// Tc=4msはn=8固定のLFSRで高域分解能(tau_fast/2.8)側を優先した値
+// （下限2.5*tau_slow/nとは両立しないため）。全周期255クロックが約1.02sに収まるため，
+// 1試行1.1sでほぼ全周期を励振できる。
+namespace config::prbs_rot {
+inline constexpr float TRANSLATION_VELOCITY_MM_S = 700.f;
+inline constexpr uint32_t ACCEL_MS   = 800;    // 並進速度700mm/sを閉ループで立ち上げる時間
+inline constexpr float TC_SEC        = 0.004f; // クロック周期 [s]（1ms tick整数化）
+inline constexpr float DUTY_DIFF_AMP = 0.06f;  // PRBS振幅（±）
+inline constexpr float DURATION_SEC  = 1.1f;   // 1試行の励振時間
+
+// 同定用4試行 + 検証(holdout)用2試行のPRBSシード
+inline constexpr uint16_t SEED_T01   = 0x6A2D;
+inline constexpr uint16_t SEED_T02   = 0x3F17;
+inline constexpr uint16_t SEED_T03   = 0x9C84;
+inline constexpr uint16_t SEED_T04   = 0x1E5B;
+inline constexpr uint16_t SEED_VAL01 = 0x7D93;
+inline constexpr uint16_t SEED_VAL02 = 0x4B26;
 }
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）

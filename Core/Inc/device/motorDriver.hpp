@@ -65,6 +65,16 @@ public:
         duty_diff_ = duty_diff;
     }
 
+    // duty_diffをPRBSで駆動する（回転PRBS同定用）。非nullの間はsetDutyDiff()の値より優先される。
+    // 並進側のsetPRBS()と異なりstateは変更しない（setVelocityの閉ループを維持したまま励振する）
+    void setPRBSDutyDiff(PRBS* prbs) {
+        prbs_rot_diff_ = prbs;
+    }
+
+    bool isPRBSDutyDiffFinished() const {
+        return (prbs_rot_diff_ == nullptr) || prbs_rot_diff_->isFinished();
+    }
+
     // 追従性検証用ログ（target_velocity_x）で参照する
     float getTargetVelocityX() const {
         return velocity_x_;
@@ -103,6 +113,7 @@ private:
 
     float velocity_x_ = 0.f;
     float duty_diff_ = 0.f;
+    PRBS* prbs_rot_diff_ = nullptr;
     PIDController pid_velocity_x_;
     bool velocity_pid_saturated_ = false;
 };

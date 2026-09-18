@@ -36,6 +36,18 @@ void rot_step_v700_neg_006_onenter();
 void rot_step_v700_neg_010_onenter();
 void rot_step_v700_neg_014_onenter();
 
+void rot_step_v700_pos_020_onenter();
+void rot_step_v700_pos_028_onenter();
+void rot_step_v700_neg_020_onenter();
+void rot_step_v700_neg_028_onenter();
+
+void prbs_rot_t01_onenter();
+void prbs_rot_t02_onenter();
+void prbs_rot_t03_onenter();
+void prbs_rot_t04_onenter();
+void prbs_rot_val01_onenter();
+void prbs_rot_val02_onenter();
+
 void velocity_step_300_onenter();
 void velocity_step_600_onenter();
 void velocity_step_900_onenter();
