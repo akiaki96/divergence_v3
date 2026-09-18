@@ -43,15 +43,16 @@ inline constexpr float kVbattMinSafe = 5.0f;
 // プラントモデル: G_V(s) = K_p / (T_p1*s + 1)　（PIゲイン設計用の局所モデル）
 // 不感帯込みアフィンモデル: v = A_GAIN * (u - U0_DEADZONE * sign(v))　（feedforward用）
 //
-// [要更新] K_p / T_p1 / A_GAIN / U0_DEADZONE は現時点では
-// data_analysis2/step_identification_report.md（duty10/15/20%のstep応答, 3水準平均）に基づく暫定値。
-// PRBS本同定（procest, data_analysis2で今後実施）の結果が出たら，この4つを差し替えるだけでよい。
+// K_p / T_p1 は data_analysis2/prbs_identification_report.md のPRBS本同定結果
+// （t01〜t08統合, holdoutフィット94.2%）を採用。
+// A_GAIN / U0_DEADZONE は data_analysis2/step_identification_report.md
+// （duty10/15/20%のアフィンモデル）に基づく値のまま（PRBSでは不感帯を跨ぐ多点同定は未実施）。
 namespace config::pid_velocity_x {
-// --- プラントモデル（暫定値, 要更新） ---
-inline constexpr float K_p  = 1523.7f;  // [mm/s/V] 3水準step応答のKp平均
-inline constexpr float T_p1 = 0.4303f;  // [s]      同Tp1平均
-inline constexpr float A_GAIN        = 1738.0f;  // [mm/s/V] アフィンモデルの真の速度ゲイン a
-inline constexpr float U0_DEADZONE   = 0.1360f;  // [V]      不感帯電圧 u0
+// --- プラントモデル ---
+inline constexpr float K_p  = 1518.9f;  // [mm/s/V] PRBS本同定(procest P1)
+inline constexpr float T_p1 = 0.4451f;  // [s]      同上
+inline constexpr float A_GAIN        = 1738.0f;  // [mm/s/V] アフィンモデルの真の速度ゲイン a（step応答由来）
+inline constexpr float U0_DEADZONE   = 0.1360f;  // [V]      不感帯電圧 u0（step応答由来）
 
 // --- PIフィードバックゲイン（IMC/λ整定, §3.1）---
 // [要調整] λは未実験。実機でオーバーシュート/整定時間を見ながら調整する（目安 T_p1/2〜2*T_p1）
