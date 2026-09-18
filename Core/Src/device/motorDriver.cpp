@@ -9,10 +9,16 @@ MotorDriver::MotorDriver(Motor& left, Motor& right)
     motorRight_(right)
 {}
 
+// 並進速度feedforward（translational_gain_tuning.md §2.2の定常成分のみの簡易版）:
+//   u_ff(v) = v/A_GAIN + U0_DEADZONE*sign(v)
+// 目標軌道がstep（滑らかな加減速プロファイルでない）前提のため微分項(T/K * v_dot)は省略し，
+// 過渡応答はPIフィードバックに委ねる。台形加減速プロファイルを導入する場合はここを拡張する。
 float velocity_x_ff(float velocity_x) {
-    if (velocity_x == 0.f) return 0.f;
+    float abs_v = (velocity_x < 0.f) ? -velocity_x : velocity_x;
+    if (abs_v < config::pid_velocity_x::ZERO_VELOCITY_EPS) return 0.f;
+
     float sign = (velocity_x > 0.f) ? 1.f : -1.f;
-    return (velocity_x / config::pid_velocity_x::a_gain) + sign * config::pid_velocity_x::u0_deadzone;
+    return (velocity_x / config::pid_velocity_x::A_GAIN) + sign * config::pid_velocity_x::U0_DEADZONE;
 }
 
 void MotorDriver::init() {
@@ -20,7 +26,8 @@ void MotorDriver::init() {
         config::pid_velocity_x::kp,
         config::pid_velocity_x::ki,
         config::pid_velocity_x::kd,
-        velocity_x_ff
+        velocity_x_ff,
+        config::pid_velocity_x::BACK_CALC_TT
     );
 }
 

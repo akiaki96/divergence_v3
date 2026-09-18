@@ -72,6 +72,11 @@ private:
                 MenuNode rot_step_v700_022_{"rot step v700 0.15"};
                 MenuNode rot_step_v700_025_{"rot step v700 0.19"};
                 MenuNode rot_step_v700_030_{"rot step v700 0.24"};
+            MenuNode motor_velocity_x_{"Motor velocity X"};
+                MenuNode velocity_step_300_{"v step +300"};
+                MenuNode velocity_step_600_{"v step +600"};
+                MenuNode velocity_step_900_{"v step +900"};
+                MenuNode velocity_step_neg600_{"v step -600"};
 
 
         MenuNode fan_{"Fan"};

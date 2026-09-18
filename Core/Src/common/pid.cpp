@@ -2,38 +2,38 @@
 #include "config/mouse_config.hpp"
 
 void PIDController::reset() {
-    integral_ = 0.f;
+    integral_term_ = 0.f;
     previous_error_ = 0.f;
 }
 
 float PIDController::update(float target, float current) {
     float error = target - current;
-    integral_ += error * config::control::DT_S;
+    integral_term_ += ki * error * config::control::DT_S;
     float derivative = (error - previous_error_) / config::control::DT_S;
     previous_error_ = error;
 
-    return (kp * error) + (ki * integral_) + (kd * derivative) + ff(target);
+    return (kp * error) + integral_term_ + (kd * derivative) + ff(target);
 }
 
 float PIDController::update(float target, float current, float limit, bool& saturated) {
     float error = target - current;
-    float temp_integral_ = integral_ + error * config::control::DT_S;
     float derivative = (error - previous_error_) / config::control::DT_S;
     previous_error_ = error;
 
-    float temp_output = (kp * error) + (ki * temp_integral_) + (kd * derivative) + ff(target);
+    float u_unsat = (kp * error) + integral_term_ + (kd * derivative) + ff(target);
 
-    float output = temp_output;
-    if (temp_output > limit) {
-        output = limit;
+    float u_sat = u_unsat;
+    saturated = false;
+    if (u_unsat > limit) {
+        u_sat = limit;
         saturated = true;
-    } else if (temp_output < -limit) {
-        output = -limit;
+    } else if (u_unsat < -limit) {
+        u_sat = -limit;
         saturated = true;
-    } else {
-        integral_ = temp_integral_;
-        saturated = false;
     }
 
-    return output;
+    // back-calculation: 飽和分(u_sat - u_unsat)だけ積分項を引き戻し，ワインドアップを防ぐ
+    integral_term_ += (ki * error + (u_sat - u_unsat) / back_calc_tt) * config::control::DT_S;
+
+    return u_sat;
 }

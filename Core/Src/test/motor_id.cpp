@@ -40,6 +40,16 @@ void id_init_log(void) {
     ledBar16.set(0xFFFF);
 }
 
+// 並進速度PI+FF制御の追従性検証用：id_init_log()の共通フィールドに加え，
+// 目標速度target_velocity_xも記録する（実速度との比較でステップ応答・追従誤差を評価するため）
+void id_init_log_velocity(void) {
+    id_init_log();
+    logger.add(
+        "target_velocity_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetVelocityX>(motorDriver)
+    );
+}
+
 onenter(right_set050, 
     id_init_log();
     logger.dirName = "right_set0_50";
@@ -393,6 +403,9 @@ onenter(rot_step_v700_030,
     rot_with_translation_tester({0.448f, 4.86f, 1400, 600});
 )
 
+// 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
+// target_velocity_xへステップ指令し，実速度(left/right_encoder_velocity平均)の追従を
+// ログから確認する。duration_msは閉ループ時定数λ=0.1s基準で整定後も十分保持できる長さとする。
 void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -400,7 +413,7 @@ void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
     HAL_Delay(1100);
     ledBar16.set(0x0000);
     logger.start();
-    HAL_Delay(100);
+    HAL_Delay(100);   // 静止区間：オフセット推定用
     motorDriver.switchToVelocityX();
     motorDriver.setTargetVelocityX(target_velocity_x);
     HAL_Delay(duration_ms);
@@ -415,13 +428,33 @@ void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
 }
 
 onenter(velocity_step_300,
-    id_init_log();
-    logger.dirName = "velocity_step_300";
-    velocity_step_tester(300.f, 1500);
+    id_init_log_velocity();
+    logger.setDirName("velocity_step_x");
+    logger.setFileName("velocity_step_300");
+    logger.setIncludeTimestamp(false);
+    velocity_step_tester(300.f, 2000);
 )
 
 onenter(velocity_step_600,
-    id_init_log();
-    logger.dirName = "velocity_step_600";
-    velocity_step_tester(600.f, 1500);
+    id_init_log_velocity();
+    logger.setDirName("velocity_step_x");
+    logger.setFileName("velocity_step_600");
+    logger.setIncludeTimestamp(false);
+    velocity_step_tester(600.f, 2000);
+)
+
+onenter(velocity_step_900,
+    id_init_log_velocity();
+    logger.setDirName("velocity_step_x");
+    logger.setFileName("velocity_step_900");
+    logger.setIncludeTimestamp(false);
+    velocity_step_tester(900.f, 2000);
+)
+
+onenter(velocity_step_neg600,
+    id_init_log_velocity();
+    logger.setDirName("velocity_step_x");
+    logger.setFileName("velocity_step_neg600");
+    logger.setIncludeTimestamp(false);
+    velocity_step_tester(-600.f, 2000);
 )

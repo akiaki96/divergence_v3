@@ -59,6 +59,11 @@ public:
         velocity_x_ = velocity_x;
     }
 
+    // 追従性検証用ログ（target_velocity_x）で参照する
+    float getTargetVelocityX() const {
+        return velocity_x_;
+    }
+
 
     float getLeftDuty(void) const;
     float getRightDuty(void) const;

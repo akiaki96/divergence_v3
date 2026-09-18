@@ -38,22 +38,38 @@ inline constexpr float kVbattMinSafe = 5.0f;
 }
 
 
-// lambda = 0.10 s
-// K_p = 1562.7 mm/s/V
-// T_{p1} = 0.459 s
-// K_c = \frac{T_{p1}}{K_p \lambda}
+// 並進速度 PI + feedforward 制御（translational_gain_tuning.md）
+//
+// プラントモデル: G_V(s) = K_p / (T_p1*s + 1)　（PIゲイン設計用の局所モデル）
+// 不感帯込みアフィンモデル: v = A_GAIN * (u - U0_DEADZONE * sign(v))　（feedforward用）
+//
+// [要更新] K_p / T_p1 / A_GAIN / U0_DEADZONE は現時点では
+// data_analysis2/step_identification_report.md（duty10/15/20%のstep応答, 3水準平均）に基づく暫定値。
+// PRBS本同定（procest, data_analysis2で今後実施）の結果が出たら，この4つを差し替えるだけでよい。
 namespace config::pid_velocity_x {
-inline constexpr float LAMBDA = 0.10f;
-inline constexpr float K_p = 1562.7f;
-inline constexpr float T_p1 = 0.459f;
+// --- プラントモデル（暫定値, 要更新） ---
+inline constexpr float K_p  = 1523.7f;  // [mm/s/V] 3水準step応答のKp平均
+inline constexpr float T_p1 = 0.4303f;  // [s]      同Tp1平均
+inline constexpr float A_GAIN        = 1738.0f;  // [mm/s/V] アフィンモデルの真の速度ゲイン a
+inline constexpr float U0_DEADZONE   = 0.1360f;  // [V]      不感帯電圧 u0
+
+// --- PIフィードバックゲイン（IMC/λ整定, §3.1）---
+// [要調整] λは未実験。実機でオーバーシュート/整定時間を見ながら調整する（目安 T_p1/2〜2*T_p1）
+inline constexpr float LAMBDA = 0.10f;  // [s] 閉ループ時定数
 inline constexpr float Kc = T_p1 / (K_p * LAMBDA);
 inline constexpr float kp = Kc;
 inline constexpr float ki = Kc / T_p1;
 inline constexpr float kd = 0.0f;
 
-inline float a_gain = 1831.07f;
-inline float u0_deadzone = 0.141;
-inline float voltage_limit_ratio = 0.95f;
+// --- アンチワインドアップ back-calculation（§3.2）---
+// Tt初期値はKp/Ki(=T_p1)を目安とする。飽和からの復帰が遅い/速すぎる場合はここを調整
+inline constexpr float BACK_CALC_TT = T_p1;
+
+// --- 出力飽和 ---
+inline constexpr float voltage_limit_ratio = 0.95f;
+
+// --- feedforwardのゼロ速度judgement（停止指令時に不感帯補償を入れずビビリを防ぐ）---
+inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 }
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）

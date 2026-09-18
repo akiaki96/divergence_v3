@@ -35,3 +35,8 @@ void rot_step_030_onenter();
 void rot_step_v700_022_onenter();
 void rot_step_v700_025_onenter();
 void rot_step_v700_030_onenter();
+
+void velocity_step_300_onenter();
+void velocity_step_600_onenter();
+void velocity_step_900_onenter();
+void velocity_step_neg600_onenter();
