@@ -22,7 +22,7 @@ void Menu::buildTree() {
                 motor_sysid_lamp_.setChildren(std::array{&lamp_005sec_, &lamp_010sec_, &lamp_030sec_, &lamp_050sec_, &lamp_070sec_, &log_dump_});
                 motor_sysid_prbs_.setChildren(std::array{&prbs_0_, &prbs_1_, &prbs_2_, &prbs_3_, &prbs_4_, &prbs_5_, &prbs_6_, &prbs_7_, &prbs_8_, &prbs_9_});
                 motor_rot_step1_.setChildren(std::array{&rot_step_010_, &rot_step_015_, &rot_step_020_, &rot_step_022_, &rot_step_025_, &rot_step_030_});
-                motor_rot_step_v700_.setChildren(std::array{&rot_step_v700_022_, &rot_step_v700_025_, &rot_step_v700_030_});
+                motor_rot_step_v700_.setChildren(std::array{&rot_step_v700_002_, &rot_step_v700_004_, &rot_step_v700_006_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_neg600_});
         log_test_.setChildren(std::array{&log_wait_, &log_dump_});
 
@@ -99,9 +99,9 @@ void Menu::setFunction() {
     rot_step_025_.setOnEnter(rot_step_025_onenter);
     rot_step_030_.setOnEnter(rot_step_030_onenter);
 
-    rot_step_v700_022_.setOnEnter(rot_step_v700_022_onenter);
-    rot_step_v700_025_.setOnEnter(rot_step_v700_025_onenter);
-    rot_step_v700_030_.setOnEnter(rot_step_v700_030_onenter);
+    rot_step_v700_002_.setOnEnter(rot_step_v700_002_onenter);
+    rot_step_v700_004_.setOnEnter(rot_step_v700_004_onenter);
+    rot_step_v700_006_.setOnEnter(rot_step_v700_006_onenter);
 
     velocity_step_300_.setOnEnter(velocity_step_300_onenter);
     velocity_step_600_.setOnEnter(velocity_step_600_onenter);

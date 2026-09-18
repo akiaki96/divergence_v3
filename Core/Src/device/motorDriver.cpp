@@ -68,6 +68,7 @@ float MotorDriver::dutyFromVoltage(float voltage) const {
 
 void MotorDriver::switchToVelocityX() {
     pid_velocity_x_.reset();
+    duty_diff_ = 0.f;
     state = MotorDriverState::setVelocity;
 }
 
@@ -118,7 +119,11 @@ void MotorDriver::update() {
             // 注意：setVoltage()はstateをMotorDriverState::setVoltageへ書き換えてしまうため，
             // ここで呼ぶとPIDが次tickから二度と回らなくなる（固定電圧のstep入力に化ける）。
             // stateをsetVelocityに保ったまま，直接duty変換のみ行う。
-            setDuty(dutyFromVoltage(base_batt), dutyFromVoltage(base_batt));
+            // duty_diff_（回転方向のstep/PRBS同定用）はduty空間で左右に重畳する：
+            // v_L = v* - diff/2, v_R = v* + diff/2 のkinematic配分に対応
+            float base_duty = dutyFromVoltage(base_batt);
+            float half_diff = duty_diff_ / 2.f;
+            setDuty(base_duty - half_diff, base_duty + half_diff);
             break;
         }
     }

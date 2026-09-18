@@ -59,9 +59,18 @@ public:
         velocity_x_ = velocity_x;
     }
 
+    // 並進速度閉ループ(setVelocity)の上に重畳する左右duty差（R-L）。
+    // 回転方向のstep/PRBS同定用：並進を一定速度に保ったまま回転を励振する
+    void setDutyDiff(float duty_diff) {
+        duty_diff_ = duty_diff;
+    }
+
     // 追従性検証用ログ（target_velocity_x）で参照する
     float getTargetVelocityX() const {
         return velocity_x_;
+    }
+    float getDutyDiff() const {
+        return duty_diff_;
     }
 
     // PI+FF診断用ログ：積分ワインドアップ・feedforward寄与・飽和状態を確認するため
@@ -93,6 +102,7 @@ private:
     float dutyFromVoltage(float voltage) const;
 
     float velocity_x_ = 0.f;
+    float duty_diff_ = 0.f;
     PIDController pid_velocity_x_;
     bool velocity_pid_saturated_ = false;
 };

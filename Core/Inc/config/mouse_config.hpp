@@ -73,6 +73,20 @@ inline constexpr float voltage_limit_ratio = 0.95f;
 inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 }
 
+// 回転方向のstep応答事前同定（system_identification_flow.md §2 [2]）
+// 並進速度を閉ループでTRANSLATION_VELOCITY_MM_Sに固定した状態で，左右duty差
+// （DUTY_DIFF_1/2/3, R-L）をステップ印加し非線形性・IMU飽和有無を確認する。
+// [要調整] 値は保守的な初期値。IMU飽和(±2000dps)に注意しながら実機で見直すこと。
+namespace config::rot_step_v700 {
+inline constexpr float TRANSLATION_VELOCITY_MM_S = 700.f;
+inline constexpr uint32_t ACCEL_MS = 800;   // 並進速度700mm/sを閉ループで立ち上げる時間
+inline constexpr uint32_t TEST_MS  = 600;   // duty差を保持する時間（励振時間）
+
+inline constexpr float DUTY_DIFF_1 = 0.02f;
+inline constexpr float DUTY_DIFF_2 = 0.04f;
+inline constexpr float DUTY_DIFF_3 = 0.06f;
+}
+
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
 // Tc下限(LFSRカバレッジ): 2.5*tau_slow/n, Tc上限(速い極を粗く均さない): tau_fast/2.8
 // 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16]

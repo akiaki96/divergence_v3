@@ -361,14 +361,19 @@ onenter(rot_step_030,
 )
 
 
-struct RotWithTranslationParams {
-    float voltage_v_ff;         // 並進FF duty（両輪共通の基準値）
-    float voltage_diff_step;    // 回転励振のステップ振幅（duty_R - duty_L）
-    uint32_t accel_ticks;    // 並進を立ち上げるtick数
-    uint32_t test_ticks;     // 回転励振を入れるtick数
-};
+// 回転方向のstep応答事前同定用ログ：velocity診断フィールドに加え，
+// 左右duty差(duty_diff)も記録する（system_identification_flow.md §2 [2]）
+void id_init_log_rot_v700(void) {
+    id_init_log_velocity();
+    logger.add(
+        "duty_diff",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getDutyDiff>(motorDriver)
+    );
+}
 
-void rot_with_translation_tester(const RotWithTranslationParams& p) {
+// 並進速度を閉ループでconfig::rot_step_v700::TRANSLATION_VELOCITY_MM_Sに固定したまま，
+// 左右duty差をステップ印加して回転方向の応答を励振する
+void rot_step_v700_tester(float duty_diff) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
     imu.calibrate();
@@ -378,16 +383,17 @@ void rot_with_translation_tester(const RotWithTranslationParams& p) {
     logger.start();
     HAL_Delay(100);   // 静止区間：オフセット推定用
 
-    // フェーズ1：並進速度を立ち上げる（回転励振なし）
-    motorDriver.setVoltage(p.voltage_v_ff, p.voltage_v_ff);
-    HAL_Delay(p.accel_ticks);
+    // フェーズ1：並進速度を閉ループで立ち上げる（回転励振なし）
+    motorDriver.switchToVelocityX();
+    motorDriver.setTargetVelocityX(config::rot_step_v700::TRANSLATION_VELOCITY_MM_S);
+    HAL_Delay(config::rot_step_v700::ACCEL_MS);
 
-    // フェーズ2：並進FFを維持しつつ回転差分をステップ印加
-    float half = p.voltage_diff_step / 2.f;
-    motorDriver.setVoltage(p.voltage_v_ff - half, p.voltage_v_ff + half);
-    HAL_Delay(p.test_ticks);
+    // フェーズ2：並進速度700mm/sを維持しつつ左右duty差をステップ印加
+    motorDriver.setDutyDiff(duty_diff);
+    HAL_Delay(config::rot_step_v700::TEST_MS);
 
     motorDriver.setBreak();
+    motorDriver.setDutyDiff(0.f);   // 次回の試行に持ち越さない
     HAL_Delay(50);
     logger.stop();
     HAL_Delay(500);
@@ -397,23 +403,28 @@ void rot_with_translation_tester(const RotWithTranslationParams& p) {
     ledBar16.set(0x0000);
 }
 
-
-onenter(rot_step_v700_022,
-    id_init_log();
-    logger.dirName = "rot_step_v700_022";
-    rot_with_translation_tester({0.448f, 3.564f, 1400, 600});
+onenter(rot_step_v700_002,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty002");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_1);
 )
 
-onenter(rot_step_v700_025,
-    id_init_log();
-    logger.dirName = "rot_step_v700_025";
-    rot_with_translation_tester({0.448f, 4.05f, 1400, 600});
+onenter(rot_step_v700_004,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty004");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_2);
 )
 
-onenter(rot_step_v700_030,
-    id_init_log();
-    logger.dirName = "rot_step_v700_030";
-    rot_with_translation_tester({0.448f, 4.86f, 1400, 600});
+onenter(rot_step_v700_006,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty006");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_3);
 )
 
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
