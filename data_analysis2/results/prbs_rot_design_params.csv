@@ -1,0 +1,2 @@
+Tc_s,n_stages,duty_diff_amp,T_trial_s,Kp_rot,Tp1_rot_s,gyro_max_dps,heading_end_deg,heading_max_abs_deg
+0.004,8,0.06,1.1,764,0.0144402915232831,42.0508845141332,-2.38726942225261,3.83484510694895
