@@ -1,6 +1,6 @@
 %% 回転方向 事前同定（並進700mm/s固定 + 左右duty差ステップ）
 %
-% tools/log/rot_step_v700_x/rot_step_v700_duty_{pos,neg}{002,004,006}.csv を読み込み，
+% tools/log/rot_step_v700_x/rot_step_v700_duty_{pos,neg}{002,004,006,010,014}.csv を読み込み，
 % 並進速度700mm/s一定下での左右duty差(R-L)ステップに対するヨーレート(gyro_z)応答を解析する。
 % system_identification_flow.md §2 [2]「回転step実験」に対応。
 %
@@ -21,8 +21,8 @@ if ~exist(results_dir, 'dir')
     mkdir(results_dir);
 end
 
-labels    = {'pos002', 'pos004', 'pos006', 'neg002', 'neg004', 'neg006'};
-duty_vals = [0.02, 0.04, 0.06, -0.02, -0.04, -0.06];   % ラベルに対応する符号付きduty_diff
+labels    = {'pos002', 'pos004', 'pos006', 'pos010', 'pos014', 'neg002', 'neg004', 'neg006', 'neg010', 'neg014'};
+duty_vals = [0.02, 0.04, 0.06, 0.10, 0.14, -0.02, -0.04, -0.06, -0.10, -0.14];   % ラベルに対応する符号付きduty_diff
 
 n = numel(labels);
 gyro_ss   = zeros(n, 1);
@@ -107,9 +107,10 @@ savefig(fig_fit, fullfile(results_dir, 'rot_step_v700_gain_fit.fig'));
 
 %% 正負対称性の確認
 fprintf('\n--- 正負対称性（|gyro_ss|/|duty_diff|の比較） ---\n');
-for i = 1:3
+n_half = n / 2;
+for i = 1:n_half
     pos_gain = gyro_ss(i) / duty_vals(i);
-    neg_gain = gyro_ss(i + 3) / duty_vals(i + 3);
+    neg_gain = gyro_ss(i + n_half) / duty_vals(i + n_half);
     fprintf('|duty_diff|=%.2f: +方向ゲイン=%.1f, -方向ゲイン=%.1f, 差=%.1f%%\n', ...
         abs(duty_vals(i)), pos_gain, neg_gain, 100 * (pos_gain - neg_gain) / ((pos_gain + neg_gain) / 2));
 end
