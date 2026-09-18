@@ -111,7 +111,7 @@ void step_tester(float step) {
     logger.start();
     HAL_Delay(100);
     motorDriver.setDuty(step, step);
-    HAL_Delay(2000);
+    HAL_Delay(1000);
     motorDriver.setBreak();
     HAL_Delay(50);
     logger.stop();
@@ -123,15 +123,27 @@ void step_tester(float step) {
     ledBar16.set(0x0000);
 }
 
-onenter(step_01,
+onenter(step_010,
     id_init_log();
-    logger.dirName = "step_0_1";
+    logger.setDirName("step_x");
+    logger.setFileName("step_0_10");
+    logger.includeTimestamp = false;
     step_tester(0.1f);
 )
 
-onenter(step_02,
+onenter(step_015,
     id_init_log();
-    logger.dirName = "step_0_2";
+    logger.setDirName("step_x");
+    logger.setFileName("step_0_15");
+    logger.includeTimestamp = false;
+    step_tester(0.15f);
+)
+
+onenter(step_020,
+    id_init_log();
+    logger.setDirName("step_x");
+    logger.setFileName("step_0_20");
+    logger.includeTimestamp = false;
     step_tester(0.2f);
 )
 

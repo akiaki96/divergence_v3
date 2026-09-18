@@ -18,7 +18,7 @@ void Menu::buildTree() {
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_sysid_lamp_, &motor_sysid_step_, &motor_sysid_prbs_, &motor_rot_step1_, &motor_rot_step_v700_});
                 motor_r_.setChildren(std::array{&right_050_});
-                motor_sysid_step_.setChildren(std::array{&step_01_, &step_02_, &step_log_});
+                motor_sysid_step_.setChildren(std::array{&step_010_, &step_015_, &step_020_, &step_log_});
                 motor_sysid_lamp_.setChildren(std::array{&lamp_005sec_, &lamp_010sec_, &lamp_030sec_, &lamp_050sec_, &lamp_070sec_, &log_dump_});
                 motor_sysid_prbs_.setChildren(std::array{&prbs_0_, &prbs_1_, &prbs_2_, &prbs_3_, &prbs_4_, &prbs_5_, &prbs_6_, &prbs_7_});
                 motor_rot_step1_.setChildren(std::array{&rot_step_010_, &rot_step_015_, &rot_step_020_, &rot_step_022_, &rot_step_025_, &rot_step_030_});
@@ -75,8 +75,9 @@ void Menu::setFunction() {
     lamp_050sec_.setOnEnter(lamp_050sec_onenter);
     lamp_070sec_.setOnEnter(lamp_070sec_onenter);
 
-    step_01_.setOnEnter(step_01_onenter);
-    step_02_.setOnEnter(step_02_onenter);
+    step_010_.setOnEnter(step_010_onenter);
+    step_015_.setOnEnter(step_015_onenter);
+    step_020_.setOnEnter(step_020_onenter);
     step_log_.setOnEnter(log_dump_onenter);
 
     prbs_0_.setOnEnter(prbs_trans_t01_onenter);
