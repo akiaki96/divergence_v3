@@ -56,7 +56,7 @@ inline constexpr float U0_DEADZONE   = 0.1360f;  // [V]      不感帯電圧 u0�
 
 // --- PIフィードバックゲイン（IMC/λ整定, §3.1）---
 // [要調整] λは未実験。実機でオーバーシュート/整定時間を見ながら調整する（目安 T_p1/2〜2*T_p1）
-inline constexpr float LAMBDA = 0.10f;  // [s] 閉ループ時定数
+inline constexpr float LAMBDA = 0.03f;  // [s] 閉ループ時定数
 inline constexpr float Kc = T_p1 / (K_p * LAMBDA);
 inline constexpr float kp = Kc;
 inline constexpr float ki = Kc / T_p1;
