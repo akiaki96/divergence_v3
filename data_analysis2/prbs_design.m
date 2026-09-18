@@ -77,8 +77,10 @@ fprintf('duty_min=%.2f → u_min=%.3fV (u0比 %.1fx)\n', duty_min, u_min, u_min 
 fprintf('duty_max=%.2f → u_max=%.3fV\n', duty_max, u_max);
 
 %% 事前シミュレーション：距離制約の検証（最大ゲイン点のモデルで保守的に評価）
+% 走行距離を抑えるため3.0s→2.4s(80%)へ短縮。1試行あたりの励振ビット数が減る分は
+% 同定用試行数を6→8に増やして補う（mouse_config.hpp: config::prbs_trans）
 Ts_sim  = 0.001;
-T_trial = 3.0;   % 1試行の最大走行時間 [s]
+T_trial = 2.4;   % 1試行の走行時間 [s]
 
 Nclock = round(Tc / Ts_sim);
 Nbits  = round(T_trial / Tc);
@@ -95,6 +97,7 @@ dist_cum = cumtrapz(t_sim, v_sim);
 fprintf('\n--- 距離シミュレーション結果（duty%d%%モデルで保守的に評価） ---\n', duty_pct(i_maxK));
 fprintf('最大速度: %.2f m/s\n', max(v_sim) / 1000);
 fprintf('%.1fs後の総走行距離: %.2f m\n', T_trial, dist_cum(end) / 1000);
+fprintf('1試行あたりの励振ビット数: %.0f bit（同定用8試行+検証用2試行で多様性を確保）\n', T_trial / Tc);
 
 fig = figure;
 subplot(2, 1, 1);
