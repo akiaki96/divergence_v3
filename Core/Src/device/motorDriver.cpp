@@ -109,12 +109,14 @@ void MotorDriver::update() {
         case MotorDriverState::modeSelecting:
         break;
 
-        case MotorDriverState::setVelocity:
+        case MotorDriverState::setVelocity: {
             bool saturated = false;
             float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
             float base_batt = pid_velocity_x_.update(velocity_x_, (encoderLeft.velocity() + encoderRight.velocity()) / 2.f, limit, saturated);
+            velocity_pid_saturated_ = saturated;
 
             setVoltage(base_batt, base_batt);
-        break;
+            break;
+        }
     }
 }

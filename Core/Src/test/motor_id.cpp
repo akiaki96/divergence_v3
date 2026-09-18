@@ -48,6 +48,19 @@ void id_init_log_velocity(void) {
         "target_velocity_x",
         etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetVelocityX>(motorDriver)
     );
+    // 積分ワインドアップとfeedforward寄与を確認するための診断フィールド
+    logger.add(
+        "pid_integral_term",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXIntegralTerm>(motorDriver)
+    );
+    logger.add(
+        "pid_feedforward",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXFeedforward>(motorDriver)
+    );
+    logger.add(
+        "pid_saturated",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXSaturated>(motorDriver)
+    );
 }
 
 onenter(right_set050, 

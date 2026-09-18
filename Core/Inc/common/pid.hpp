@@ -21,6 +21,14 @@ public:
         this->back_calc_tt = back_calc_tt;
     }
 
+    // 診断用ゲッター（積分ワインドアップ・feedforward寄与をログで確認するため）
+    float getIntegralTerm() const {
+        return integral_term_;
+    }
+    float getLastFeedforward() const {
+        return last_ff_;
+    }
+
     float kp;
     float ki;
     float kd;
@@ -33,4 +41,5 @@ public:
 private:
     float integral_term_;   // 積分項の出力寄与（u(t)と同じ単位。ki既反映済み）
     float previous_error_;
+    float last_ff_ = 0.f;    // 直近のupdate()で計算されたff(target)（ログ用）
 };

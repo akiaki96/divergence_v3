@@ -64,6 +64,17 @@ public:
         return velocity_x_;
     }
 
+    // PI+FF診断用ログ：積分ワインドアップ・feedforward寄与・飽和状態を確認するため
+    float getVelocityXIntegralTerm() const {
+        return pid_velocity_x_.getIntegralTerm();
+    }
+    float getVelocityXFeedforward() const {
+        return pid_velocity_x_.getLastFeedforward();
+    }
+    float getVelocityXSaturated() const {
+        return velocity_pid_saturated_ ? 1.f : 0.f;
+    }
+
 
     float getLeftDuty(void) const;
     float getRightDuty(void) const;
@@ -83,4 +94,5 @@ private:
 
     float velocity_x_ = 0.f;
     PIDController pid_velocity_x_;
+    bool velocity_pid_saturated_ = false;
 };
