@@ -10,10 +10,20 @@ void Logger::initLoggedVal(void) {
     add("Global_time", &globalTime);
     state_ = LoggerState::Idle;
     dirName = ".";
+    fileName = nullptr;
+    includeTimestamp = true;
 }
 
 void Logger::setDirName(const char* name) {
     dirName = name;
+}
+
+void Logger::setFileName(const char* name) {
+    fileName = name;
+}
+
+void Logger::setIncludeTimestamp(bool enable) {
+    includeTimestamp = enable;
 }
 
 bool Logger::add(const char* name, const float* value) {
@@ -116,6 +126,8 @@ void Logger::dump() {
 
     printf("BIN_START\r\n");
     printf("%s\r\n", dirName);
+    printf("%s\r\n", fileName != nullptr ? fileName : "");
+    printf("TIMESTAMP:%d\r\n", includeTimestamp ? 1 : 0);
     printf("SIZE:%u\r\n", static_cast<uint32_t>(dataSize()));
     for (uint32_t i = 0; i < fieldCount_; ++i) {
         if (i > 0) {

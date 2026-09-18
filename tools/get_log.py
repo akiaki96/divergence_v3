@@ -95,16 +95,24 @@ class Saver:
     def __init__(self):
         pass
 
-    # in: data(list[dict], parser.parse()の出力), headers(list[str])
+    # in: data(list[dict], parser.parse()の出力), headers(list[str]),
+    #     dirName(str, 保存先ディレクトリ。"sub/dir"のようにネストも可),
+    #     fileName(str, 拡張子なしのファイル名。空文字なら"log"を使う。
+    #              こちらも"sub/name"のようにネストを含められる),
+    #     includeTimestamp(bool, Trueならファイル名末尾に年月日時刻を付与)
     # out: filename(str, 保存したCSVの絶対パス)
-    def save_to_csv(self, data, headers, dirName):
+    def save_to_csv(self, data, headers, dirName, fileName="", includeTimestamp=True):
         # =========================
-        # CSV保存（年月日時刻入り）
+        # CSV保存（指定ディレクトリ/ファイル名、必要なら年月日時刻入り）
         # =========================
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = fileName if fileName else "log"
+        if includeTimestamp:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = f"{base_name}_{timestamp}"
+
         log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log", dirName)
-        filename = os.path.join(log_dir, f"log_{timestamp}.csv")
-        os.makedirs(log_dir, exist_ok=True)
+        filename = os.path.join(log_dir, f"{base_name}.csv")
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(headers)

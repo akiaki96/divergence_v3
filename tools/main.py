@@ -31,6 +31,11 @@ while True:
     if line == "BIN_START":
         # receiver.read_line() -> "DIR:<ディレクトリ名>"(str)
         dirName = receiver.read_line()
+        # receiver.read_line() -> "<ファイル名>"(str, 未指定なら空文字)
+        fileName = receiver.read_line()
+        # receiver.read_line() -> "TIMESTAMP:<0 or 1>"(str)
+        timestamp_line = receiver.read_line()
+        includeTimestamp = timestamp_line.split(":")[1] == "1"
         # receiver.read_line() -> "SIZE:<バイト数>"(str)
         size_line = receiver.read_line()
         expected_size = int(
@@ -60,9 +65,9 @@ while True:
         # parser.parse(binary:bytes) -> data: list[dict]（1要素=1サンプル）
         data = parser.parse(binary)
 
-        # saver.save_to_csv(data, headers) -> filename: str（保存先CSVパス）
+        # saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp) -> filename: str（保存先CSVパス）
         saver = Saver()
-        filename = saver.save_to_csv(data, headers, dirName)
+        filename = saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp)
 
         # plot_csv(filename:str) -> なし（グラフウィンドウを表示）
         if not args.no_gui:

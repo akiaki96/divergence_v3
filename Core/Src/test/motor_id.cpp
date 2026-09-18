@@ -102,52 +102,37 @@ onenter(lamp_070sec,
 )
 
 
-onenter(step_01, 
-    constexpr float step = 0.1f;
+void step_tester(float step) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    imu.calibrate();
+    HAL_Delay(1100);
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);
+    motorDriver.setDuty(step, step);
+    HAL_Delay(2000);
+    motorDriver.setBreak();
+    HAL_Delay(50);
+    logger.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+onenter(step_01,
     id_init_log();
     logger.dirName = "step_0_1";
-    motorDriver.state = MotorDriverState::setDuty;
-    motorDriver.setDuty(0.f, 0.f);
-    imu.calibrate();
-    HAL_Delay(1100);
-    ledBar16.set(0x0000);
-    logger.start();
-    HAL_Delay(100);
-    motorDriver.setDuty(step, step);
-    HAL_Delay(2000);
-    motorDriver.setBreak();
-    HAL_Delay(50);
-    logger.stop();
-    HAL_Delay(500);
-    ledBar16.set(0xFFFF);
-    haltByAccZ();
-
-    logger.dump();
-    ledBar16.set(0x0000);
+    step_tester(0.1f);
 )
 
-onenter(step_02, 
-    constexpr float step = 0.2f;
+onenter(step_02,
     id_init_log();
     logger.dirName = "step_0_2";
-    motorDriver.state = MotorDriverState::setDuty;
-    motorDriver.setDuty(0.f, 0.f);
-    imu.calibrate();
-    HAL_Delay(1100);
-    ledBar16.set(0x0000);
-    logger.start();
-    HAL_Delay(100);
-    motorDriver.setDuty(step, step);
-    HAL_Delay(2000);
-    motorDriver.setBreak();
-    HAL_Delay(50);
-    logger.stop();
-    HAL_Delay(500);
-    ledBar16.set(0xFFFF);
-    haltByAccZ();
-
-    logger.dump();
-    ledBar16.set(0x0000);
+    step_tester(0.2f);
 )
 
 struct PRBSTransParams {
