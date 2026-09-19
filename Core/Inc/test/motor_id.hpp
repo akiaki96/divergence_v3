@@ -41,6 +41,13 @@ void rot_step_v700_pos_028_onenter();
 void rot_step_v700_neg_020_onenter();
 void rot_step_v700_neg_028_onenter();
 
+void rot_step_v700_pos_022_onenter();
+void rot_step_v700_pos_024_onenter();
+void rot_step_v700_pos_026_onenter();
+void rot_step_v700_neg_022_onenter();
+void rot_step_v700_neg_024_onenter();
+void rot_step_v700_neg_026_onenter();
+
 void prbs_rot_t01_onenter();
 void prbs_rot_t02_onenter();
 void prbs_rot_t03_onenter();
@@ -49,6 +56,7 @@ void prbs_rot_val01_onenter();
 void prbs_rot_val02_onenter();
 
 void omega_step_pos200_onenter();
+void omega_step_pos250_onenter();
 void omega_step_pos400_onenter();
 void omega_step_neg200_onenter();
 void omega_step_neg400_onenter();

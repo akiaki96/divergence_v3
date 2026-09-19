@@ -77,6 +77,12 @@ private:
                 MenuNode rot_step_v700_pos_028_{"rot v700 +duty0.28"};
                 MenuNode rot_step_v700_neg_020_{"rot v700 -duty0.20"};
                 MenuNode rot_step_v700_neg_028_{"rot v700 -duty0.28"};
+                MenuNode rot_step_v700_pos_022_{"rot v700 +0.22 2s"};
+                MenuNode rot_step_v700_pos_024_{"rot v700 +0.24 2s"};
+                MenuNode rot_step_v700_pos_026_{"rot v700 +0.26 2s"};
+                MenuNode rot_step_v700_neg_022_{"rot v700 -0.22 2s"};
+                MenuNode rot_step_v700_neg_024_{"rot v700 -0.24 2s"};
+                MenuNode rot_step_v700_neg_026_{"rot v700 -0.26 2s"};
             MenuNode motor_rot_prbs_v700_{"Motor rot PRBS v700"};
                 MenuNode prbs_rot_0_{"rot prbs 0"};
                 MenuNode prbs_rot_1_{"rot prbs 1"};
@@ -86,6 +92,7 @@ private:
                 MenuNode prbs_rot_5_{"rot prbs val1"};
             MenuNode motor_omega_step_{"Motor omega step"};
                 MenuNode omega_step_pos200_{"omega step +200"};
+                MenuNode omega_step_pos250_{"omega step +250"};
                 MenuNode omega_step_pos400_{"omega step +400"};
                 MenuNode omega_step_neg200_{"omega step -200"};
                 MenuNode omega_step_neg400_{"omega step -400"};

@@ -86,7 +86,11 @@ inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 namespace config::rot_step_v700 {
 inline constexpr float TRANSLATION_VELOCITY_MM_S = 700.f;
 inline constexpr uint32_t ACCEL_MS = 800;   // 並進速度700mm/sを閉ループで立ち上げる時間
-inline constexpr uint32_t TEST_MS  = 600;   // duty差を保持する時間（励振時間）
+inline constexpr uint32_t TEST_MS  = 600;   // duty差を保持する時間（励振時間，通常水準）
+// duty_diff>=0.22付近の高振幅域では600msで整定しない（+0.28で確認済み）ため，
+// 真の整定値・時定数を確認する試験専用に励振時間を延長する
+// （data_analysis2/rot_high_amplitude_test_plan.md 試験1）
+inline constexpr uint32_t TEST_MS_LONG = 2000;
 
 inline constexpr float DUTY_DIFF_1 = 0.02f;
 inline constexpr float DUTY_DIFF_2 = 0.04f;
@@ -99,6 +103,10 @@ inline constexpr float DUTY_DIFF_5 = 0.14f;
 // 負転する領域に入る）
 inline constexpr float DUTY_DIFF_6 = 0.20f;
 inline constexpr float DUTY_DIFF_7 = 0.28f;
+// 430dps付近の目標運用域に近い中間水準（TEST_MS_LONGで励振し真の整定を確認する）
+inline constexpr float DUTY_DIFF_8  = 0.22f;
+inline constexpr float DUTY_DIFF_9  = 0.24f;
+inline constexpr float DUTY_DIFF_10 = 0.26f;
 }
 
 // 回転方向PRBS本同定（data_analysis2/prbs_rot_design.m，system_identification_flow.md §2 [3]）

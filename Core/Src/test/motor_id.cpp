@@ -311,8 +311,10 @@ void id_init_log_rot_v700(void) {
 }
 
 // 並進速度を閉ループでconfig::rot_step_v700::TRANSLATION_VELOCITY_MM_Sに固定したまま，
-// 左右duty差をステップ印加して回転方向の応答を励振する
-void rot_step_v700_tester(float duty_diff) {
+// 左右duty差をステップ印加して回転方向の応答を励振する。
+// test_msは通常TEST_MS(600ms)だが，高振幅域では600msで整定しないことが確認されているため，
+// data_analysis2/rot_high_amplitude_test_plan.mdの試験1ではTEST_MS_LONG(2000ms)を渡す。
+void rot_step_v700_tester(float duty_diff, uint32_t test_ms) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
     imu.calibrate();
@@ -329,7 +331,7 @@ void rot_step_v700_tester(float duty_diff) {
 
     // フェーズ2：並進速度700mm/sを維持しつつ左右duty差をステップ印加
     motorDriver.setDutyDiff(duty_diff);
-    HAL_Delay(config::rot_step_v700::TEST_MS);
+    HAL_Delay(test_ms);
 
     motorDriver.setBreak();
     motorDriver.setDutyDiff(0.f);   // 次回の試行に持ち越さない
@@ -349,7 +351,7 @@ onenter(rot_step_v700_pos_002,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_pos002");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_1);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_1, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_pos_004,
@@ -357,7 +359,7 @@ onenter(rot_step_v700_pos_004,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_pos004");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_2);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_2, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_pos_006,
@@ -365,7 +367,7 @@ onenter(rot_step_v700_pos_006,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_pos006");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_3);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_3, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_pos_010,
@@ -373,7 +375,7 @@ onenter(rot_step_v700_pos_010,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_pos010");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_4);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_4, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_pos_014,
@@ -381,7 +383,7 @@ onenter(rot_step_v700_pos_014,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_pos014");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_5);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_5, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_neg_002,
@@ -389,7 +391,7 @@ onenter(rot_step_v700_neg_002,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_neg002");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_1);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_1, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_neg_004,
@@ -397,7 +399,7 @@ onenter(rot_step_v700_neg_004,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_neg004");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_2);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_2, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_neg_006,
@@ -405,7 +407,7 @@ onenter(rot_step_v700_neg_006,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_neg006");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_3);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_3, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_neg_010,
@@ -413,7 +415,7 @@ onenter(rot_step_v700_neg_010,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_neg010");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_4);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_4, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_neg_014,
@@ -421,7 +423,7 @@ onenter(rot_step_v700_neg_014,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_neg014");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_5);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_5, config::rot_step_v700::TEST_MS);
 )
 
 // 実運用目標（700mm/s時，角加速度目安2500deg/s^2・最高角速度目安430deg/s）に対し，
@@ -432,7 +434,7 @@ onenter(rot_step_v700_pos_020,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_pos020");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_6);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_6, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_pos_028,
@@ -440,7 +442,7 @@ onenter(rot_step_v700_pos_028,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_pos028");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_7);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_7, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_neg_020,
@@ -448,7 +450,7 @@ onenter(rot_step_v700_neg_020,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_neg020");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_6);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_6, config::rot_step_v700::TEST_MS);
 )
 
 onenter(rot_step_v700_neg_028,
@@ -456,7 +458,58 @@ onenter(rot_step_v700_neg_028,
     logger.setDirName("rot_step_v700_x");
     logger.setFileName("rot_step_v700_duty_neg028");
     logger.setIncludeTimestamp(false);
-    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_7);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_7, config::rot_step_v700::TEST_MS);
+)
+
+// data_analysis2/rot_high_amplitude_test_plan.md 試験1：
+// +0.28が600msで未整定だったため，430dps付近の目標運用域に近い中間水準を
+// TEST_MS_LONG(2000ms)で励振し，真の整定値・時定数を確認する
+onenter(rot_step_v700_pos_022,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_pos022_long");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_8, config::rot_step_v700::TEST_MS_LONG);
+)
+
+onenter(rot_step_v700_pos_024,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_pos024_long");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_9, config::rot_step_v700::TEST_MS_LONG);
+)
+
+onenter(rot_step_v700_pos_026,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_pos026_long");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(config::rot_step_v700::DUTY_DIFF_10, config::rot_step_v700::TEST_MS_LONG);
+)
+
+onenter(rot_step_v700_neg_022,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_neg022_long");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_8, config::rot_step_v700::TEST_MS_LONG);
+)
+
+onenter(rot_step_v700_neg_024,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_neg024_long");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_9, config::rot_step_v700::TEST_MS_LONG);
+)
+
+onenter(rot_step_v700_neg_026,
+    id_init_log_rot_v700();
+    logger.setDirName("rot_step_v700_x");
+    logger.setFileName("rot_step_v700_duty_neg026_long");
+    logger.setIncludeTimestamp(false);
+    rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_10, config::rot_step_v700::TEST_MS_LONG);
 )
 
 // 回転方向PRBS本同定（data_analysis2/prbs_rot_design.m）。
@@ -604,6 +657,17 @@ onenter(omega_step_pos200,
     logger.setFileName("omega_step_pos200");
     logger.setIncludeTimestamp(false);
     rot_omega_step_tester(200.f, 800);
+)
+
+// data_analysis2/rot_high_amplitude_test_plan.md 試験2：
+// DUTY_DIFF_LIMIT(0.20)ちょうどに相当する目標(約250dps)で，飽和境界への漸近挙動
+// （振動せず滑らかに収束するか）を確認する
+onenter(omega_step_pos250,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_pos250");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(250.f, 800);
 )
 
 onenter(omega_step_pos400,
