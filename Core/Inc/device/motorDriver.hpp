@@ -42,6 +42,9 @@ public:
         state = MotorDriverState::setDuty;
         motorLeft_.setBreak();
         motorRight_.setBreak();
+        // 前試行のapplied_duty_diff_が次試行冒頭のログにリークするのを防ぐ
+        // （data_analysis2/rot_step_v700_report.mdで確認された不具合）
+        applied_duty_diff_ = 0.f;
     }
 
     void setPRBS(PRBS* prbs) {
