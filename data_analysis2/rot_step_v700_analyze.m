@@ -21,10 +21,11 @@ if ~exist(results_dir, 'dir')
     mkdir(results_dir);
 end
 
-labels    = {'pos002', 'pos004', 'pos006', 'pos010', 'pos014', 'pos020', 'pos028', ...
-             'neg002', 'neg004', 'neg006', 'neg010', 'neg014', 'neg020', 'neg028'};
-duty_vals = [0.02, 0.04, 0.06, 0.10, 0.14, 0.20, 0.28, ...
-             -0.02, -0.04, -0.06, -0.10, -0.14, -0.20, -0.28];   % ラベルに対応する符号付きduty_diff
+% pos022/024/026, neg022/024/026 は励振時間2000ms（他は600ms, rot_high_amplitude_test_plan.md 試験1）
+labels    = {'pos002', 'pos004', 'pos006', 'pos010', 'pos014', 'pos020', 'pos022_long', 'pos024_long', 'pos026_long', 'pos028', ...
+             'neg002', 'neg004', 'neg006', 'neg010', 'neg014', 'neg020', 'neg022_long', 'neg024_long', 'neg026_long', 'neg028'};
+duty_vals = [0.02, 0.04, 0.06, 0.10, 0.14, 0.20, 0.22, 0.24, 0.26, 0.28, ...
+             -0.02, -0.04, -0.06, -0.10, -0.14, -0.20, -0.22, -0.24, -0.26, -0.28];   % ラベルに対応する符号付きduty_diff
 
 n = numel(labels);
 gyro_ss   = zeros(n, 1);
@@ -40,9 +41,11 @@ for i = 1:n
     T = readtable(fname);
     t = T.Global_time - T.Global_time(1);
 
-    duty_diff = T.duty_diff;
-    onset  = find(duty_diff ~= 0, 1, 'first');
-    offset = onset - 1 + find(duty_diff(onset:end) == 0, 1, 'first');
+    % 注意：前試行のapplied_duty_diff_がstate遷移直後の静止区間(先頭~100サンプル)に
+    % 漏れ残るファームウェアの不具合があるため（motorDriver.setBreak()がapplied_duty_diff_を
+    % リセットしない），単純な最初のnonzero検出ではこの短い偽励振を誤検出する。
+    % 最長の連続nonzero区間を真の励振窓として採用することで頑健に回避する
+    [onset, offset] = find_longest_nonzero_run(T.duty_diff);
 
     t_rel = t(onset:offset - 1) - t(onset);
     gyro_win = T.gyro_z(onset:offset - 1);
@@ -136,3 +139,18 @@ fprintf('観測された最大|gyro_z| = %.1f dps（飽和値の%.1f%%）\n', ma
 summary = table(labels', duty_vals', gyro_ss, gyro_max, vavg_ss, settle_ms, ...
     'VariableNames', {'label', 'duty_diff', 'gyro_ss_dps', 'gyro_max_dps', 'v_avg_ss_mm_s', 'settle90_ms'});
 writetable(summary, fullfile(results_dir, 'rot_step_v700_summary.csv'));
+
+%% ローカル関数
+function [onset, offset] = find_longest_nonzero_run(duty_diff)
+    % duty_diff系列中で最も長い連続nonzero区間を[onset, offset)として返す。
+    % 前試行のapplied_duty_diff_の漏れ残り（短い偽励振）を排除するため，
+    % 単純な最初のnonzero検出ではなく最長連続区間を真の励振窓として採用する。
+    is_nonzero = duty_diff ~= 0;
+    d = diff([0; is_nonzero; 0]);
+    run_starts = find(d == 1);
+    run_ends   = find(d == -1) - 1;
+    run_lengths = run_ends - run_starts + 1;
+    [~, idx] = max(run_lengths);
+    onset  = run_starts(idx);
+    offset = run_ends(idx) + 1;   % 呼び出し側はonset:offset-1を励振窓として使う
+end
