@@ -49,7 +49,13 @@ for d = 1:numel(dirs)
         r.r90 = ternary(isempty(i90), NaN, tr(i90) * 1000);
         i10 = find(abs(g100 - tgt) > 0.10 * abs(tgt), 1, 'last');
         r.set10 = ternary(isempty(i10), 0, tr(i10) * 1000);
-        r.sat_pct = 100 * mean(T.omega_saturated(idx) > 0);
+        % F3ファームの初回ログは列数上限(Logger::MAX_FIELDS=16)でomega_saturatedが欠落している
+        % （修正済み）。無い場合は出力が上限(0.28)に張り付いた区間で代用する
+        if ismember('omega_saturated', T.Properties.VariableNames)
+            r.sat_pct = 100 * mean(T.omega_saturated(idx) > 0);
+        else
+            r.sat_pct = 100 * mean(abs(u) >= 0.2795);
+        end
         r.vdrop = 100 * (700 - min(movmean(v, 20))) / 700;
         if has_ref
             ref = T.omega_ref(idx);
