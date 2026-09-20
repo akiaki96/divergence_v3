@@ -1,7 +1,9 @@
 %% F3（目標角速度のレート制限）の実機検証：ステップ vs ランプの比較と合否判定
 %
 % 入力：tools/log/omega_step_v700_x/*.csv と tools/log/omega_ramp_v700_x/*.csv
-%  - 列 omega_ref を持つCSV = F3ファーム（レート制限後の指令値をログ）。持たないCSV = F3以前（E3/E5/E6）のステップ指令
+%  - 列 omega_ref を持たないCSV = F3以前（E3/E5/E6）のステップ指令
+%  - omega_ref あり・omega_saturated なし = F3ファーム（E7。列数上限でomega_saturatedが欠落していた）
+%  - omega_ref・omega_saturated とも あり = F4ファーム（方向別Ti，E8以降。ログ修正後）
 %  - omega_ramp_*     : 最大角加速度 2500 dps/s^2（運用仕様，config::pid_omega::OMEGA_ACCEL_MAX）
 %  - omega_ramp4k_*   : 4000 dps/s^2（参考）
 %  - omega_step_* (omega_ref列あり) : F3ファームでのステップ指令（回帰確認）
@@ -29,7 +31,8 @@ for d = 1:numel(dirs)
         tgt = T.target_omega(on);
         has_ref = ismember('omega_ref', T.Properties.VariableNames);
         if contains(fn, 'ramp4k'), acc = 4000; elseif contains(fn, 'ramp'), acc = 2500; else, acc = Inf; end
-        if has_ref, fwn = 'F3'; else, fwn = 'pre-F3'; end
+        has_sat = ismember('omega_saturated', T.Properties.VariableNames);
+        if has_ref && has_sat, fwn = 'F4'; elseif has_ref, fwn = 'F3'; else, fwn = 'pre-F3'; end
         if isinf(acc), kind = 'step'; else, kind = sprintf('ramp%d', acc); end
         grp = sprintf('%s %s', fwn, kind);
 
@@ -84,9 +87,10 @@ end
 writetable(sm, fullfile(results_dir, 'omega_ramp_summary_by_group.csv'));
 writetable(Rt, fullfile(results_dir, 'omega_ramp_summary_by_run.csv'));
 
-%% 合否判定（F3ファームのランプ2500）
-fprintf('\n===== F3 ランプ(2500dps/s^2) 合否判定 =====\n');
-mm = strcmp(Rt.group, 'F3 ramp2500');
+%% 合否判定（F4ファームのランプ2500とステップ。F4データが無ければF3のランプ2500を判定）
+mm = startsWith(Rt.group, 'F4') & (endsWith(Rt.group, 'ramp2500') | endsWith(Rt.group, 'step'));
+if any(mm), jname = 'F4'; else, jname = 'F3 ramp2500'; mm = strcmp(Rt.group, 'F3 ramp2500'); end
+fprintf('\n===== %s 合否判定 =====\n', jname);
 if any(mm)
     X = Rt(mm, :);
     for i = 1:height(X)
@@ -100,13 +104,13 @@ if any(mm)
             ok_reach, ok_os, ok_rise, ok_sat, ok_v, ok_tail, X.err_pct(i), X.os100(i), X.r90(i), X.sat_pct(i), X.vdrop(i));
     end
 else
-    fprintf('F3ランプのデータはまだありません。\n');
+    fprintf('判定対象のデータはまだありません。\n');
 end
 
 %% 重ね書き：目標ごとに，符号を揃えた100ms移動平均
 levels = [430 -430 250 -250 100 -100];
-keys = {'pre_F3_step', 'F3_step', 'F3_ramp2500', 'F3_ramp4000'};
-colors = [0.2 0.2 0.2; 0.85 0.33 0.1; 0 0.45 0.74; 0.47 0.67 0.19];
+keys = {'pre_F3_step', 'F3_step', 'F3_ramp2500', 'F3_ramp4000', 'F4_step', 'F4_ramp2500', 'F4_ramp4000'};
+colors = [0.2 0.2 0.2; 0.85 0.33 0.1; 0 0.45 0.74; 0.47 0.67 0.19; 0.64 0.08 0.18; 0.49 0.18 0.56; 0.93 0.69 0.13];
 fig = figure('Position', [30 30 1500 900]);
 for li = 1:numel(levels)
     subplot(2, 3, li); hold on; grid on;

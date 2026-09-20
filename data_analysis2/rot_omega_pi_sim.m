@@ -42,7 +42,8 @@ nC = 5;
 % ファーム案E（現行firmware）：Kc一定，Tiは|目標角速度|の区分線形表（rot_gain_scheduling_plan.md §6）
 KC_E = 5.0e-4;
 TI_BP_W = [0 100 200 250 400 430];
-TI_BP_T = [0.0090 0.01725 0.0345 0.0420 0.0615 0.06525];   % firmware(config::pid_omega::TI_S_BP)と同一
+TI_BP_T = [0.0090 0.01725 0.0345 0.0420 0.0615 0.06525];   % firmware(config::pid_omega::TI_S_BP_NEG)と同一
+TI_BP_T_POS = [0.0090 0.01725 0.0345 0.0600 0.1400 0.1500];   % TI_S_BP_POS（F4：+側のみ延長）
 
 rows = {};
 fig = figure('Position', [50 50 1300 900]);
@@ -57,7 +58,8 @@ for it = 1:numel(targets)
                 case 5
                     ulim = 0.28;
                     Kc = KC_E;
-                    Ti = interp1(TI_BP_W, TI_BP_T, min(abs(wref), 430));
+                    if wref >= 0, tbl = TI_BP_T_POS; else, tbl = TI_BP_T; end   % 方向別Ti（F4）
+                    Ti = interp1(TI_BP_W, tbl, min(abs(wref), 430));
                 case {3, 4}
                     ulim = 0.28;
                     lam = LAMBDA;
