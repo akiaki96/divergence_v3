@@ -14,6 +14,13 @@ arg_parser = argparse.ArgumentParser()
 
 # オプションの設定
 arg_parser.add_argument("--no_gui", action="store_true", help="Do not show graph")
+arg_parser.add_argument(
+    "--on_conflict",
+    choices=["overwrite", "sequence"],
+    default="overwrite",
+    help="同名CSVが既に存在する場合の挙動。overwrite: 上書き（デフォルト）, "
+         "sequence: '_1','_2',...の連番を付けて別ファイルとして両方保存する",
+)
 
 # オプションの解釈
 args = arg_parser.parse_args()
@@ -31,6 +38,11 @@ while True:
     if line == "BIN_START":
         # receiver.read_line() -> "DIR:<ディレクトリ名>"(str)
         dirName = receiver.read_line()
+        # receiver.read_line() -> "<ファイル名>"(str, 未指定なら空文字)
+        fileName = receiver.read_line()
+        # receiver.read_line() -> "TIMESTAMP:<0 or 1>"(str)
+        timestamp_line = receiver.read_line()
+        includeTimestamp = timestamp_line.split(":")[1] == "1"
         # receiver.read_line() -> "SIZE:<バイト数>"(str)
         size_line = receiver.read_line()
         expected_size = int(
@@ -60,9 +72,9 @@ while True:
         # parser.parse(binary:bytes) -> data: list[dict]（1要素=1サンプル）
         data = parser.parse(binary)
 
-        # saver.save_to_csv(data, headers) -> filename: str（保存先CSVパス）
-        saver = Saver()
-        filename = saver.save_to_csv(data, headers, dirName)
+        # saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp) -> filename: str（保存先CSVパス）
+        saver = Saver(on_conflict=args.on_conflict)
+        filename = saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp)
 
         # plot_csv(filename:str) -> なし（グラフウィンドウを表示）
         if not args.no_gui:
