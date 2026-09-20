@@ -37,8 +37,12 @@ targets = [100 200 250 400 430 -430];
 gainmult = [1.0 1.5 2.0];    % プラント静ゲインの倍率（局所ゲイン増の不確かさ試験）
 
 LAMBDA_FAST = 0.03;
-ctrl_names = {'A 現行(上限0.20)', 'B 現行ゲイン(上限0.28)', 'C スケジュール(lam=0.05)', 'D スケジュール(lam=0.03,上限0.26)'};
-nC = 4;
+ctrl_names = {'A 現行(上限0.20)', 'B 現行ゲイン(上限0.28)', 'C スケジュール(lam=0.05)', 'D スケジュール(lam=0.03,上限0.26)', 'E ファーム案(Kc一定,Ti表,上限0.26)'};
+nC = 5;
+% ファーム案E：Kc一定，Tiは|目標角速度|の区分線形表（rot_gain_scheduling_plan.md §6）
+KC_E = 5.0e-4;
+TI_BP_W = [0 100 200 250 400 430];
+TI_BP_T = [0.012 0.023 0.046 0.056 0.082 0.087];
 
 rows = {};
 fig = figure('Position', [50 50 1300 900]);
@@ -50,6 +54,10 @@ for it = 1:numel(targets)
             switch ic
                 case 1, ulim = 0.20; Kc = Kc0; Ti = TP1;
                 case 2, ulim = 0.28; Kc = Kc0; Ti = TP1;
+                case 5
+                    ulim = 0.26;
+                    Kc = KC_E;
+                    Ti = interp1(TI_BP_W, TI_BP_T, min(abs(wref), 430));
                 case {3, 4}
                     ulim = 0.28;
                     lam = LAMBDA;
