@@ -159,9 +159,12 @@ inline constexpr int TI_TABLE_SIZE = 6;
 inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE] = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
 inline constexpr float TI_S_BP[TI_TABLE_SIZE]     = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};
 
-// 出力(duty_diff)飽和：430dpsに必要なu*≈0.233に対し約0.03の余裕。0.26〜0.28は接線ゲインが
-// 1万dps/dutyを超え時定数も115〜160msと非線形性が強いため，上限は0.26に留める
-inline constexpr float DUTY_DIFF_LIMIT = 0.26f;
+// 出力(duty_diff)飽和：実機E3で負方向は正方向より約0.03多くdutyを要し（機体の左右バイアス，
+// 高速ほど大きい），-400/-430dpsの定常duty≈-0.25では旧上限0.26まで余裕0.01しかなく
+// -430で飽和が144ms続いた。open-loopの±0.28 stepで974dpsまで検証済みの範囲である0.28まで許す
+// （正方向は約0.195で足りるため上限には触れず，実質負側の余裕確保。
+// data_analysis2/rot_gain_scheduling_plan.md §11.2）。0.28超は未検証のため上げない
+inline constexpr float DUTY_DIFF_LIMIT = 0.28f;
 }
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
