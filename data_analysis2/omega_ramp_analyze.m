@@ -4,6 +4,8 @@
 %  - 列 omega_ref を持たないCSV = F3以前（E3/E5/E6）のステップ指令
 %  - omega_ref あり・omega_saturated なし = F3ファーム（E7。列数上限でomega_saturatedが欠落していた）
 %  - omega_ref・omega_saturated とも あり = F4ファーム（方向別Ti，E8以降。ログ修正後）
+%  - omega_ff 列あり = F5ファーム（2自由度FF，omega_ff_v700_x/。ファイル名で omega_ff_=FF ON(係数1.0倍),
+%    omega_ffhi_=FF ON(係数1.6倍), omega_noff_=FF OFF(同一セッションの純PI基準)）
 %  - omega_ramp_*     : 最大角加速度 2500 dps/s^2（運用仕様，config::pid_omega::OMEGA_ACCEL_MAX）
 %  - omega_ramp4k_*   : 4000 dps/s^2（参考）
 %  - omega_step_* (omega_ref列あり) : F3ファームでのステップ指令（回帰確認）
@@ -16,7 +18,7 @@
 
 clear; clc;
 results_dir = 'results';
-dirs = {'../tools/log/omega_step_v700_x/', '../tools/log/omega_ramp_v700_x/'};
+dirs = {'../tools/log/omega_step_v700_x/', '../tools/log/omega_ramp_v700_x/', '../tools/log/omega_ff_v700_x/'};
 
 rows = struct('file', {}, 'group', {}, 'target', {}, 'fw', {}, 'accel', {}, 'ss', {}, 'err_pct', {}, 'sd', {}, ...
     'u_ss', {}, 'u_max', {}, 'os100', {}, 'r90', {}, 'set10', {}, 'sat_pct', {}, 'vdrop', {}, 'track_err', {});
@@ -30,10 +32,15 @@ for d = 1:numel(dirs)
         if isempty(on), continue; end
         tgt = T.target_omega(on);
         has_ref = ismember('omega_ref', T.Properties.VariableNames);
-        if contains(fn, 'ramp4k'), acc = 4000; elseif contains(fn, 'ramp'), acc = 2500; else, acc = Inf; end
+        if contains(fn, 'ramp4k'), acc = 4000; elseif contains(fn, 'ramp') || contains(fn, 'omega_ff'), acc = 2500; else, acc = Inf; end
         has_sat = ismember('omega_saturated', T.Properties.VariableNames);
-        if has_ref && has_sat, fwn = 'F4'; elseif has_ref, fwn = 'F3'; else, fwn = 'pre-F3'; end
-        if isinf(acc), kind = 'step'; else, kind = sprintf('ramp%d', acc); end
+        has_ff = ismember('omega_ff', T.Properties.VariableNames);
+        if has_ff, fwn = 'F5'; elseif has_ref && has_sat, fwn = 'F4'; elseif has_ref, fwn = 'F3'; else, fwn = 'pre-F3'; end
+        if has_ff
+            if contains(fn, 'noff'), kind = 'noff'; elseif contains(fn, 'ffhi'), kind = 'ffhi'; else, kind = 'ff'; end
+        elseif isinf(acc), kind = 'step';
+        else, kind = sprintf('ramp%d', acc);
+        end
         grp = sprintf('%s %s', fwn, kind);
 
         idx = on:height(T);
@@ -88,8 +95,13 @@ writetable(sm, fullfile(results_dir, 'omega_ramp_summary_by_group.csv'));
 writetable(Rt, fullfile(results_dir, 'omega_ramp_summary_by_run.csv'));
 
 %% 合否判定（F4ファームのランプ2500とステップ。F4データが無ければF3のランプ2500を判定）
-mm = startsWith(Rt.group, 'F4') & (endsWith(Rt.group, 'ramp2500') | endsWith(Rt.group, 'step'));
-if any(mm), jname = 'F4'; else, jname = 'F3 ramp2500'; mm = strcmp(Rt.group, 'F3 ramp2500'); end
+mm = startsWith(Rt.group, 'F5') & (endsWith(Rt.group, ' ff') | endsWith(Rt.group, 'ffhi'));
+if any(mm)
+    jname = 'F5 (FF ON: ff/ffhi)';
+else
+    mm = startsWith(Rt.group, 'F4') & (endsWith(Rt.group, 'ramp2500') | endsWith(Rt.group, 'step'));
+    if any(mm), jname = 'F4'; else, jname = 'F3 ramp2500'; mm = strcmp(Rt.group, 'F3 ramp2500'); end
+end
 fprintf('\n===== %s 合否判定 =====\n', jname);
 if any(mm)
     X = Rt(mm, :);
@@ -109,8 +121,8 @@ end
 
 %% 重ね書き：目標ごとに，符号を揃えた100ms移動平均
 levels = [430 -430 250 -250 100 -100];
-keys = {'pre_F3_step', 'F3_step', 'F3_ramp2500', 'F3_ramp4000', 'F4_step', 'F4_ramp2500', 'F4_ramp4000'};
-colors = [0.2 0.2 0.2; 0.85 0.33 0.1; 0 0.45 0.74; 0.47 0.67 0.19; 0.64 0.08 0.18; 0.49 0.18 0.56; 0.93 0.69 0.13];
+keys = {'pre_F3_step', 'F3_step', 'F3_ramp2500', 'F3_ramp4000', 'F4_step', 'F4_ramp2500', 'F4_ramp4000', 'F5_ff', 'F5_ffhi', 'F5_noff'};
+colors = [0.2 0.2 0.2; 0.85 0.33 0.1; 0 0.45 0.74; 0.47 0.67 0.19; 0.64 0.08 0.18; 0.49 0.18 0.56; 0.93 0.69 0.13; 0 0.6 0.3; 0.3 0.75 0.9; 0.5 0.5 0.5];
 fig = figure('Position', [30 30 1500 900]);
 for li = 1:numel(levels)
     subplot(2, 3, li); hold on; grid on;
@@ -123,7 +135,7 @@ for li = 1:numel(levels)
         if ~shown(ki), dn = strrep(q.grp, '_', '\_'); shown(ki) = true; else, dn = ''; end
         h = plot(q.tr * 1000, sign(q.tgt) * q.g100, 'Color', colors(ki, :));
         if isempty(dn), h.HandleVisibility = 'off'; else, h.DisplayName = dn; end
-        if contains(q.grp, 'ramp') && ~contains(q.grp, 'pre')
+        if (contains(q.grp, 'ramp') || contains(q.grp, 'F5')) && ~contains(q.grp, 'pre')
             hr = plot(q.tr * 1000, sign(q.tgt) * q.ref, ':', 'Color', colors(ki, :)); hr.HandleVisibility = 'off';
         end
     end
