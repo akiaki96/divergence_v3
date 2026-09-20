@@ -21,6 +21,12 @@ public:
         this->back_calc_tt = back_calc_tt;
     }
 
+    // 目標値の関数ではない外部のfeedforward（例：指令の加速度FF）。次のupdate()の出力に加算され，
+    // 飽和・back-calculationにも含まれる（FF分を含めてワインドアップを防ぐ）。reset()で0に戻る
+    void setExternalFF(float value) {
+        ext_ff_ = value;
+    }
+
     // 診断用ゲッター（積分ワインドアップ・feedforward寄与をログで確認するため）
     float getIntegralTerm() const {
         return integral_term_;
@@ -42,4 +48,5 @@ private:
     float integral_term_;   // 積分項の出力寄与（u(t)と同じ単位。ki既反映済み）
     float previous_error_;
     float last_ff_ = 0.f;    // 直近のupdate()で計算されたff(target)（ログ用）
+    float ext_ff_ = 0.f;     // setExternalFF()で与えた外部FF
 };

@@ -24,7 +24,7 @@ void Menu::buildTree() {
                 motor_rot_step_v700_.setChildren(std::array{&rot_step_v700_pos_002_, &rot_step_v700_pos_004_, &rot_step_v700_pos_006_, &rot_step_v700_pos_010_, &rot_step_v700_pos_014_, &rot_step_v700_neg_002_, &rot_step_v700_neg_004_, &rot_step_v700_neg_006_, &rot_step_v700_neg_010_, &rot_step_v700_neg_014_});
                 motor_rot_step_v700_xl_.setChildren(std::array{&rot_step_v700_pos_020_, &rot_step_v700_pos_028_, &rot_step_v700_neg_020_, &rot_step_v700_neg_028_, &rot_step_v700_pos_022_, &rot_step_v700_pos_024_, &rot_step_v700_pos_026_, &rot_step_v700_neg_022_, &rot_step_v700_neg_024_, &rot_step_v700_neg_026_});
                 motor_rot_prbs_v700_.setChildren(std::array{&prbs_rot_0_, &prbs_rot_1_, &prbs_rot_2_, &prbs_rot_3_, &prbs_rot_4_, &prbs_rot_5_});
-                motor_omega_step_.setChildren(std::array{&omega_step_pos430_, &omega_step_neg430_, &omega_ramp_pos430_, &omega_ramp_neg430_, &omega_ramp_pos250_, &omega_ramp_neg250_, &omega_ramp_pos100_, &omega_ramp_neg100_, &omega_ramp4k_pos430_, &omega_ramp4k_neg430_});
+                motor_omega_step_.setChildren(std::array{&omega_ff_pos430_, &omega_ff_neg430_, &omega_ffhi_pos430_, &omega_ffhi_neg430_, &omega_noff_pos430_, &omega_noff_neg430_, &omega_ff_pos250_, &omega_ff_neg250_, &omega_ff_pos100_, &omega_ff_neg100_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_neg600_});
         log_test_.setChildren(std::array{&log_wait_, &log_dump_});
 
@@ -124,16 +124,16 @@ void Menu::setFunction() {
     prbs_rot_4_.setOnEnter(prbs_rot_val01_onenter);
     prbs_rot_5_.setOnEnter(prbs_rot_val02_onenter);
 
-    omega_step_pos430_.setOnEnter(omega_step_pos430_onenter);
-    omega_step_neg430_.setOnEnter(omega_step_neg430_onenter);
-    omega_ramp_pos430_.setOnEnter(omega_ramp_pos430_onenter);
-    omega_ramp_neg430_.setOnEnter(omega_ramp_neg430_onenter);
-    omega_ramp_pos250_.setOnEnter(omega_ramp_pos250_onenter);
-    omega_ramp_neg250_.setOnEnter(omega_ramp_neg250_onenter);
-    omega_ramp_pos100_.setOnEnter(omega_ramp_pos100_onenter);
-    omega_ramp_neg100_.setOnEnter(omega_ramp_neg100_onenter);
-    omega_ramp4k_pos430_.setOnEnter(omega_ramp4k_pos430_onenter);
-    omega_ramp4k_neg430_.setOnEnter(omega_ramp4k_neg430_onenter);
+    omega_ff_pos430_.setOnEnter(omega_ff_pos430_onenter);
+    omega_ff_neg430_.setOnEnter(omega_ff_neg430_onenter);
+    omega_ffhi_pos430_.setOnEnter(omega_ffhi_pos430_onenter);
+    omega_ffhi_neg430_.setOnEnter(omega_ffhi_neg430_onenter);
+    omega_noff_pos430_.setOnEnter(omega_noff_pos430_onenter);
+    omega_noff_neg430_.setOnEnter(omega_noff_neg430_onenter);
+    omega_ff_pos250_.setOnEnter(omega_ff_pos250_onenter);
+    omega_ff_neg250_.setOnEnter(omega_ff_neg250_onenter);
+    omega_ff_pos100_.setOnEnter(omega_ff_pos100_onenter);
+    omega_ff_neg100_.setOnEnter(omega_ff_neg100_onenter);
 
     velocity_step_300_.setOnEnter(velocity_step_300_onenter);
     velocity_step_600_.setOnEnter(velocity_step_600_onenter);

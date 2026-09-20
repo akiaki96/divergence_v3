@@ -87,6 +87,8 @@ public:
         omega_control_enabled_ = false;
         target_omega_ = 0.f;
         omega_ref_ = 0.f;
+        omega_ff_ = 0.f;
+        pid_omega_.setExternalFF(0.f);
     }
     // 目標角速度（最終値）を設定する。PIに渡る指令値omega_ref_は，この値へ最大角加速度
     // （setOmegaAccelLimit(), 既定config::pid_omega::OMEGA_ACCEL_MAX）でランプする。
@@ -100,8 +102,22 @@ public:
         omega_accel_max_ = accel_dps2;
     }
 
+    // 2自由度FF（静的FF＋加速度FF，config::pid_omega::FF_*）の有効/無効。試験ごとにFF ON/OFFを
+    // 同一セッションで比較するための実行時上書き（既定 config::pid_omega::OMEGA_FF_ENABLED）
+    void setOmegaFFEnabled(bool enabled) {
+        omega_ff_enabled_ = enabled;
+    }
+    // 加速度FF係数の倍率（試験でFF係数の大きさを変えて比較するための実行時上書き。既定1.0）
+    void setOmegaAccelFFScale(float scale) {
+        omega_accel_ff_scale_ = scale;
+    }
+
     float getTargetOmega() const {
         return target_omega_;
+    }
+    // 直近tickでPIに加えたFFの合計 [duty]（静的＋加速度）。ログ用
+    float getOmegaFF() const {
+        return omega_ff_;
     }
     float getOmegaRef() const {
         return omega_ref_;
@@ -161,6 +177,9 @@ private:
     bool omega_control_enabled_ = false;
     float target_omega_ = 0.f;            // 最終目標
     float omega_ref_ = 0.f;               // レート制限後の指令（PIに渡る値）
+    bool omega_ff_enabled_ = config::pid_omega::OMEGA_FF_ENABLED;
+    float omega_accel_ff_scale_ = 1.f;
+    float omega_ff_ = 0.f;                // 直近tickのFF合計（ログ用）
     float omega_accel_max_ = config::pid_omega::OMEGA_ACCEL_MAX;
     PIDController pid_omega_;
     bool omega_saturated_ = false;

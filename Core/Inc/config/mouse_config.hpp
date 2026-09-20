@@ -154,7 +154,7 @@ inline constexpr float kd = 0.0f;
 
 // Ti(|ω_ref|)の区分線形表 [s]。|ω_ref|>末尾は末尾値で固定。指令値ω_refの符号で正/負を選ぶ（方向別）
 //
-// [方向別Ti（F4）] 実機E7で，+側(+430)はステップでもランプでもOSが10%前後出るのに対し，-側は
+// [方向別Ti（F4で導入。現在の値は下の注記のとおり正負同一に戻した）] 実機E7で，+側(+430)はステップでもランプでもOSが10%前後出るのに対し，-側は
 // 0.7〜4%と小さかった。閉ループ実測から推定した局所時定数は+側で約290ms(215〜376)，-側で約75ms
 // (59〜92)。PIの零点(1/Ti)がプラント極(1/T_loc)より速い(Ti<T_loc)とOSが出るため，+側の高速域のみ
 // Tiを延ばす（線形感度マップでは Ti=130〜180ms で+側相当のOSが10〜14% → 0〜4%，立上り+35〜60ms）。
@@ -164,8 +164,36 @@ inline constexpr float kd = 0.0f;
 // (data_analysis2/rot_gain_scheduling_plan.md §14.4)
 inline constexpr int TI_TABLE_SIZE = 6;
 inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE]   = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
-inline constexpr float TI_S_BP_POS[TI_TABLE_SIZE]   = {0.0090f, 0.01725f, 0.0345f, 0.0600f, 0.1400f, 0.1500f};   // ω_ref >= 0
+inline constexpr float TI_S_BP_POS[TI_TABLE_SIZE]   = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};  // ω_ref >= 0
 inline constexpr float TI_S_BP_NEG[TI_TABLE_SIZE]   = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};  // ω_ref < 0
+// [F5で+側Tiを現行(F3)値へ戻した] 実機E8で，+側のTi延長(F4: Ti(+430)=150ms)はOSを下げる一方で
+// 90%到達が約150→341msと運用仕様(2500dps/s^2)の半分以下に悪化した。OS対策は下記の2自由度FFで行い，
+// PIのTiは立上りを損なわない値(F3と同じ)に戻す。方向別にできる構造は残してある。
+
+// ---- 2自由度FF（F5, data_analysis2/rot_gain_scheduling_plan.md §17, §18）----
+// 出力: u_diff = u_ff_static(ω_ref) + a_ff(|ω_ref|)·dω_ref/dt + PI(ω_ref − ω)
+// 従来は必要なduty(0.18〜0.27)を積分項だけで作っていたため，指令に対しωが遅れる間の誤差が積分に
+// 積み上がりOSになっていた。FFで必要dutyを直接与え，PIはモデル誤差(±0.03程度)の補正に回す。
+// 試算(rot_ff2dof_study.m, 実測に較正した21プラント，ランプ2500dps/s^2の+430)：OS 6.4→2.7%
+// (最悪13.6→7.3%)，90%到達 229→164ms，指令に対する遅れ 47→7%。静的FFだけではOSが悪化(13%)し，
+// 加速度FFで遅れを消すことが本質。加速度FF係数が半分だと効果が消え，過大側には寛容なので係数はやや大きめにする。
+// ステップ指令は加速度が無限大でFFが意味を持たないため，FFはレート制限後のランプ指令(omega_ref)で使う前提。
+inline constexpr bool OMEGA_FF_ENABLED = true;   // 既定。実行時は MotorDriver::setOmegaFFEnabled() で試験ごとに切替可
+
+// 静的FF: 必要duty |u_ff|(|ω_ref|)（符号はω_refに従う）。補間点はTI_OMEGA_BPと共通。
+// 実測の閉ループ定常duty u_ss（E1〜E8のrun間ばらつき）の**小さい側（保守側）**で設計する：
+// FFが不足する分はPIの積分が補うので過大に出さない（過大だとOSになる）。
+//   +側: 100dps 0.090〜0.096, 200dps 0.165〜0.187, 250dps 0.165〜0.196, 400dps 0.191〜0.206, 430dps 0.176〜0.222
+//   -側: 100dps 0.102〜0.126, 200dps 0.191〜0.200, 250dps 0.186〜0.216, 400dps 0.234〜0.250, 430dps 0.220〜0.272
+inline constexpr float FF_U_POS[TI_TABLE_SIZE] = {0.f, 0.090f, 0.170f, 0.172f, 0.178f, 0.178f};   // ω_ref >= 0
+inline constexpr float FF_U_NEG[TI_TABLE_SIZE] = {0.f, 0.100f, 0.185f, 0.186f, 0.220f, 0.220f};   // ω_ref < 0（大きさ）
+
+// 加速度FF係数 [duty/(dps/s)] ≈ T_loc/K_loc（動作点別。局所回帰: +側 T≈290ms/K≈6000, -側 T≈75ms/K≈1700 で
+// 約4.4〜4.8e-5，0からのstep由来のH1では1.4〜2.0e-5）。2500dps/s^2で 0.04〜0.09 duty。
+// 効果が消えるのは係数不足側なので，高速側は中間〜やや大きめの3.5e-5とする。
+inline constexpr float FF_ACC[TI_TABLE_SIZE]   = {1.5e-5f, 2.0e-5f, 2.8e-5f, 3.0e-5f, 3.5e-5f, 3.5e-5f};
+// 加速度FFに使う dω_ref/dt の上限 [dps/s]。ステップ指令(レート制限なし)で加速度FFが発散しないようにする
+inline constexpr float OMEGA_ACCEL_FF_MAX = 5000.f;
 
 // 目標角速度の最大角加速度 [dps/s]（指令のレート制限）。運用仕様（700mm/s時 角加速度2500deg/s²）に合わせる。
 // 実機E5でステップ指令に対し+側高速(+400/+430)で6〜12%のオーバーシュートが再現したため，

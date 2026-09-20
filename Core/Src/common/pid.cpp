@@ -4,6 +4,7 @@
 void PIDController::reset() {
     integral_term_ = 0.f;
     previous_error_ = 0.f;
+    ext_ff_ = 0.f;
 }
 
 float PIDController::update(float target, float current) {
@@ -13,7 +14,7 @@ float PIDController::update(float target, float current) {
     previous_error_ = error;
     last_ff_ = ff(target);
 
-    return (kp * error) + integral_term_ + (kd * derivative) + last_ff_;
+    return (kp * error) + integral_term_ + (kd * derivative) + last_ff_ + ext_ff_;
 }
 
 float PIDController::update(float target, float current, float limit, bool& saturated) {
@@ -22,7 +23,7 @@ float PIDController::update(float target, float current, float limit, bool& satu
     previous_error_ = error;
     last_ff_ = ff(target);
 
-    float u_unsat = (kp * error) + integral_term_ + (kd * derivative) + last_ff_;
+    float u_unsat = (kp * error) + integral_term_ + (kd * derivative) + last_ff_ + ext_ff_;
 
     float u_sat = u_unsat;
     saturated = false;

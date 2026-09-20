@@ -28,20 +28,43 @@ float omega_ff_zero(float) {
     return 0.f;
 }
 
-// 指令角速度ω_refに対する積分時間Ti [s]（config::pid_omega::TI_*の区分線形補間）。
-// ω_refの符号で正/負の表を選ぶ（方向別Ti，config::pid_omega参照）
-static float omega_ti_schedule(float omega_dps) {
+// 区分線形補間：|ω| に対する表 tbl（補間点 config::pid_omega::TI_OMEGA_BP 共通）を引く。|ω|が範囲外は端の値
+static float interp_omega_bp(const float* tbl, float w_abs) {
     using namespace config::pid_omega;
-    const float* ti_tbl = (omega_dps >= 0.f) ? TI_S_BP_POS : TI_S_BP_NEG;
-    float w = (omega_dps < 0.f) ? -omega_dps : omega_dps;
-    if (w <= TI_OMEGA_BP[0]) return ti_tbl[0];
+    if (w_abs <= TI_OMEGA_BP[0]) return tbl[0];
     for (int i = 1; i < TI_TABLE_SIZE; ++i) {
-        if (w <= TI_OMEGA_BP[i]) {
-            float r = (w - TI_OMEGA_BP[i - 1]) / (TI_OMEGA_BP[i] - TI_OMEGA_BP[i - 1]);
-            return ti_tbl[i - 1] + r * (ti_tbl[i] - ti_tbl[i - 1]);
+        if (w_abs <= TI_OMEGA_BP[i]) {
+            float r = (w_abs - TI_OMEGA_BP[i - 1]) / (TI_OMEGA_BP[i] - TI_OMEGA_BP[i - 1]);
+            return tbl[i - 1] + r * (tbl[i] - tbl[i - 1]);
         }
     }
-    return ti_tbl[TI_TABLE_SIZE - 1];
+    return tbl[TI_TABLE_SIZE - 1];
+}
+
+static float abs_f(float x) {
+    return (x < 0.f) ? -x : x;
+}
+
+// 指令角速度ω_refに対する積分時間Ti [s]。ω_refの符号で正/負の表を選ぶ（方向別Ti，config::pid_omega参照）
+static float omega_ti_schedule(float omega_dps) {
+    using namespace config::pid_omega;
+    return interp_omega_bp((omega_dps >= 0.f) ? TI_S_BP_POS : TI_S_BP_NEG, abs_f(omega_dps));
+}
+
+// 静的FF [duty]：ω_refを保つのに必要なduty（保守側の表，符号はω_refに従う）
+static float omega_static_ff(float omega_ref_dps) {
+    using namespace config::pid_omega;
+    if (omega_ref_dps >= 0.f) return interp_omega_bp(FF_U_POS, omega_ref_dps);
+    return -interp_omega_bp(FF_U_NEG, -omega_ref_dps);
+}
+
+// 加速度FF [duty] = a_ff(|ω_ref|)·dω_ref/dt。dω_ref/dtは±OMEGA_ACCEL_FF_MAXに制限する
+// （ステップ指令＝レート制限なしでも発散しない）
+static float omega_accel_ff(float omega_ref_dps, float dref_dt) {
+    using namespace config::pid_omega;
+    if (dref_dt > OMEGA_ACCEL_FF_MAX) dref_dt = OMEGA_ACCEL_FF_MAX;
+    else if (dref_dt < -OMEGA_ACCEL_FF_MAX) dref_dt = -OMEGA_ACCEL_FF_MAX;
+    return interp_omega_bp(FF_ACC, abs_f(omega_ref_dps)) * dref_dt;
 }
 
 // Ki=Kc/Ti, Tt=Ti をスケジュールに合わせて設定する。積分項は出力単位で保持されるので
@@ -61,6 +84,7 @@ void MotorDriver::enableOmegaControl() {
     omega_control_enabled_ = true;
     pid_omega_.reset();
     omega_ref_ = imu.gyroZ();   // 指令ランプの起点を現在の角速度に合わせる
+    omega_ff_ = 0.f;
 }
 
 void MotorDriver::init() {
@@ -117,6 +141,7 @@ void MotorDriver::switchToVelocityX() {
     omega_control_enabled_ = false;
     target_omega_ = 0.f;
     omega_ref_ = 0.f;
+    omega_ff_ = 0.f;
     pid_omega_.reset();
     state = MotorDriverState::setVelocity;
 }
@@ -182,6 +207,15 @@ void MotorDriver::update() {
                 else if (d < -max_step) d = -max_step;
                 omega_ref_ += d;
                 set_omega_gains(pid_omega_, omega_ref_);
+
+                // 2自由度FF：静的FF＋加速度FFをPIの出力に加算（PIは偏差の補正）。
+                // 加速度FFの dω_ref/dt は，レート制限後の指令の1tick差分から得る
+                float ff = 0.f;
+                if (omega_ff_enabled_) {
+                    ff = omega_static_ff(omega_ref_) + omega_accel_ff_scale_ * omega_accel_ff(omega_ref_, d / config::control::DT_S);
+                }
+                omega_ff_ = ff;
+                pid_omega_.setExternalFF(ff);
 
                 bool omega_sat = false;
                 diff = pid_omega_.update(omega_ref_, imu.gyroZ(), config::pid_omega::DUTY_DIFF_LIMIT, omega_sat);
