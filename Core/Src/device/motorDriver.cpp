@@ -28,7 +28,7 @@ float omega_ff_zero(float) {
     return 0.f;
 }
 
-// 目標角速度|ω*|に対する積分時間Ti [s]（config::pid_omega::TI_*の区分線形補間）
+// 指令角速度|ω_ref|に対する積分時間Ti [s]（config::pid_omega::TI_*の区分線形補間）
 static float omega_ti_schedule(float omega_dps) {
     using namespace config::pid_omega;
     float w = (omega_dps < 0.f) ? -omega_dps : omega_dps;
@@ -42,16 +42,23 @@ static float omega_ti_schedule(float omega_dps) {
     return TI_S_BP[TI_TABLE_SIZE - 1];
 }
 
-void MotorDriver::setTargetOmega(float omega_dps) {
-    target_omega_ = omega_dps;
-    float ti = omega_ti_schedule(omega_dps);
-    pid_omega_.setGains(
+// Ki=Kc/Ti, Tt=Ti をスケジュールに合わせて設定する。積分項は出力単位で保持されるので
+// Kiを変えても出力は跳ばない（バンプレス）
+static void set_omega_gains(PIDController& pid, float omega_ref_dps) {
+    float ti = omega_ti_schedule(omega_ref_dps);
+    pid.setGains(
         config::pid_omega::kp,
         config::pid_omega::kp / ti,
         config::pid_omega::kd,
         omega_ff_zero,
         ti
     );
+}
+
+void MotorDriver::enableOmegaControl() {
+    omega_control_enabled_ = true;
+    pid_omega_.reset();
+    omega_ref_ = imu.gyroZ();   // 指令ランプの起点を現在の角速度に合わせる
 }
 
 void MotorDriver::init() {
@@ -62,7 +69,7 @@ void MotorDriver::init() {
         velocity_x_ff,
         config::pid_velocity_x::BACK_CALC_TT
     );
-    setTargetOmega(0.f);   // 角速度PIの初期ゲイン（Ti(0)）を設定
+    set_omega_gains(pid_omega_, 0.f);   // 角速度PIの初期ゲイン（Ti(0)）を設定
 }
 
 void MotorDriver::enable() {
@@ -107,6 +114,7 @@ void MotorDriver::switchToVelocityX() {
     prbs_rot_diff_ = nullptr;
     omega_control_enabled_ = false;
     target_omega_ = 0.f;
+    omega_ref_ = 0.f;
     pid_omega_.reset();
     state = MotorDriverState::setVelocity;
 }
@@ -165,8 +173,16 @@ void MotorDriver::update() {
             if (prbs_rot_diff_ != nullptr && !prbs_rot_diff_->isFinished()) {
                 diff = prbs_rot_diff_->update();
             } else if (omega_control_enabled_) {
+                // 目標角速度を最大角加速度でレート制限し，その指令値でPIとTiスケジュールを回す
+                float max_step = omega_accel_max_ * config::control::DT_S;
+                float d = target_omega_ - omega_ref_;
+                if (d > max_step) d = max_step;
+                else if (d < -max_step) d = -max_step;
+                omega_ref_ += d;
+                set_omega_gains(pid_omega_, omega_ref_);
+
                 bool omega_sat = false;
-                diff = pid_omega_.update(target_omega_, imu.gyroZ(), config::pid_omega::DUTY_DIFF_LIMIT, omega_sat);
+                diff = pid_omega_.update(omega_ref_, imu.gyroZ(), config::pid_omega::DUTY_DIFF_LIMIT, omega_sat);
                 omega_saturated_ = omega_sat;
             }
             applied_duty_diff_ = diff;   // ログ用：PRBS/PI駆動時もgetDutyDiff()で実値を参照できるようにする

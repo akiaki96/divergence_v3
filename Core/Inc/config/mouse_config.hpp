@@ -159,6 +159,13 @@ inline constexpr int TI_TABLE_SIZE = 6;
 inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE] = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
 inline constexpr float TI_S_BP[TI_TABLE_SIZE]     = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};
 
+// 目標角速度の最大角加速度 [dps/s]（指令のレート制限）。運用仕様（700mm/s時 角加速度2500deg/s²）に合わせる。
+// 実機E5でステップ指令に対し+側高速(+400/+430)で6〜12%のオーバーシュートが再現したため，
+// 指令をランプ化して誤差積分の行き過ぎを抑える（data_analysis2/rot_gain_scheduling_plan.md §12, §13）。
+// 十分大きな値（例 1.0e9f）にすると従来のステップ指令と同じ動作になる。実行時は
+// MotorDriver::setOmegaAccelLimit()で試験ごとに上書きできる（このconstexprが既定値）。
+inline constexpr float OMEGA_ACCEL_MAX = 2500.f;
+
 // 出力(duty_diff)飽和：実機E3で負方向は正方向より約0.03多くdutyを要し（機体の左右バイアス，
 // 高速ほど大きい），-400/-430dpsの定常duty≈-0.25では旧上限0.26まで余裕0.01しかなく
 // -430で飽和が144ms続いた。open-loopの±0.28 stepで974dpsまで検証済みの範囲である0.28まで許す
