@@ -13,14 +13,16 @@ clear; clc;
 results_dir = 'results';
 datadir = '../tools/log/omega_step_v700_x/';
 
-% {ファイル名, 目標, ファーム(1=旧E1, 2=新)}
+% {ファイル名, 目標, ファーム(1=旧E1, 2=Ti表(上限0.26), 3=F2(上限0.28))}
 runs = { ...
     'pos200',   200, 1; 'neg200',  -200, 1; 'pos250',   250, 1; ...
     'pos100',   100, 2; 'neg100',  -100, 2; ...
     'pos200_1', 200, 2; 'neg200_1', -200, 2; ...
     'pos250_1', 250, 2; 'neg250',  -250, 2; ...
     'pos400',   400, 2; 'neg400',  -400, 2; ...
-    'pos430',   430, 2; 'neg430',  -430, 2};
+    'pos430',   430, 2; 'neg430',  -430, 2; ...
+    'pos400_1', 400, 3; 'pos400_2', 400, 3; ...
+    'pos430_1', 430, 3; 'pos430_2', 430, 3; 'pos430_3', 430, 3; 'pos430_4', 430, 3};
 nr = size(runs, 1);
 
 pr = readtable(fullfile(results_dir, 'rot_step_v700_p1fit_model_params.csv'));
@@ -32,11 +34,12 @@ TI_BP_W = [0 100 200 250 400 430];
 TI_BP_T = [0.0090 0.01725 0.0345 0.0420 0.0615 0.06525];
 fw(1) = struct('Kc', 3.7e-4, 'Ti', @(w) 0.0231, 'ulim', 0.20);
 fw(2) = struct('Kc', 5.0e-4, 'Ti', @(w) interp1(TI_BP_W, TI_BP_T, min(abs(w), 430)), 'ulim', 0.26);
+fw(3) = fw(2); fw(3).ulim = 0.28;   % F2
 
 smooth_n = 20;
 ug0 = linspace(0, 0.32, 3201);
 res = struct();
-fig = figure('Position', [20 20 1700 1100]);
+fig = figure('Position', [20 20 1700 1500]);
 for r = 1:nr
     name = runs{r, 1}; tgt = runs{r, 2}; v = runs{r, 3};
     T = readtable([datadir sprintf('omega_step_%s.csv', name)], 'VariableNamingRule', 'modify');
@@ -89,7 +92,7 @@ for r = 1:nr
     res(r).m = m; %#ok<SAGROW>
     res(r).tr = tr; res(r).g = g; res(r).gs = gs; res(r).u = u; res(r).wsim = wsim; res(r).vavg = vavg;
 
-    subplot(4, 4, r);
+    subplot(5, 4, r);
     plot(tr * 1000, g, 'Color', [0.8 0.8 0.8]); hold on;
     plot(tr * 1000, gs, 'k', 'LineWidth', 1.2);
     plot(tr * 1000, wsim, 'r--', 'LineWidth', 1);
@@ -137,6 +140,38 @@ for k = 1:2
     subplot(2, 2, 2 + k); plot(f(f <= 100), Y(f <= 100)); grid on; title([nm{k} ' スペクトル']); xlabel('f [Hz]'); ylabel('amp [dps]');
 end
 exportgraphics(fig2, fullfile(results_dir, 'omega_step_e3_ripple.png'));
+
+
+%% 遅い振れの再現性（+400/+430）：100ms移動平均の応答を重ねて，タイミング・大きさが再現するかを見る
+fprintf('\n===== +側高速の遅い振れ（100ms移動平均, t>=0.25s の目標からの偏差） =====\n');
+fprintf('%-9s %2s %5s | %8s %8s %8s | %6s %6s | %8s %8s\n', 'file', 'fw', 'tgt', 'dev_max%', 'dev_min%', 'p2p%', 't_max', 't_min', 'corr(v)', 'vdrop%');
+fig3 = figure('Position', [50 50 1400 800]);
+groups = {[400], [430]};
+for gi = 1:2
+    subplot(2, 2, gi); hold on; grid on; title(sprintf('+%d dps 応答（100ms平均）', groups{gi})); xlabel('t [ms]'); ylabel('\omega [dps]');
+    subplot(2, 2, 2 + gi); hold on; grid on; title(sprintf('+%d dps 並進速度（100ms平均）', groups{gi})); xlabel('t [ms]'); ylabel('v [mm/s]');
+end
+for r = 1:nr
+    m = res(r).m;
+    if m.target ~= 400 && m.target ~= 430, continue; end
+    if m.target < 0, continue; end
+    R = res(r); st = R.tr >= 0.25;
+    d = (movmean(R.g, 100) - m.target) / m.target * 100;
+    dv = movmean(R.vavg, 100);
+    [dmax, imx] = max(d(st)); [dmin, imn] = min(d(st));
+    trs = R.tr(st);
+    c = corrcoef(d(st), dv(st));
+    fprintf('%-9s %2d %5.0f | %8.1f %8.1f %8.1f | %6.0f %6.0f | %8.2f %8.1f\n', m.name, m.fw, m.target, dmax, dmin, dmax - dmin, ...
+        trs(imx) * 1000, trs(imn) * 1000, c(1, 2), m.v_drop_pct);
+    gi = (m.target == 430) + 1;
+    subplot(2, 2, gi); plot(R.tr * 1000, movmean(R.g, 100), 'DisplayName', strrep(m.name, '_', '\_'));
+    subplot(2, 2, 2 + gi); plot(R.tr * 1000, dv, 'DisplayName', strrep(m.name, '_', '\_'));
+end
+for gi = 1:2
+    subplot(2, 2, gi); tv = [400 430]; yline(tv(gi), 'k:', 'HandleVisibility', 'off'); legend('Location', 'southeast', 'FontSize', 7);
+    subplot(2, 2, 2 + gi); legend('Location', 'southeast', 'FontSize', 7);
+end
+exportgraphics(fig3, fullfile(results_dir, 'omega_step_e5_repeatability.png'));
 
 Sm = struct2table(arrayfun(@(x) x.m, res));
 writetable(Sm, fullfile(results_dir, 'omega_step_e3_summary.csv'));
