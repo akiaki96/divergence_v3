@@ -601,12 +601,16 @@ onenter(prbs_rot_val02,
 )
 
 // 回転角速度PI制御（2自由度ではなく純粋PI, config::pid_omega）の追従性検証用ログ：
-// rot_v700診断フィールドに加え，目標角速度・積分項・飽和状態も記録する
+// rot_v700診断フィールドに加え，目標角速度（最終値）・レート制限後の指令値・積分項・飽和状態も記録する
 void id_init_log_omega(void) {
     id_init_log_rot_v700();
     logger.add(
         "target_omega",
         etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetOmega>(motorDriver)
+    );
+    logger.add(
+        "omega_ref",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getOmegaRef>(motorDriver)
     );
     logger.add(
         "omega_integral_term",
@@ -618,9 +622,14 @@ void id_init_log_omega(void) {
     );
 }
 
-// 並進速度700mm/sを閉ループで維持しつつ，目標角速度target_omegaへステップ指令する。
+// ステップ指令を表す角加速度上限（実質無制限）
+constexpr float kOmegaStepAccel = 1.0e9f;
+
+// 並進速度700mm/sを閉ループで維持しつつ，目標角速度target_omegaへ指令する。
+// accel_dps2で指令のレート制限（最大角加速度）を試験ごとに指定する：
+//   kOmegaStepAccel: ステップ指令 / config::pid_omega::OMEGA_ACCEL_MAX: 運用仕様のランプ指令
 // FFなしの純粋PI（config::pid_omega）が実際にgyro_zへ追従できるか検証する
-void rot_omega_step_tester(float target_omega, uint32_t duration_ms) {
+void rot_omega_tester(float target_omega, float accel_dps2, uint32_t duration_ms) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
     imu.calibrate();
@@ -635,13 +644,15 @@ void rot_omega_step_tester(float target_omega, uint32_t duration_ms) {
     motorDriver.setTargetVelocityX(config::rot_step_v700::TRANSLATION_VELOCITY_MM_S);
     HAL_Delay(config::rot_step_v700::ACCEL_MS);
 
-    // フェーズ2：並進速度700mm/sを維持しつつ角速度PIを有効化しステップ指令
+    // フェーズ2：並進速度700mm/sを維持しつつ角速度PIを有効化し指令（レート制限つき）
+    motorDriver.setOmegaAccelLimit(accel_dps2);
     motorDriver.enableOmegaControl();
     motorDriver.setTargetOmega(target_omega);
     HAL_Delay(duration_ms);
 
     motorDriver.setBreak();
     motorDriver.disableOmegaControl();
+    motorDriver.setOmegaAccelLimit(config::pid_omega::OMEGA_ACCEL_MAX);   // 既定へ戻す
     HAL_Delay(50);
     logger.stop();
     HAL_Delay(500);
@@ -651,81 +662,14 @@ void rot_omega_step_tester(float target_omega, uint32_t duration_ms) {
     ledBar16.set(0x0000);
 }
 
-onenter(omega_step_pos200,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_pos200");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(200.f, 800);
-)
-
-// data_analysis2/rot_high_amplitude_test_plan.md 試験2：
-// DUTY_DIFF_LIMIT(0.20)ちょうどに相当する目標(約250dps)で，飽和境界への漸近挙動
-// （振動せず滑らかに収束するか）を確認する
-onenter(omega_step_pos250,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_pos250");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(250.f, 800);
-)
-
-onenter(omega_step_pos400,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_pos400");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(400.f, 800);
-)
-
-onenter(omega_step_neg200,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_neg200");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(-200.f, 800);
-)
-
-onenter(omega_step_neg400,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_neg400");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(-400.f, 800);
-)
-
-// data_analysis2/rot_gain_scheduling_plan.md E3：ゲインスケジューリング後の追加水準。
-// 低速側(±100)は収束尾，-250は負方向の上限余裕，±430は運用目標最高角速度の確認用
-onenter(omega_step_pos100,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_pos100");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(100.f, 800);
-)
-
-onenter(omega_step_neg100,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_neg100");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(-100.f, 800);
-)
-
-onenter(omega_step_neg250,
-    id_init_log_omega();
-    logger.setDirName("omega_step_v700_x");
-    logger.setFileName("omega_step_neg250");
-    logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(-250.f, 800);
-)
-
+// data_analysis2/rot_gain_scheduling_plan.md §13：F3（指令のレート制限）の検証用。
+// ステップ指令：F3適用後もステップ挙動が変わっていないことの確認（E3/E5との直接比較）
 onenter(omega_step_pos430,
     id_init_log_omega();
     logger.setDirName("omega_step_v700_x");
     logger.setFileName("omega_step_pos430");
     logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(430.f, 800);
+    rot_omega_tester(430.f, kOmegaStepAccel, 800);
 )
 
 onenter(omega_step_neg430,
@@ -733,7 +677,73 @@ onenter(omega_step_neg430,
     logger.setDirName("omega_step_v700_x");
     logger.setFileName("omega_step_neg430");
     logger.setIncludeTimestamp(false);
-    rot_omega_step_tester(-430.f, 800);
+    rot_omega_tester(-430.f, kOmegaStepAccel, 800);
+)
+
+// ランプ指令（運用仕様：最大角加速度 config::pid_omega::OMEGA_ACCEL_MAX = 2500dps/s^2）
+onenter(omega_ramp_pos430,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp_pos430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800);
+)
+
+onenter(omega_ramp_neg430,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp_neg430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(-430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800);
+)
+
+onenter(omega_ramp_pos250,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp_pos250");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(250.f, config::pid_omega::OMEGA_ACCEL_MAX, 800);
+)
+
+onenter(omega_ramp_neg250,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp_neg250");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(-250.f, config::pid_omega::OMEGA_ACCEL_MAX, 800);
+)
+
+onenter(omega_ramp_pos100,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp_pos100");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(100.f, config::pid_omega::OMEGA_ACCEL_MAX, 800);
+)
+
+onenter(omega_ramp_neg100,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp_neg100");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(-100.f, config::pid_omega::OMEGA_ACCEL_MAX, 800);
+)
+
+// 参考：ステップと2500dps/s^2の間（4000dps/s^2）で傾向を見る
+onenter(omega_ramp4k_pos430,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp4k_pos430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(430.f, 4000.f, 800);
+)
+
+onenter(omega_ramp4k_neg430,
+    id_init_log_omega();
+    logger.setDirName("omega_ramp_v700_x");
+    logger.setFileName("omega_ramp4k_neg430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(-430.f, 4000.f, 800);
 )
 
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。

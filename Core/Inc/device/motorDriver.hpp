@@ -81,19 +81,30 @@ public:
     // 回転角速度の閉ループ制御（PI，FFなし）。setVelocityX()と併用することで
     // 並進速度・角速度を同時に制御できる。setDutyDiff()/setPRBSDutyDiff()より優先度は低い
     // （それらは同定用の明示的な励振指令のため）
-    void enableOmegaControl() {
-        omega_control_enabled_ = true;
-        pid_omega_.reset();
-    }
+    // 有効化時，指令ランプの起点を現在のgyro値に合わせる（バンプレス）
+    void enableOmegaControl();
     void disableOmegaControl() {
         omega_control_enabled_ = false;
         target_omega_ = 0.f;
+        omega_ref_ = 0.f;
     }
-    // 目標角速度を設定し，|ω*|に応じた積分時間Ti（Ki, back-calculation時定数）に切り替える
-    void setTargetOmega(float omega_dps);
+    // 目標角速度（最終値）を設定する。PIに渡る指令値omega_ref_は，この値へ最大角加速度
+    // （setOmegaAccelLimit(), 既定config::pid_omega::OMEGA_ACCEL_MAX）でランプする。
+    // 積分時間Ti（Ki, back-calculation時定数）はランプ中の指令値omega_ref_でスケジュールする
+    void setTargetOmega(float omega_dps) {
+        target_omega_ = omega_dps;
+    }
+    // 指令のレート制限 [dps/s]。試験でステップ/ランプを切り替えるための実行時上書き
+    // （1.0e9f程度でステップ指令と同等）
+    void setOmegaAccelLimit(float accel_dps2) {
+        omega_accel_max_ = accel_dps2;
+    }
 
     float getTargetOmega() const {
         return target_omega_;
+    }
+    float getOmegaRef() const {
+        return omega_ref_;
     }
     float getOmegaIntegralTerm() const {
         return pid_omega_.getIntegralTerm();
@@ -148,7 +159,9 @@ private:
     bool velocity_pid_saturated_ = false;
 
     bool omega_control_enabled_ = false;
-    float target_omega_ = 0.f;
+    float target_omega_ = 0.f;            // 最終目標
+    float omega_ref_ = 0.f;               // レート制限後の指令（PIに渡る値）
+    float omega_accel_max_ = config::pid_omega::OMEGA_ACCEL_MAX;
     PIDController pid_omega_;
     bool omega_saturated_ = false;
 };
