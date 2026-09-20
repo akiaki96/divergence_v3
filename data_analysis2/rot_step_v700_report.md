@@ -151,6 +151,11 @@ $$\omega_{ss} = a_{rot}(duty\_diff - duty\_diff_0)$$
 
 ---
 
+**追記（動作点別フィットによる補正）**: `rot_step_v700_p1fit.m`（`rot_gain_scheduling_plan.md`）で
+一次遅れフィットを行った結果，±0.28（励振600msのみ）の真の定常値は +889 / -748dps と
+推定され（末尾平均 +894 / -741dps と一致），上表の +788 / -701dps（後半2/3平均で立上りを含む）は
+約10%過小評価であった。±0.22〜0.26（2000ms）と±0.20以下では差は1〜2%以内。
+
 ## 7. まとめ・次のステップ
 
 - **±0.02〜0.06は良好な線形・対称領域**：ゲイン707〜804dps/duty，直進バイアス無視できるほど
@@ -166,10 +171,9 @@ $$\omega_{ss} = a_{rot}(duty\_diff - duty\_diff_0)$$
 - 回転方向のPRBS本同定（`prbs_rot_design_report.md`）では，**±0.06程度の線形領域を主対象**とした。
   430dps付近の運用点を精度よくモデル化するには，別途この動作点近傍でのゲインスケジューリング
   的なアプローチ（複数動作点でのローカルモデル）が必要になる見込み
-- **既知のファームウェア不具合**：`MotorDriver::setBreak()`が`applied_duty_diff_`をリセットせず，
-  前試行の値が次試行冒頭に短く漏れ残る（本解析では`find_longest_nonzero_run`により影響を回避
-  済みだが，恒久修正は未実施）
-- 次のステップ：`MotorDriver::setBreak()`の恒久修正，回転方向PRBS本同定
-  （`prbs_rot_identification_report.md`）の結果を踏まえた制御器設計，および
-  `rot_high_amplitude_test_plan.md`試験2（角速度PI制御器の実機検証，±200/+250/±400dps）・
-  試験3（+0.28の再現性確認）の実施
+- **ファームウェア不具合（修正済み）**：`MotorDriver::setBreak()`が`applied_duty_diff_`をリセット
+  せず前試行の値が次試行冒頭に漏れ残っていた。`trans_pi_control`で修正済み（`1923fa2d`）。
+  既存データは`find_longest_nonzero_run`で処理済み
+- 次のステップ：動作点別フィットで**ゲインスケジューリングが必要**と判明したため，
+  実験・処理計画は[`rot_gain_scheduling_plan.md`](./rot_gain_scheduling_plan.md)に従う
+  （実機omega PI試験 → 微小step → firmware変更 → 再試験）
