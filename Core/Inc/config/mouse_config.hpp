@@ -143,21 +143,29 @@ inline constexpr uint16_t SEED_VAL02 = 0x4B26;
 // [ゲインスケジューリング] data_analysis2/rot_gain_scheduling_plan.md, rot_omega_pi_tune_sweep.m
 // 動作点別のP1D同定で，時定数Tが振幅で10ms→160msと大きく変わる一方，初期角加速度K/Tは
 // 1.7倍程度しか変わらないと判明した。IMC則 Kc=1/((K/T)*λ) は比K/Tで決まるため
-// 比例ゲインKcはほぼ一定でよく，積分時間Ti(=Ki=Kc/Ti)のみを目標角速度|ω*|でスケジュールする。
-// 閉ループ模擬（プラント: 実測step応答から構成）で，Kc=5e-4・Ti表×0.75を選定
-// （430dps: OS1.7%, 90%到達144ms, 5%整定205ms。200〜250dpsでも実機E1で検証済みの
-// 現行ゲインと同等の立上り）。スケジュール変数は既知・無雑音な目標角速度とし，
-// 目標が変わる時点(setTargetOmega)でKi・back-calculation時定数Ttを差し替える。
-// 積分項は出力単位で保持されるため，Kiを変えても出力は跳ばない（バンプレス）。
+// 比例ゲインKcはほぼ一定でよく，積分時間Ti(=Ki=Kc/Ti)のみを指令角速度ω_refでスケジュールする。
+// Kc=5e-4は閉ループ模擬（プラント: 実測step応答から構成）で選定。スケジュール変数は
+// レート制限後の指令値ω_ref（既知・無雑音）で，毎tick Ki・back-calculation時定数Ttを差し替える
+// （MotorDriver::update）。積分項は出力単位で保持されるため，Kiを変えても出力は跳ばない（バンプレス）。
 namespace config::pid_omega {
 inline constexpr float KC_ROT = 5.0e-4f;   // [duty/dps] 比例ゲイン（動作点によらずほぼ一定）
 inline constexpr float kp = KC_ROT;
 inline constexpr float kd = 0.0f;
 
-// Ti(|ω*|)の区分線形表 [s]。|ω*|>末尾は末尾値で固定
+// Ti(|ω_ref|)の区分線形表 [s]。|ω_ref|>末尾は末尾値で固定。指令値ω_refの符号で正/負を選ぶ（方向別）
+//
+// [方向別Ti（F4）] 実機E7で，+側(+430)はステップでもランプでもOSが10%前後出るのに対し，-側は
+// 0.7〜4%と小さかった。閉ループ実測から推定した局所時定数は+側で約290ms(215〜376)，-側で約75ms
+// (59〜92)。PIの零点(1/Ti)がプラント極(1/T_loc)より速い(Ti<T_loc)とOSが出るため，+側の高速域のみ
+// Tiを延ばす（線形感度マップでは Ti=130〜180ms で+側相当のOSが10〜14% → 0〜4%，立上り+35〜60ms）。
+// -側はTiを延ばすと立上りが急に遅くなる(T_loc≈75msで 173→404ms以上)ので現行のまま。
+// 250dps以下は現状OSが許容範囲(3.5〜5.7%)なので緩やかに延ばすに留める。
+// 0〜200dpsは正負同一（符号が切り替わる0付近でTiが跳ばない）。
+// (data_analysis2/rot_gain_scheduling_plan.md §14.4)
 inline constexpr int TI_TABLE_SIZE = 6;
-inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE] = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
-inline constexpr float TI_S_BP[TI_TABLE_SIZE]     = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};
+inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE]   = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
+inline constexpr float TI_S_BP_POS[TI_TABLE_SIZE]   = {0.0090f, 0.01725f, 0.0345f, 0.0600f, 0.1400f, 0.1500f};   // ω_ref >= 0
+inline constexpr float TI_S_BP_NEG[TI_TABLE_SIZE]   = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};  // ω_ref < 0
 
 // 目標角速度の最大角加速度 [dps/s]（指令のレート制限）。運用仕様（700mm/s時 角加速度2500deg/s²）に合わせる。
 // 実機E5でステップ指令に対し+側高速(+400/+430)で6〜12%のオーバーシュートが再現したため，

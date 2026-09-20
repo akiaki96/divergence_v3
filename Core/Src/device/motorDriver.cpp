@@ -28,18 +28,20 @@ float omega_ff_zero(float) {
     return 0.f;
 }
 
-// 指令角速度|ω_ref|に対する積分時間Ti [s]（config::pid_omega::TI_*の区分線形補間）
+// 指令角速度ω_refに対する積分時間Ti [s]（config::pid_omega::TI_*の区分線形補間）。
+// ω_refの符号で正/負の表を選ぶ（方向別Ti，config::pid_omega参照）
 static float omega_ti_schedule(float omega_dps) {
     using namespace config::pid_omega;
+    const float* ti_tbl = (omega_dps >= 0.f) ? TI_S_BP_POS : TI_S_BP_NEG;
     float w = (omega_dps < 0.f) ? -omega_dps : omega_dps;
-    if (w <= TI_OMEGA_BP[0]) return TI_S_BP[0];
+    if (w <= TI_OMEGA_BP[0]) return ti_tbl[0];
     for (int i = 1; i < TI_TABLE_SIZE; ++i) {
         if (w <= TI_OMEGA_BP[i]) {
             float r = (w - TI_OMEGA_BP[i - 1]) / (TI_OMEGA_BP[i] - TI_OMEGA_BP[i - 1]);
-            return TI_S_BP[i - 1] + r * (TI_S_BP[i] - TI_S_BP[i - 1]);
+            return ti_tbl[i - 1] + r * (ti_tbl[i] - ti_tbl[i - 1]);
         }
     }
-    return TI_S_BP[TI_TABLE_SIZE - 1];
+    return ti_tbl[TI_TABLE_SIZE - 1];
 }
 
 // Ki=Kc/Ti, Tt=Ti をスケジュールに合わせて設定する。積分項は出力単位で保持されるので
