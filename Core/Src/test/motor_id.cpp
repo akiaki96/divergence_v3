@@ -602,8 +602,28 @@ onenter(prbs_rot_val02,
 
 // 回転角速度PI制御（2自由度ではなく純粋PI, config::pid_omega）の追従性検証用ログ：
 // rot_v700診断フィールドに加え，目標角速度（最終値）・レート制限後の指令値・積分項・飽和状態も記録する
+//
+// Logger::MAX_FIELDS(=16)に収めるため，id_init_log_rot_v700()は使わず並進側の診断のうち
+// pid_feedforward（target_velocity_xから一意に決まる）を省く。omega_refを足した際に17列となり，
+// 末尾のomega_saturatedが黙って落ちていた不具合（E7）の修正
 void id_init_log_omega(void) {
-    id_init_log_rot_v700();
+    id_init_log();   // Global_time + 7列
+    logger.add(
+        "target_velocity_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetVelocityX>(motorDriver)
+    );
+    logger.add(
+        "pid_integral_term",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXIntegralTerm>(motorDriver)
+    );
+    logger.add(
+        "pid_saturated",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXSaturated>(motorDriver)
+    );
+    logger.add(
+        "duty_diff",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getDutyDiff>(motorDriver)
+    );
     logger.add(
         "target_omega",
         etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetOmega>(motorDriver)
