@@ -96,6 +96,11 @@ private:
                 MenuNode omega_step_pos400_{"omega step +400"};
                 MenuNode omega_step_neg200_{"omega step -200"};
                 MenuNode omega_step_neg400_{"omega step -400"};
+                MenuNode omega_step_pos100_{"omega step +100"};
+                MenuNode omega_step_neg100_{"omega step -100"};
+                MenuNode omega_step_neg250_{"omega step -250"};
+                MenuNode omega_step_pos430_{"omega step +430"};
+                MenuNode omega_step_neg430_{"omega step -430"};
             MenuNode motor_velocity_x_{"Motor velocity X"};
                 MenuNode velocity_step_300_{"v step +300"};
                 MenuNode velocity_step_600_{"v step +600"};

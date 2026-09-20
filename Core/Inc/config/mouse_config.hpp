@@ -135,29 +135,33 @@ inline constexpr uint16_t SEED_VAL02 = 0x4B26;
 // [設計方針] rot_step_v700_report.mdより，回転方向のプラントゲインKpは707〜2815dps/duty
 // と振幅依存で大きく変動し（±正負非対称・duty不感帯突入による構造変化あり），単一のFFでは
 // モデル誤差が大きい。PI（特に積分項）は定常ゲインの不確かさに対してロバストなため，FFを
-// 使わずI主体で目標角速度へ追従させる。IMC整定 Kc=Tp1/(Kp*λ), Ki=Kc/Tp1 において
-// Tp1_ROTが23ms程度と非常に小さいため，Ki/Kp比は自然に約1/Tp1≈43倍となり，
-// 結果的に「Iゲインが大きい」制御になる。
+// 使わずI主体で目標角速度へ追従させる。IMC整定 Kc=T/(K*λ), Ki=Kc/T ではTが小さいほど
+// Ki/Kp=1/Tが大きくなり，結果的に「Iゲインが大きい」制御になる。
+// 実機E1（旧ゲイン Kc=3.7e-4, Ti=23.1ms固定, 上限0.20）で ±200/+250dps を定常誤差1.5%以内で
+// 追従できることを確認済み（data_analysis2/omega_step_analyze.m）。
 //
-// [要調整] KP_ROTはduty_diff=0.20水準（整定確認済みの中では最大）の実測平均を保守的に採用。
-// TP1_ROTはprbs_rot_identification_report.mdのPRBS本同定値。LAMBDA_ROTは未実験の初期値
-// （やや保守的に設定）。DUTY_DIFF_LIMITはrot_step_v700で線形性・整定を確認済みの範囲。
-// いずれも実機でオーバーシュート・整定時間・430dps付近での挙動を見ながら調整すること。
+// [ゲインスケジューリング] data_analysis2/rot_gain_scheduling_plan.md, rot_omega_pi_tune_sweep.m
+// 動作点別のP1D同定で，時定数Tが振幅で10ms→160msと大きく変わる一方，初期角加速度K/Tは
+// 1.7倍程度しか変わらないと判明した。IMC則 Kc=1/((K/T)*λ) は比K/Tで決まるため
+// 比例ゲインKcはほぼ一定でよく，積分時間Ti(=Ki=Kc/Ti)のみを目標角速度|ω*|でスケジュールする。
+// 閉ループ模擬（プラント: 実測step応答から構成）で，Kc=5e-4・Ti表×0.75を選定
+// （430dps: OS1.7%, 90%到達144ms, 5%整定205ms。200〜250dpsでも実機E1で検証済みの
+// 現行ゲインと同等の立上り）。スケジュール変数は既知・無雑音な目標角速度とし，
+// 目標が変わる時点(setTargetOmega)でKi・back-calculation時定数Ttを差し替える。
+// 積分項は出力単位で保持されるため，Kiを変えても出力は跳ばない（バンプレス）。
 namespace config::pid_omega {
-inline constexpr float KP_ROT  = 1250.f;   // [dps/duty] duty_diff=±0.20実測平均（保守的）
-inline constexpr float TP1_ROT = 0.0231f;  // [s] PRBS本同定（prbs_rot_identification_report.md）
-
-inline constexpr float LAMBDA_ROT = 0.05f;  // [s] 閉ループ時定数（初期値，要実機調整）
-inline constexpr float Kc_rot = TP1_ROT / (KP_ROT * LAMBDA_ROT);
-inline constexpr float kp = Kc_rot;
-inline constexpr float ki = Kc_rot / TP1_ROT;
+inline constexpr float KC_ROT = 5.0e-4f;   // [duty/dps] 比例ゲイン（動作点によらずほぼ一定）
+inline constexpr float kp = KC_ROT;
 inline constexpr float kd = 0.0f;
 
-inline constexpr float BACK_CALC_TT = TP1_ROT;
+// Ti(|ω*|)の区分線形表 [s]。|ω*|>末尾は末尾値で固定
+inline constexpr int TI_TABLE_SIZE = 6;
+inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE] = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
+inline constexpr float TI_S_BP[TI_TABLE_SIZE]     = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};
 
-// 出力(duty_diff)飽和：rot_step_v700で線形性・整定を確認済みの範囲に制限
-// （±0.20は整定を確認済み。±0.28は600msで未整定のため含めない）
-inline constexpr float DUTY_DIFF_LIMIT = 0.20f;
+// 出力(duty_diff)飽和：430dpsに必要なu*≈0.233に対し約0.03の余裕。0.26〜0.28は接線ゲインが
+// 1万dps/dutyを超え時定数も115〜160msと非線形性が強いため，上限は0.26に留める
+inline constexpr float DUTY_DIFF_LIMIT = 0.26f;
 }
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）

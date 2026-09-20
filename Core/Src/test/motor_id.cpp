@@ -694,6 +694,48 @@ onenter(omega_step_neg400,
     rot_omega_step_tester(-400.f, 800);
 )
 
+// data_analysis2/rot_gain_scheduling_plan.md E3：ゲインスケジューリング後の追加水準。
+// 低速側(±100)は収束尾，-250は負方向の上限余裕，±430は運用目標最高角速度の確認用
+onenter(omega_step_pos100,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_pos100");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(100.f, 800);
+)
+
+onenter(omega_step_neg100,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_neg100");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(-100.f, 800);
+)
+
+onenter(omega_step_neg250,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_neg250");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(-250.f, 800);
+)
+
+onenter(omega_step_pos430,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_pos430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(430.f, 800);
+)
+
+onenter(omega_step_neg430,
+    id_init_log_omega();
+    logger.setDirName("omega_step_v700_x");
+    logger.setFileName("omega_step_neg430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_step_tester(-430.f, 800);
+)
+
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
 // target_velocity_xへステップ指令し，実速度(left/right_encoder_velocity平均)の追従を
 // ログから確認する。duration_msは閉ループ時定数λ=0.1s基準で整定後も十分保持できる長さとする。

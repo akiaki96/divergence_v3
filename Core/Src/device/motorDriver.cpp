@@ -28,6 +28,32 @@ float omega_ff_zero(float) {
     return 0.f;
 }
 
+// 目標角速度|ω*|に対する積分時間Ti [s]（config::pid_omega::TI_*の区分線形補間）
+static float omega_ti_schedule(float omega_dps) {
+    using namespace config::pid_omega;
+    float w = (omega_dps < 0.f) ? -omega_dps : omega_dps;
+    if (w <= TI_OMEGA_BP[0]) return TI_S_BP[0];
+    for (int i = 1; i < TI_TABLE_SIZE; ++i) {
+        if (w <= TI_OMEGA_BP[i]) {
+            float r = (w - TI_OMEGA_BP[i - 1]) / (TI_OMEGA_BP[i] - TI_OMEGA_BP[i - 1]);
+            return TI_S_BP[i - 1] + r * (TI_S_BP[i] - TI_S_BP[i - 1]);
+        }
+    }
+    return TI_S_BP[TI_TABLE_SIZE - 1];
+}
+
+void MotorDriver::setTargetOmega(float omega_dps) {
+    target_omega_ = omega_dps;
+    float ti = omega_ti_schedule(omega_dps);
+    pid_omega_.setGains(
+        config::pid_omega::kp,
+        config::pid_omega::kp / ti,
+        config::pid_omega::kd,
+        omega_ff_zero,
+        ti
+    );
+}
+
 void MotorDriver::init() {
     pid_velocity_x_.setGains(
         config::pid_velocity_x::kp,
@@ -36,13 +62,7 @@ void MotorDriver::init() {
         velocity_x_ff,
         config::pid_velocity_x::BACK_CALC_TT
     );
-    pid_omega_.setGains(
-        config::pid_omega::kp,
-        config::pid_omega::ki,
-        config::pid_omega::kd,
-        omega_ff_zero,
-        config::pid_omega::BACK_CALC_TT
-    );
+    setTargetOmega(0.f);   // 角速度PIの初期ゲイン（Ti(0)）を設定
 }
 
 void MotorDriver::enable() {

@@ -89,9 +89,8 @@ public:
         omega_control_enabled_ = false;
         target_omega_ = 0.f;
     }
-    void setTargetOmega(float omega_dps) {
-        target_omega_ = omega_dps;
-    }
+    // 目標角速度を設定し，|ω*|に応じた積分時間Ti（Ki, back-calculation時定数）に切り替える
+    void setTargetOmega(float omega_dps);
 
     float getTargetOmega() const {
         return target_omega_;

@@ -60,6 +60,11 @@ void omega_step_pos250_onenter();
 void omega_step_pos400_onenter();
 void omega_step_neg200_onenter();
 void omega_step_neg400_onenter();
+void omega_step_pos100_onenter();
+void omega_step_neg100_onenter();
+void omega_step_neg250_onenter();
+void omega_step_pos430_onenter();
+void omega_step_neg430_onenter();
 
 void velocity_step_300_onenter();
 void velocity_step_600_onenter();
