@@ -3,7 +3,9 @@
 // Core/Src/common/pid.cpp を実際にコンパイルして使う。config::pid_omega の値を変えても壊れないよう，
 // 期待値は表の値から作る。
 //  1. 単体テスト：補間点での一致，中点，符号の連続性，dω_ref/dtのクランプ
+//     F6：バッテリ換算係数 V_REF/V の値・電圧クランプ・電圧基準の出力上限
 //  2. 閉ループ（簡易プラント族，不感帯付き一次遅れ）でFF ON/OFFを比較（MotorDriver::update()のomega分岐と同じ手順）
+//  3. F6：プラントの感度が電圧に比例する（実機の u_ss×V≒一定）として，電圧を振ったときの補償ON/OFFを比較
 //     ※ 簡易モデルの構造の見積り。実機の非線形は含まない（data_analysis2/rot_gain_scheduling_plan.md §17〜§18）
 #include <cstdio>
 #include <cmath>
@@ -51,6 +53,23 @@ static void unit_tests() {
     check("accel_ff odd in rate", omega_accel_ff(wend, 1000.f) + omega_accel_ff(wend, -1000.f), 0.f, 1e-9f);
     check("accel_ff clamp(+,+)", omega_accel_ff(wend, 1e9f), FF_ACC_POS[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
     check("accel_ff clamp(+,-)", omega_accel_ff(wend, -1e9f), -FF_ACC_POS[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
+    // F6：バッテリ換算係数
+    check("batt_scale(V_REF)=1", omega_batt_scale(BATT_V_REF), 1.f, 1e-6f);
+    check("batt_scale(8.4V)", omega_batt_scale(8.4f), BATT_V_REF / 8.4f, 1e-6f);
+    check("batt_scale(7.0V)", omega_batt_scale(7.0f), BATT_V_REF / 7.0f, 1e-6f);
+    check("batt_scale monotone", (omega_batt_scale(7.0f) > omega_batt_scale(8.0f)) ? 1.f : 0.f, 1.f, 0.f);
+    check("batt_scale clamps low (0V)", omega_batt_scale(0.f), BATT_V_REF / BATT_V_MIN, 1e-6f);
+    check("batt_scale clamps high (20V)", omega_batt_scale(20.f), BATT_V_REF / BATT_V_MAX, 1e-6f);
+    check("batt_scale range sane", (omega_batt_scale(0.f) < 1.5f && omega_batt_scale(20.f) > 0.8f) ? 1.f : 0.f, 1.f, 0.f);
+    // 電圧基準の上限：実dutyの上限 = LIMIT_V / V は，基準電圧duty空間の上限 LIMIT_V/V_REF に換算係数を掛けたもの
+    for (float v : {7.0f, 7.4f, 7.9f, 8.4f})
+        check("limit(V) = LIMIT_V/V", DUTY_DIFF_LIMIT_V / BATT_V_REF * omega_batt_scale(v), DUTY_DIFF_LIMIT_V / v, 1e-6f);
+    check("F6 limit not below legacy at V_REF", (DUTY_DIFF_LIMIT_V / BATT_V_REF >= DUTY_DIFF_LIMIT) ? 1.f : 0.f, 1.f, 0.f);
+    // -430のFF合計（静的＋2500dps/s^2の加速度FF）が新しい上限に収まる（従来の0.28では超えていた）
+    float ffneg = FF_U_NEG[TI_TABLE_SIZE - 1] + FF_ACC_NEG[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_MAX;
+    check("FF sum(-430) under F6 limit", (ffneg < DUTY_DIFF_LIMIT_V / BATT_V_REF) ? 1.f : 0.f, 1.f, 0.f);
+    // 速い輪のdutyが MAX_DUTY(0.95) に収まる（基本duty約0.07＋diff/2。V_MINでも）
+    check("fast wheel duty under MAX_DUTY", (0.2f + DUTY_DIFF_LIMIT_V / BATT_V_MIN / 2.f < 0.95f) ? 1.f : 0.f, 1.f, 0.f);
     check("accel_ff clamp(-,-)", omega_accel_ff(-wend, -1e9f), -FF_ACC_NEG[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
 }
 
@@ -58,7 +77,11 @@ struct Plant { float K, T, u0; };
 struct Res { float os, r90, lag; };
 
 // accel: 指令のレート制限 [dps/s]，sS/sA: 静的/加速度FFの倍率
-static Res run(const Plant& p, float sign, float tgt_abs, float accel, bool ff_on, float sS = 1.f, float sA = 1.f) {
+// V/comp: バッテリ電圧[V]とF6（バッテリ補償）。プラント（K, u0）は基準電圧V_REFでのduty空間で定義し，
+// 実機の性質（必要duty×V≒一定）に合わせて，電圧Vでは実dutyに V/V_REF を掛けたものがプラントに入る。
+// comp=trueなら制御は基準電圧空間で行い出力に V_REF/V を掛ける（＝プラントにはそのままの値が入る）。上限も電圧基準
+static Res run(const Plant& p, float sign, float tgt_abs, float accel, bool ff_on, float sS = 1.f, float sA = 1.f,
+               float V = config::pid_omega::BATT_V_REF, bool comp = false, float* sat_ms = nullptr) {
     const float dt = config::control::DT_S;
     const int N = 1200;
     PIDController pid;
@@ -66,6 +89,9 @@ static Res run(const Plant& p, float sign, float tgt_abs, float accel, bool ff_o
     float target = sign * tgt_abs;
     float w = 0.f, wprev = 0.f, ref = 0.f;
     std::vector<float> wl(N), rl(N);
+    int nsat = 0;
+    const float scale = comp ? omega_batt_scale(V) : 1.f;
+    const float limit = comp ? config::pid_omega::DUTY_DIFF_LIMIT_V / config::pid_omega::BATT_V_REF : config::pid_omega::DUTY_DIFF_LIMIT;
     for (int k = 0; k < N; ++k) {
         float max_step = accel * dt;
         float d = target - ref;
@@ -78,14 +104,17 @@ static Res run(const Plant& p, float sign, float tgt_abs, float accel, bool ff_o
         if (ff_on) ff = sS * omega_static_ff(ref) + sA * omega_accel_ff(ref, d / dt);
         pid.setExternalFF(ff);
         bool sat = false;
-        float u = pid.update(ref, wprev, config::pid_omega::DUTY_DIFF_LIMIT, sat);
-        float drive = (u >= 0.f ? 1.f : -1.f) * p.K * std::max(std::fabs(u) - p.u0, 0.f);
+        float u = pid.update(ref, wprev, limit, sat);
+        if (sat) ++nsat;
+        float u_plant = u * scale * V / config::pid_omega::BATT_V_REF;   // 実dutyを基準電圧duty空間へ（プラントの感度は電圧比例）
+        float drive = (u_plant >= 0.f ? 1.f : -1.f) * p.K * std::max(std::fabs(u_plant) - p.u0, 0.f);
         w += dt * (drive - w) / p.T;
         wprev = w;
         wl[k] = w * sign;
         rl[k] = ref * sign;
     }
     Res r{};
+    if (sat_ms) *sat_ms = (float)nsat;
     float mx = *std::max_element(wl.begin(), wl.end());
     r.os = std::max(0.f, (mx - tgt_abs) / tgt_abs) * 100.f;
     r.r90 = -1.f;
@@ -144,6 +173,36 @@ int main() {
         std::printf("T=%3.0fms  | %5.1f/%4.0f  ", T * 1000, o0 / n0, r0 / n0);
         for (int i = 0; i < 6; ++i) std::printf("| %5.1f/%4.0f ", o[i] / n[i], r[i] / n[i]);
         std::printf("\n");
+    }
+
+    // ---- F6：電圧を振ったときの補償ON/OFF（プラントの感度は電圧に比例。K, T, u_ssは基準電圧V_REF=7.9Vでの値）----
+    std::printf("=== F6：バッテリ電圧を振った比較（ランプ2500dps/s^2, FF ON）。u_ssはV_REFでの値。OS%% / 90%%到達ms / 飽和ms ===\n");
+    const float Vs[] = {7.4f, 7.9f, 8.4f};
+    struct Case { const char* name; float sign; Plant p; };
+    Case cases[] = {
+        {"+430  K4500 T0.15 u_ss0.200", +1.f, {4500.f, 0.15f, 0.200f - 430.f / 4500.f}},
+        {"-430  K2500 T0.10 u_ss0.245", -1.f, {2500.f, 0.10f, 0.245f - 430.f / 2500.f}},
+        {"-430  K1700 T0.075 u_ss0.272", -1.f, {1700.f, 0.075f, 0.272f - 430.f / 1700.f}},
+    };
+    for (auto& c : cases) {
+        std::printf("%-30s|", c.name);
+        for (float V : Vs) std::printf(" V=%.1f OFF            ON             |", V);
+        std::printf("\n%-30s|", "");
+        float r90_off[3], r90_on[3], os_off[3], os_on[3];
+        for (int i = 0; i < 3; ++i) {
+            float so = 0.f, sn = 0.f;
+            Res a = run(c.p, c.sign, 430.f, 2500.f, true, 1.f, 1.f, Vs[i], false, &so);
+            Res b = run(c.p, c.sign, 430.f, 2500.f, true, 1.f, 1.f, Vs[i], true, &sn);
+            r90_off[i] = a.r90; r90_on[i] = b.r90; os_off[i] = a.os; os_on[i] = b.os;
+            std::printf("       %4.1f/%3.0f/%3.0f  %4.1f/%3.0f/%3.0f |", a.os, a.r90, so, b.os, b.r90, sn);
+        }
+        std::printf("\n");
+        // 電圧による変動幅（max-min）：補償ONの方が小さいこと（＝電圧に依らない応答）
+        auto spread = [](const float* v) { return *std::max_element(v, v + 3) - *std::min_element(v, v + 3); };
+        std::printf("%-30s| 電圧による変動幅  OS: OFF %.1f -> ON %.1f pt,  90%%到達: OFF %.0f -> ON %.0f ms\n\n", "",
+                    spread(os_off), spread(os_on), spread(r90_off), spread(r90_on));
+        if (spread(r90_on) > spread(r90_off) + 1.f) { ++g_bad; std::printf("  NG  F6 should not widen 90%% rise spread across voltages (%s)\n", c.name); }
+        if (spread(os_on) > spread(os_off) + 0.5f)  { ++g_bad; std::printf("  NG  F6 should not widen OS spread across voltages (%s)\n", c.name); }
     }
     return g_bad ? 1 : 0;
 }

@@ -55,16 +55,16 @@ void prbs_rot_t04_onenter();
 void prbs_rot_val01_onenter();
 void prbs_rot_val02_onenter();
 
-void omega_f7_ff_pos430_onenter();
-void omega_f7_ff_neg430_onenter();
-void omega_f7_noff_pos430_onenter();
-void omega_f7_noff_neg430_onenter();
-void omega_f7_ffold_pos430_onenter();
-void omega_f7_ff_pos250_onenter();
-void omega_f7_ff_neg250_onenter();
-void omega_f7_ff_pos100_onenter();
-void omega_f7_ff_neg100_onenter();
-void omega_f7_ffold_pos250_onenter();
+void omega_f6_on_pos430_onenter();
+void omega_f6_off_pos430_onenter();
+void omega_f6_on_neg430_onenter();
+void omega_f6_off_neg430_onenter();
+void omega_f6_on_pos250_onenter();
+void omega_f6_off_pos250_onenter();
+void omega_f6_on_neg250_onenter();
+void omega_f6_off_neg250_onenter();
+void omega_f6_on_pos100_onenter();
+void omega_f6_on_neg100_onenter();
 
 
 

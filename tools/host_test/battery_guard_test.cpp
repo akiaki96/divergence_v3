@@ -29,14 +29,14 @@ static void reset() { ledBar16.log.clear(); g_delay_total = 0; }
 
 int main() {
     // 十分な電圧
-    for (float v : {8.4f, 8.2f, 8.0f + 1e-3f, kOmegaTestMinBatteryV}) {
+    for (float v : {8.4f, 8.2f, kOmegaTestMinBatteryV + 1e-3f, kOmegaTestMinBatteryV}) {
         battery.v = v; reset();
         check("ok voltage returns true", omega_test_battery_ok());
         check("ok voltage: no LED activity", ledBar16.log.empty());
         check("ok voltage: no delay", g_delay_total == 0);
     }
     // 不足
-    for (float v : {7.99f, 7.7f, 7.0f, 0.0f}) {
+    for (float v : {kOmegaTestMinBatteryV - 0.01f, kOmegaTestMinBatteryV - 0.4f, 6.0f, 0.0f}) {
         battery.v = v; reset();
         check("low voltage returns false", !omega_test_battery_ok());
         check("low voltage: alternating halves", ledBar16.log.size() == 13 && ledBar16.log[0] == 0xFF00 && ledBar16.log[1] == 0x00FF

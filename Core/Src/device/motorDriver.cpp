@@ -45,6 +45,15 @@ static float abs_f(float x) {
     return (x < 0.f) ? -x : x;
 }
 
+// バッテリ補償（F6）の換算係数 = V_REF / V_batt。基準電圧duty空間の出力に掛けて実dutyにする。
+// 電圧は[BATT_V_MIN, BATT_V_MAX]に制限する（未測定・異常値でも係数が大きく振れない）
+static float omega_batt_scale(float vbatt) {
+    using namespace config::pid_omega;
+    if (vbatt < BATT_V_MIN) vbatt = BATT_V_MIN;
+    else if (vbatt > BATT_V_MAX) vbatt = BATT_V_MAX;
+    return BATT_V_REF / vbatt;
+}
+
 // 指令角速度ω_refに対する積分時間Ti [s]。ω_refの符号で正/負の表を選ぶ（方向別Ti，config::pid_omega参照）
 static float omega_ti_schedule(float omega_dps) {
     using namespace config::pid_omega;
@@ -216,11 +225,19 @@ void MotorDriver::update() {
                 if (omega_ff_enabled_) {
                     ff = omega_static_ff(omega_ref_) + omega_accel_ff_scale_ * omega_accel_ff(omega_ref_, d / config::control::DT_S);
                 }
-                omega_ff_ = ff;
+                // F6：バッテリ補償ON時は，FF・PI・上限を基準電圧V_REFのduty空間で扱い，出力だけ V_REF/V_batt を掛けて
+                // 実dutyにする（上限は電圧一定 DUTY_DIFF_LIMIT_V）。OFFなら従来どおり（換算なし・上限0.28）
+                float scale = 1.f;
+                float limit = config::pid_omega::DUTY_DIFF_LIMIT;
+                if (omega_batt_comp_enabled_) {
+                    scale = omega_batt_scale(battery.voltage());
+                    limit = config::pid_omega::DUTY_DIFF_LIMIT_V / config::pid_omega::BATT_V_REF;
+                }
+                omega_ff_ = ff * scale;   // ログは実duty換算（過去ログと比較できる）
                 pid_omega_.setExternalFF(ff);
 
                 bool omega_sat = false;
-                diff = pid_omega_.update(omega_ref_, imu.gyroZ(), config::pid_omega::DUTY_DIFF_LIMIT, omega_sat);
+                diff = pid_omega_.update(omega_ref_, imu.gyroZ(), limit, omega_sat) * scale;
                 omega_saturated_ = omega_sat;
             }
             applied_duty_diff_ = diff;   // ログ用：PRBS/PI駆動時もgetDutyDiff()で実値を参照できるようにする

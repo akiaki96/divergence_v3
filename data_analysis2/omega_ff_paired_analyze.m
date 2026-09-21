@@ -10,13 +10,15 @@
 %  (2) 回帰  指標 ~ 1 + 時間[分] + FF  … 時間トレンドを補正したFF効果
 %      回帰  指標 ~ 1 + (|u_ss| - 平均) + FF … 感度(u_ss)を補正したFF効果
 % セッション（取得の時間間隔が20分超で分割）ごと・目標ごとに集計する。
+% F6（E12）：omega_f6_on_ を kind='ff'（F6 ON），omega_f6_off_ を kind='noff'（F6 OFF＝補償なしの従来動作）として扱う。
+%   出力の「ON−OFF」「FF効果」は，F6では「バッテリ補償＋電圧基準上限の効果」と読む（±250も対象）。
 % ウォームアップ：セッション全体の最初の1本が「同じ目標で同じ種類が2本続く」形（例 ff, ff, noff, ...）のとき除外する。
 
 clear; clc;
 results_dir = 'results';
 src_dir = '../tools/log/omega_ff_v700_x/';
 R = readtable(fullfile(results_dir, 'omega_ramp_summary_by_run.csv'));
-R = R(startsWith(R.group, 'F5') | startsWith(R.group, 'F7'), :);
+R = R(startsWith(R.group, 'F5') | startsWith(R.group, 'F7') | startsWith(R.group, 'F6'), :);
 if isempty(R), error('F5/F7のデータがありません。omega_ramp_analyze.m を先に実行してください。'); end
 R.kind = extractAfter(R.group, ' ');            % ff / ffhi / ffold / noff（F5/F7とも）
 mt = zeros(height(R), 1);
@@ -33,7 +35,7 @@ metrics = {'os100', 'r90', 'track_err', 'err_pct', 'sat_pct', 'u_ss'};
 mlabel  = {'OS[%]', '90%到達[ms]', '指令への遅れ[%]', '定常誤差[%]', '飽和[%]', 'u_ss'};
 rows = {};
 for ss = unique(R.session)'
-    for tg = [430 -430]
+    for tg = [430 -430 250 -250]
         X = R(R.session == ss & R.target == tg, :);
         X = X(strcmp(X.kind, 'ff') | strcmp(X.kind, 'noff'), :);   % ffhiは別途
         if height(X) < 2, continue; end

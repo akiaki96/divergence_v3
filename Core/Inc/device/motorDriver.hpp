@@ -107,6 +107,12 @@ public:
     void setOmegaFFEnabled(bool enabled) {
         omega_ff_enabled_ = enabled;
     }
+    // F6：バッテリ補償（出力に V_REF/V_batt を掛ける）と電圧基準の出力上限の有効/無効。
+    // OFFで従来動作（換算なし・上限0.28）。試験でON/OFFを同一セッションで比較するための実行時上書き
+    // （既定 config::pid_omega::OMEGA_BATT_COMP_ENABLED）
+    void setOmegaBattCompEnabled(bool enabled) {
+        omega_batt_comp_enabled_ = enabled;
+    }
     // 加速度FF係数の倍率（試験でFF係数の大きさを変えて比較するための実行時上書き。既定1.0）
     void setOmegaAccelFFScale(float scale) {
         omega_accel_ff_scale_ = scale;
@@ -179,6 +185,7 @@ private:
     float omega_ref_ = 0.f;               // レート制限後の指令（PIに渡る値）
     bool omega_ff_enabled_ = config::pid_omega::OMEGA_FF_ENABLED;
     float omega_accel_ff_scale_ = 1.f;
+    bool omega_batt_comp_enabled_ = config::pid_omega::OMEGA_BATT_COMP_ENABLED;
     float omega_ff_ = 0.f;                // 直近tickのFF合計（ログ用）
     float omega_accel_max_ = config::pid_omega::OMEGA_ACCEL_MAX;
     PIDController pid_omega_;

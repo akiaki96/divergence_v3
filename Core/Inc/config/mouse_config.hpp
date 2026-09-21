@@ -216,6 +216,24 @@ inline constexpr float OMEGA_ACCEL_MAX = 2500.f;
 // （正方向は約0.195で足りるため上限には触れず，実質負側の余裕確保。
 // data_analysis2/rot_gain_scheduling_plan.md §11.2）。0.28超は未検証のため上げない
 inline constexpr float DUTY_DIFF_LIMIT = 0.28f;
+
+// ---- F6：バッテリ電圧補償と電圧基準の出力上限（data_analysis2/rot_gain_scheduling_plan.md §23）----
+// 回転のプラント感度は電圧にほぼ比例する（必要な出力電圧 u_ss×V は約一定：-430で1.9〜2.0V。E9〜E11）。
+// そこで角速度制御全体（FF表・PI・Ti・back-calculationの上限）を，基準電圧 BATT_V_REF でのduty空間で行い，
+// 出力の duty_diff = (PI+FF出力) × BATT_V_REF / V_batt として実dutyへ換算する。
+//   - 表・Kc・Tiは従来の値（7.6〜8.2Vの実測から作ったもの，中央7.9V付近）のまま使え，電圧が変わっても
+//     ループゲイン（Kc×K）と必要dutyの表が一定に保たれる（-側の感度ドリフトの約7割は電圧で説明できる）。
+//   - 出力上限は電圧で持つ：実dutyの上限 = DUTY_DIFF_LIMIT_V / V_batt。基準電圧でのduty空間では
+//     DUTY_DIFF_LIMIT_V / BATT_V_REF で一定（7.9Vで約0.329）。電圧が下がるほど実duty上限は増え，
+//     -430で起きていた「FF合計(0.31) > 上限0.28」の構造的な飽和と低電圧での飽和が解消する。
+//     速い輪のdutyは基本duty(0.07)+diff/2で，MAX_DUTY(0.95)に十分余裕がある。
+//     上限0.28超はopen-loopでは未検証（初回はE12で±430を含めて確認する）。
+// 実行時に MotorDriver::setOmegaBattCompEnabled(false) で従来動作（補償なし・上限0.28）へ戻せる（A/B試験用）。
+inline constexpr bool OMEGA_BATT_COMP_ENABLED = true;
+inline constexpr float BATT_V_REF = 7.9f;            // [V] 基準電圧（FF表を作った実測の中央値）
+inline constexpr float BATT_V_MIN = 6.0f;            // [V] 換算に使う電圧の下限（電圧読み値の異常時の暴走防止）
+inline constexpr float BATT_V_MAX = 9.0f;            // [V] 〃 上限
+inline constexpr float DUTY_DIFF_LIMIT_V = 2.6f;     // [V] duty_diffの出力上限（電圧換算）
 }
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
