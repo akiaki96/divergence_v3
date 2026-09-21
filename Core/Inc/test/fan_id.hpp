@@ -9,3 +9,4 @@ void fan_run_025_onenter();
 void fan_run_050_onenter();
 void fan_run_075_onenter();
 void fan_run_100_onenter();
+void fan_bringup_onenter();   // 切り分け用: v2と同じ方法で40%を3秒回しレジスタをシリアル出力

@@ -1,5 +1,7 @@
 #include "test/fan_id.hpp"
 #include "common/etc.hpp"
+#include "common/debug.hpp"
+#include "tim.h"
 
 // ファン試験のタイムライン [ms]（logger容量: 3フィールド×8000サンプル=8s に収まる）
 namespace {
@@ -82,4 +84,30 @@ onenter(fan_run_100,
     logger.setFileName("fan_100");
     logger.setIncludeTimestamp(false);
     fan_tester(1.00f);
+)
+
+// ファンが回らないときの切り分け用。Fanクラス・ロガー・PWM周期変更を使わず，divergence_v2/Core/Src/fan.c と
+// 同じ HAL_TIM_PWM_Start + CCR直書き(400/1000 = 40%)で3秒回し，TIM3とPB4のレジスタをシリアルに出す
+static void fan_dump_regs(const char* tag) {
+    LOG("[%s] TIM3 CR1=0x%04lx CCER=0x%04lx CCMR1=0x%04lx ARR=%lu CCR1=%lu CNT=%lu\r\n", tag,
+        TIM3->CR1, TIM3->CCER, TIM3->CCMR1, TIM3->ARR, TIM3->CCR1, TIM3->CNT);
+    LOG("[%s] PB4 MODER=%lu (2=AF) AFRL=%lu (2=AF2/TIM3) OTYPER=%lu OSPEEDR=%lu PUPDR=%lu IDR=%lu\r\n", tag,
+        (GPIOB->MODER >> 8) & 3, (GPIOB->AFR[0] >> 16) & 0xF, (GPIOB->OTYPER >> 4) & 1,
+        (GPIOB->OSPEEDR >> 8) & 3, (GPIOB->PUPDR >> 8) & 3, (GPIOB->IDR >> 4) & 1);
+}
+
+onenter(fan_bringup,
+    ledBar16.set(0x00FF);
+    fan_dump_regs("before");
+    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 400);
+    HAL_Delay(1000);
+    fan_dump_regs("running");
+    HAL_Delay(2000);
+    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+    HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+    fan_dump_regs("after");
+    // 通常運用の状態(PWM走行・duty0)へ戻す
+    fan.init();
+    ledBar16.set(0xFFFF);
 )
