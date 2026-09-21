@@ -1,3 +1,4 @@
+# PYTHON_ARGCOMPLETE_OK
 from datetime import datetime
 
 from serial_receiver import SerialReceiver
