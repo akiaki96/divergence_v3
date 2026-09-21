@@ -1,14 +1,16 @@
-%% F5（2自由度FF）の ON/OFF を「ペア差」と「感度補正」で比較する
+%% F5（2自由度FF）の ON/OFF を「隣り合う取得のペア差」と「トレンド補正回帰」で比較する
 %
 % 前提：omega_ramp_analyze.m を先に実行し results/omega_ramp_summary_by_run.csv を作っておく。
 %       tools/log/omega_ff_v700_x/ のCSVは `cp -p`（更新時刻を保持）でworktreeへコピーしておく（取得順の復元に使う）。
 %
-% 背景：プラントの感度（同じωを出す定常duty u_ss）は時間とともにドリフトし（E9では約3分で0.206→0.242），
-% OSは感度に強く依存する（感度が高い=u_ssが小さいほどOSが大きい）。ON/OFFを別々に平均すると
-% ドリフトと交絡するため，(1)取得順に隣り合う ON/OFF をペアにしてペア差を見る，
-% (2) OS ~ b0 + b1*(u_ss - 平均) + b2*FF の回帰でFFの効果b2を感度補正して推定する。
-%
-% 使い方：ff と noff を A,B,B,A,... と交互（順序を反転）に取得すると，時間ドリフトの影響が相殺される。
+% 背景：プラントの感度（同じωを出す定常duty u_ss）はバッテリ電圧・温度などで時間ドリフトし，OSは感度に強く依存する。
+% ON/OFFを別々に平均するとドリフトと交絡する。そこで
+%  (1) 取得順に隣り合う ff/noff の差（ON−OFF）を取る。ABAB順（ff,noff,ff,noff,...）で取ると
+%      「ON先のペア」と「OFF先のペア」でドリフトの符号が逆になるため，両方向を平均すると線形ドリフトが相殺される。
+%  (2) 回帰  指標 ~ 1 + 時間[分] + FF  … 時間トレンドを補正したFF効果
+%      回帰  指標 ~ 1 + (|u_ss| - 平均) + FF … 感度(u_ss)を補正したFF効果
+% セッション（取得の時間間隔が20分超で分割）ごと・目標ごとに集計する。
+% ウォームアップ：セッションの先頭が「同じ種類が2本続く」形（例 ff, ff, noff, ...）のとき先頭1本を除外する。
 
 clear; clc;
 results_dir = 'results';
@@ -16,52 +18,73 @@ src_dir = '../tools/log/omega_ff_v700_x/';
 R = readtable(fullfile(results_dir, 'omega_ramp_summary_by_run.csv'));
 R = R(startsWith(R.group, 'F5'), :);
 if isempty(R), error('F5のデータがありません。omega_ramp_analyze.m を先に実行してください。'); end
-kind = extractAfter(R.group, 'F5 ');           % ff / ffhi / noff
+R.kind = extractAfter(R.group, 'F5 ');           % ff / ffhi / noff
 mt = zeros(height(R), 1);
 for i = 1:height(R)
     d = dir([src_dir R.file{i}]);
     mt(i) = d.datenum;
 end
-R.kind = kind; R.mtime = mt;
+R.mtime = mt;
+R = sortrows(R, 'mtime');
+gap = [inf; diff(R.mtime)] * 24 * 60;            % [分]
+R.session = cumsum(gap > 20);
 
 metrics = {'os100', 'r90', 'track_err', 'err_pct', 'sat_pct', 'u_ss'};
 mlabel  = {'OS[%]', '90%到達[ms]', '指令への遅れ[%]', '定常誤差[%]', '飽和[%]', 'u_ss'};
 rows = {};
-targets = [430 -430];
-for tg = targets
-    X = R(R.target == tg & (strcmp(R.kind, 'ff') | strcmp(R.kind, 'noff')), :);
-    X = sortrows(X, 'mtime');
-    used = false(height(X), 1);
-    pairs = zeros(0, 2);   % [ON行, OFF行]
-    for i = 1:height(X) - 1
-        if used(i) || used(i + 1), continue; end
-        if ~strcmp(X.kind{i}, X.kind{i + 1})
-            if strcmp(X.kind{i}, 'ff'), pairs(end + 1, :) = [i, i + 1]; else, pairs(end + 1, :) = [i + 1, i]; end %#ok<AGROW>
-            used([i, i + 1]) = true;
+for ss = unique(R.session)'
+    for tg = [430 -430]
+        X = R(R.session == ss & R.target == tg, :);
+        X = X(strcmp(X.kind, 'ff') | strcmp(X.kind, 'noff'), :);   % ffhiは別途
+        if height(X) < 2, continue; end
+        if strcmp(X.kind{1}, X.kind{2}), X(1, :) = []; end             % ウォームアップ除外
+        t_min = (X.mtime - X.mtime(1)) * 24 * 60;
+        fprintf('\n===== セッション%d  %s  target %+d：ff %d本 / noff %d本（%s〜） =====\n', ss, datestr(X.mtime(1), 'mm/dd HH:MM'), tg, ...
+            sum(strcmp(X.kind, 'ff')), sum(strcmp(X.kind, 'noff')), datestr(X.mtime(1), 'HH:MM'));
+        % (1) 隣り合うペア（両方向）
+        on_first = []; off_first = [];
+        for i = 1:height(X) - 1
+            if strcmp(X.kind{i}, 'ff') && strcmp(X.kind{i + 1}, 'noff'), on_first(end + 1) = i; %#ok<AGROW>
+            elseif strcmp(X.kind{i}, 'noff') && strcmp(X.kind{i + 1}, 'ff'), off_first(end + 1) = i; end %#ok<AGROW>
+        end
+        fprintf('隣り合うペア：ON先 %d，OFF先 %d\n', numel(on_first), numel(off_first));
+        fprintf('%-16s | %-22s | %-22s | %-22s\n', '指標(ON−OFF)', 'ON先ペア 平均', 'OFF先ペア 平均', '両方向の平均 ± SE (n)');
+        for m = 1:numel(metrics)
+            v = X.(metrics{m});
+            d1 = v(on_first) - v(on_first + 1);            % ON先: ON=i, OFF=i+1
+            d2 = v(off_first + 1) - v(off_first);          % OFF先: OFF=i, ON=i+1
+            dall = [d1; d2];
+            se = std(dall) / sqrt(numel(dall));
+            fprintf('%-16s | %+9.2f            | %+9.2f            | %+7.2f ± %5.2f (%d)\n', mlabel{m}, mean(d1), mean(d2), mean(dall), se, numel(dall));
+            rows(end + 1, :) = {ss, tg, metrics{m}, mean(d1), mean(d2), mean(dall), se, numel(dall), mean(v(strcmp(X.kind, 'ff'))), mean(v(strcmp(X.kind, 'noff')))}; %#ok<SAGROW>
+        end
+        % (2) 回帰（ff/noffのみ）
+        isff = double(strcmp(X.kind, 'ff'));
+        uc = abs(X.u_ss) - mean(abs(X.u_ss));
+        for m = 1:3
+            y = X.(metrics{m});
+            out = sprintf('%-16s 回帰:', mlabel{m});
+            for mode = 1:2
+                if mode == 1, z = t_min - mean(t_min); nm = '時間'; else, z = uc; nm = 'u_ss'; end
+                A = [ones(numel(y), 1), z, isff];
+                if numel(y) < 5 || rank(A) < 3, continue; end
+                b = A \ y; res = y - A * b; s2 = sum(res .^ 2) / (numel(y) - 3);
+                cb = s2 * inv(A' * A); %#ok<MINV>
+                out = [out, sprintf('  [%s補正 FF効果 %+.2f ± %.2f]', nm, b(3), sqrt(cb(3, 3)))]; %#ok<AGROW>
+            end
+            fprintf('%s\n', out);
+        end
+        % ffhi vs ff（同セッションの隣り合い）
+        Y = R(R.session == ss & R.target == tg & (strcmp(R.kind, 'ffhi') | strcmp(R.kind, 'ff')), :);
+        dh = zeros(0, 3);
+        for i = 1:height(Y) - 1
+            if strcmp(Y.kind{i}, 'ffhi') && strcmp(Y.kind{i + 1}, 'ff'), dh(end + 1, :) = [Y.os100(i) - Y.os100(i + 1), Y.r90(i) - Y.r90(i + 1), Y.track_err(i) - Y.track_err(i + 1)]; %#ok<AGROW>
+            elseif strcmp(Y.kind{i}, 'ff') && strcmp(Y.kind{i + 1}, 'ffhi'), dh(end + 1, :) = [Y.os100(i + 1) - Y.os100(i), Y.r90(i + 1) - Y.r90(i), Y.track_err(i + 1) - Y.track_err(i)]; end %#ok<AGROW>
+        end
+        if ~isempty(dh)
+            fprintf('ffhi−ff（隣り合い %d組の平均）: OS %+.2f pt, 90%%到達 %+.1f ms, 指令への遅れ %+.1f pt\n', size(dh, 1), mean(dh(:, 1)), mean(dh(:, 2)), mean(dh(:, 3)));
         end
     end
-    fprintf('\n===== target %+d：ペア数 %d（ON/OFFの取得順で隣り合うもの） =====\n', tg, size(pairs, 1));
-    if isempty(pairs), continue; end
-    fprintf('%-18s | %s\n', '指標', 'ON−OFF: 各ペア ...  | 平均 ± SE | 平均(ON)  平均(OFF)');
-    for m = 1:numel(metrics)
-        on_v = X.(metrics{m})(pairs(:, 1)); off_v = X.(metrics{m})(pairs(:, 2));
-        dv = on_v - off_v;
-        se = std(dv) / sqrt(numel(dv)); if numel(dv) < 2, se = NaN; end
-        fprintf('%-18s | %s | %+7.2f ± %5.2f | %8.2f %8.2f\n', mlabel{m}, sprintf('%+7.2f ', dv), mean(dv), se, mean(on_v), mean(off_v));
-        rows(end + 1, :) = {tg, metrics{m}, size(pairs, 1), mean(dv), se, mean(on_v), mean(off_v)}; %#ok<SAGROW>
-    end
-    % 感度補正の回帰: OS ~ 1 + (u_ss - mean) + isFF（ffhiは除外）
-    Z = X;
-    isff = strcmp(Z.kind, 'ff');
-    uc = abs(Z.u_ss) - mean(abs(Z.u_ss));
-    A = [ones(height(Z), 1), uc, double(isff)];
-    if height(Z) >= 5
-        b = A \ Z.os100;
-        res = Z.os100 - A * b;
-        s2 = sum(res .^ 2) / max(height(Z) - 3, 1);
-        cov_b = s2 * inv(A' * A); %#ok<MINV>
-        fprintf('感度補正回帰 OS = %.2f %+.1f*(|u_ss|-平均) %+.2f*FF   （FF効果 %+.2f ± %.2f [pt], n=%d）\n', b(1), b(2), b(3), b(3), sqrt(cov_b(3, 3)), height(Z));
-    end
 end
-T = cell2table(rows, 'VariableNames', {'target', 'metric', 'n_pairs', 'mean_on_minus_off', 'se', 'mean_on', 'mean_off'});
+T = cell2table(rows, 'VariableNames', {'session', 'target', 'metric', 'on_first_mean', 'off_first_mean', 'both_mean', 'se', 'n_pairs', 'mean_on', 'mean_off'});
 writetable(T, fullfile(results_dir, 'omega_ff_paired_summary.csv'));
