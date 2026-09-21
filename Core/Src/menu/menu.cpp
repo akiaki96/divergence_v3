@@ -14,7 +14,7 @@ void Menu::buildTree() {
     root_.setChildren(std::array{&run_, &device_, &log_dump_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
-            fan_.setChildren(std::array{&fan_run_025_, &fan_run_050_, &fan_run_075_, &fan_run_100_, &fan_bringup_});
+            fan_.setChildren(std::array{&fan_run_010_, &fan_run_020_, &fan_run_030_, &fan_run_040_, &fan_bringup_});
             ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
@@ -66,10 +66,10 @@ void Menu::setFunction() {
 
     battery_.setOnEnter(battery_onenter);
 
-    fan_run_025_.setOnEnter(fan_run_025_onenter);
-    fan_run_050_.setOnEnter(fan_run_050_onenter);
-    fan_run_075_.setOnEnter(fan_run_075_onenter);
-    fan_run_100_.setOnEnter(fan_run_100_onenter);
+    fan_run_010_.setOnEnter(fan_run_010_onenter);
+    fan_run_020_.setOnEnter(fan_run_020_onenter);
+    fan_run_030_.setOnEnter(fan_run_030_onenter);
+    fan_run_040_.setOnEnter(fan_run_040_onenter);
     fan_bringup_.setOnEnter(fan_bringup_onenter);
 
     // ---------------------------

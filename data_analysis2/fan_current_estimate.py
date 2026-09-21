@@ -2,17 +2,17 @@
 """吸引ファンのON/OFF時のLiPo電圧降下から，ファン電流を推定する。
 
 入力: ファーム(Fan メニュー "fan vsag x.xx")が出力するCSV
-      tools/log/fan_vsag_m1/fan_025.csv 等（列: Global_time, battery[V], fan_duty）
+      tools/log/fan_vsag_m2/fan_010.csv 等（列: Global_time, battery[V], fan_duty）
 原理: ファンOFF→ON で バッテリ電圧が ΔV 下がる。ΔV = I_fan * R_eff なので I_fan = ΔV / R_eff。
       R_eff はLiPo内部抵抗＋配線/コネクタ/スイッチ等，ADC測定点より上流の直列抵抗の合計。
 
 使い方:
   # 推定（R_eff が既知）
-  python fan_current_estimate.py tools/log/fan_vsag_m1/fan_*.csv --r-eff 0.12
+  python fan_current_estimate.py tools/log/fan_vsag_m2/fan_*.csv --r-eff 0.12
   # R_eff の校正（同じ条件でファン電流を電流計で実測した値をCSVと同じ順で渡す）
-  python fan_current_estimate.py fan_050.csv fan_100.csv --i-meas 1.1 1.9
-  # 校正なしで ΔV だけ見る（モーター1 と モーター2 の相対比較にはこれで足りる）
-  python fan_current_estimate.py fan_050.csv
+  python fan_current_estimate.py fan_020.csv fan_040.csv --i-meas 0.4 0.9
+  # 校正なしで ΔV だけ見る（モーター間の相対比較にはこれで足りる）
+  python fan_current_estimate.py fan_020.csv
 詳細と注意点は fan_current_estimation.md を参照。
 """
 import argparse
@@ -160,7 +160,7 @@ def main():
             print(f"  duty {r['duty']:.2f}: I_fan = {d / a.r_eff:.2f} ± {se:.2f} A")
         print("  ± は統計誤差のみ。R_eff の不確かさ（校正誤差・SOC/温度依存）は別途乗る")
     else:
-        print("\n（R_eff 未指定: ΔV のみ。モーター1/2 の比較は同一電池・同SOCなら ΔV 比 = 電流比）")
+        print("\n（R_eff 未指定: ΔV のみ。モーター間の比較は同一電池・同SOCなら ΔV 比 = 電流比）")
 
     if a.plot:
         plot(res, a.plot)

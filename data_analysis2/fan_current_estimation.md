@@ -1,6 +1,6 @@
 # 吸引ファンの電流推定（LiPo電圧降下法）
 
-対象: 吸引用DCモーター（**モーター1**＝現行。モーター2は付け替え後に同手順で実施）
+対象: 吸引用DCモーター（**モーター2のみ**を試験する。モーター1のファン配線は断線していたため試験対象外）
 作成日: 2026-09-21
 状態: ファーム・解析スクリプト実装済み。**実機データは未取得**（解析は合成データでのみ検証済み）
 
@@ -25,15 +25,15 @@ I_fan = ΔV / R_eff        ΔV = V(OFF, ファン停止) − V(ON, 定常)
 実装: `Core/Src/test/fan_id.cpp`、`Core/Src/device/fan.cpp`（PB4 = TIM3_CH1 PWM 64kHz）
 
 1. 電池は充電後で、試験の間は交換しない。車輪モーターは動かさない（試験側で duty=0 にする）。
-2. メニュー `Device > Fan > fan vsag 0.25 / 0.50 / 0.75 / 1.00` を実行。
+2. メニュー `Device > Fan > fan vsag 0.10 / 0.20 / 0.30 / 0.40` を実行。
    タイムライン: OFF 1s → ファンON 3s → OFF 2s（計6s）。
 3. LEDバー全点灯後、機体を傾けて（`haltByAccZ`）ログをダンプ →
-   `tools/log/fan_vsag_m1/fan_025.csv` 等が保存される（列: `Global_time, battery, fan_duty`）。
+   `tools/log/fan_vsag_m2/fan_010.csv` 等が保存される（列: `Global_time, battery, fan_duty`）。
 4. 各dutyで2〜3回繰り返すと ± が評価できる（同名ファイルは上書きされるので、繰り返し時は
    `main.py --on_conflict sequence`）。
 5. 解析:
    ```
-   python data_analysis2/fan_current_estimate.py tools/log/fan_vsag_m1/fan_*.csv --plot fan_m1.png
+   python data_analysis2/fan_current_estimate.py tools/log/fan_vsag_m2/fan_*.csv --plot fan_m2.png
    ```
    ΔV_ss（定常降下）、ΔV_off（OFF直後のジャンプ）、リプル、ドリフトが出る。
 
@@ -50,7 +50,7 @@ ADCが毎回PWMの同じ位相を拾い、リプル分の偏りが固定で乗�
   電流計を入れたまま ΔV を測ること（外して使う場合は別途校正が必要）。
 - 複数duty（電流レベルを変える）で取り、CSVと同じ順に渡す:
   ```
-  python data_analysis2/fan_current_estimate.py fan_050.csv fan_100.csv --i-meas 1.1 1.9
+  python data_analysis2/fan_current_estimate.py fan_020.csv fan_040.csv --i-meas <20%の実測A> <40%の実測A>
   ```
   → `R_eff` と残差が出る。以後 `--r-eff <値>` で電流を推定できる。
 - 校正と推定で `--method`（`ss` = 定常降下 / `off` = OFF直後のジャンプ）を必ず揃える。
@@ -67,16 +67,17 @@ ADCが毎回PWMの同じ位相を拾い、リプル分の偏りが固定で乗�
 | ファンのスピンアップ | 立ち上がり直後は電流が大きい | 定常は ON終端0.5sで評価（突入ピークは電流に換算しない） |
 | ADC分圧の抵抗公差 | ΔVが比例誤差（≈1〜2%） | 影響は小さい。R_eff校正に吸収される |
 | ファン以外の負荷変動 | ベースラインがずれる | 車輪・IR発光・LEDの状態を試験中一定にする（試験側で車輪は停止） |
-| 電圧低下によるリセット/レギュレータ落ち | duty1.00で大電流だとMCUが落ちる恐れ | 0.25から順に上げ、`V_on` が下限に近づいたら止める |
+| 電圧低下によるリセット/レギュレータ落ち | duty0.40でも電流が大きいとMCUが落ちる恐れ | 0.10から順に上げ、`V_on` が下限に近づいたら止める |
 
-## 5. モーター2
+## 5. duty範囲とSN比（モーター2）
 
-モーター2に付け替えたら同じ手順で実施する。保存先を分けるため `fan_id.cpp` の
-`setDirName("fan_vsag_m1")` を `fan_vsag_m2` に変える。比較は次の順で:
+dutyは 0.10〜0.40 の4点。低dutyほど電流が小さく ΔV が ADC 分解能(2.1mV)に近づくため注意する。
 
-1. 同じ電池・同程度のSOCで、モーター1と2を連続して測る（充電し直すとSOCが変わる）。
-2. モーターごとに ΔV（同duty）を比較 → 比 = 電流比。
-3. 絶対値が要る場合は、電流計を使い各モーターで R_eff を再確認（配線を付け替えると変わる）。
+- duty 0.10 ではファンが回り出さない（不感帯）可能性がある。回らなければ ΔV≈0 になるので、
+  その場合は 0.10 を除外するか、実際に回り始めるduty以上に振り直す。
+- ΔV が 数mV 程度しか無い点は、スクリプトの `dV_ss ± SE` を見て有意か確認する（SE の3倍未満なら信頼しない）。
+- モーター1に戻す/付け替えるときは `fan_id.cpp` の `setDirName("fan_vsag_m2")` を変えて保存先を分ける。
+  同一電池・同程度のSOCで測れば ΔV 比 = 電流比なので、校正無しで比較できる。
 
 ## 6. 検証状況
 

@@ -54,36 +54,36 @@ static void fan_tester(float duty) {
     ledBar16.set(0x0000);
 }
 
-onenter(fan_run_025,
+onenter(fan_run_010,
     fan_init_log();
-    logger.setDirName("fan_vsag_m1");
-    logger.setFileName("fan_025");
+    logger.setDirName("fan_vsag_m2");
+    logger.setFileName("fan_010");
     logger.setIncludeTimestamp(false);
-    fan_tester(0.25f);
+    fan_tester(0.10f);
 )
 
-onenter(fan_run_050,
+onenter(fan_run_020,
     fan_init_log();
-    logger.setDirName("fan_vsag_m1");
-    logger.setFileName("fan_050");
+    logger.setDirName("fan_vsag_m2");
+    logger.setFileName("fan_020");
     logger.setIncludeTimestamp(false);
-    fan_tester(0.50f);
+    fan_tester(0.20f);
 )
 
-onenter(fan_run_075,
+onenter(fan_run_030,
     fan_init_log();
-    logger.setDirName("fan_vsag_m1");
-    logger.setFileName("fan_075");
+    logger.setDirName("fan_vsag_m2");
+    logger.setFileName("fan_030");
     logger.setIncludeTimestamp(false);
-    fan_tester(0.75f);
+    fan_tester(0.30f);
 )
 
-onenter(fan_run_100,
+onenter(fan_run_040,
     fan_init_log();
-    logger.setDirName("fan_vsag_m1");
-    logger.setFileName("fan_100");
+    logger.setDirName("fan_vsag_m2");
+    logger.setFileName("fan_040");
     logger.setIncludeTimestamp(false);
-    fan_tester(1.00f);
+    fan_tester(0.40f);
 )
 
 // ファンが回らないときの切り分け用。Fanクラス・ロガー・PWM周期変更を使わず，divergence_v2/Core/Src/fan.c と
