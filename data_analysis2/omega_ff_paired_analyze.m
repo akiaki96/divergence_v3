@@ -16,9 +16,9 @@ clear; clc;
 results_dir = 'results';
 src_dir = '../tools/log/omega_ff_v700_x/';
 R = readtable(fullfile(results_dir, 'omega_ramp_summary_by_run.csv'));
-R = R(startsWith(R.group, 'F5'), :);
-if isempty(R), error('F5のデータがありません。omega_ramp_analyze.m を先に実行してください。'); end
-R.kind = extractAfter(R.group, 'F5 ');           % ff / ffhi / noff
+R = R(startsWith(R.group, 'F5') | startsWith(R.group, 'F7'), :);
+if isempty(R), error('F5/F7のデータがありません。omega_ramp_analyze.m を先に実行してください。'); end
+R.kind = extractAfter(R.group, ' ');            % ff / ffhi / ffold / noff（F5/F7とも）
 mt = zeros(height(R), 1);
 for i = 1:height(R)
     d = dir([src_dir R.file{i}]);
@@ -74,15 +74,21 @@ for ss = unique(R.session)'
             end
             fprintf('%s\n', out);
         end
-        % ffhi vs ff（同セッションの隣り合い）
-        Y = R(R.session == ss & R.target == tg & (strcmp(R.kind, 'ffhi') | strcmp(R.kind, 'ff')), :);
-        dh = zeros(0, 3);
-        for i = 1:height(Y) - 1
-            if strcmp(Y.kind{i}, 'ffhi') && strcmp(Y.kind{i + 1}, 'ff'), dh(end + 1, :) = [Y.os100(i) - Y.os100(i + 1), Y.r90(i) - Y.r90(i + 1), Y.track_err(i) - Y.track_err(i + 1)]; %#ok<AGROW>
-            elseif strcmp(Y.kind{i}, 'ff') && strcmp(Y.kind{i + 1}, 'ffhi'), dh(end + 1, :) = [Y.os100(i + 1) - Y.os100(i), Y.r90(i + 1) - Y.r90(i), Y.track_err(i + 1) - Y.track_err(i)]; end %#ok<AGROW>
-        end
-        if ~isempty(dh)
-            fprintf('ffhi−ff（隣り合い %d組の平均）: OS %+.2f pt, 90%%到達 %+.1f ms, 指令への遅れ %+.1f pt\n', size(dh, 1), mean(dh(:, 1)), mean(dh(:, 2)), mean(dh(:, 3)));
+        % ffhi / ffold vs ff（同セッションの隣り合い。ffold=F5相当(係数0.625倍)なら ff−ffold がF7の効果）
+        for other = {'ffhi', 'ffold'}
+            Y = R(R.session == ss & R.target == tg & (strcmp(R.kind, other{1}) | strcmp(R.kind, 'ff')), :);
+            dh = zeros(0, 3);
+            for i = 1:height(Y) - 1
+                if strcmp(Y.kind{i}, other{1}) && strcmp(Y.kind{i + 1}, 'ff')
+                    dh(end + 1, :) = [Y.os100(i) - Y.os100(i + 1), Y.r90(i) - Y.r90(i + 1), Y.track_err(i) - Y.track_err(i + 1)]; %#ok<AGROW>
+                elseif strcmp(Y.kind{i}, 'ff') && strcmp(Y.kind{i + 1}, other{1})
+                    dh(end + 1, :) = [Y.os100(i + 1) - Y.os100(i), Y.r90(i + 1) - Y.r90(i), Y.track_err(i + 1) - Y.track_err(i)]; %#ok<AGROW>
+                end
+            end
+            if ~isempty(dh)
+                if strcmp(other{1}, 'ffold'), dh = -dh; lbl = 'F7(ff)−F5相当(ffold)（負=F7が改善）'; else, lbl = [other{1} '−ff']; end
+                fprintf('%s（隣り合い %d組の平均）: OS %+.2f pt, 90%%到達 %+.1f ms, 指令への遅れ %+.1f pt\n', lbl, size(dh, 1), mean(dh(:, 1)), mean(dh(:, 2)), mean(dh(:, 3)));
+            end
         end
     end
 end
