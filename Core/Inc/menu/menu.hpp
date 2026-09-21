@@ -109,6 +109,10 @@ private:
 
 
         MenuNode fan_{"Fan"};
+            MenuNode fan_run_025_{"fan vsag 0.25"};
+            MenuNode fan_run_050_{"fan vsag 0.50"};
+            MenuNode fan_run_075_{"fan vsag 0.75"};
+            MenuNode fan_run_100_{"fan vsag 1.00"};
         MenuNode ir_{"IR"};
             MenuNode ir_r_{"IR Right"};
             MenuNode ir_fr_{"IR Front Right"};

@@ -6,6 +6,7 @@
 #include "device/led_manager.hpp"
 #include "device/adcValue.hpp"
 #include "device/motorDriver.hpp"
+#include "device/fan.hpp"
 #include "app/logger.hpp"
 
 extern float globalTime;
@@ -29,5 +30,7 @@ extern Battery battery;
 extern Motor motorLeft;
 extern Motor motorRight;
 extern MotorDriver motorDriver;
+
+extern Fan fan;
 
 extern Logger logger;

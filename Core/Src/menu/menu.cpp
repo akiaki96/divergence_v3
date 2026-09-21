@@ -3,6 +3,7 @@
 #include "device/device_instance.hpp"
 #include "device/device_test.hpp"
 #include "test/motor_id.hpp"
+#include "test/fan_id.hpp"
 
 Menu::Menu() {
     buildTree();
@@ -13,6 +14,7 @@ void Menu::buildTree() {
     root_.setChildren(std::array{&run_, &device_, &log_dump_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
+            fan_.setChildren(std::array{&fan_run_025_, &fan_run_050_, &fan_run_075_, &fan_run_100_});
             ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
@@ -63,6 +65,11 @@ void Menu::setFunction() {
     imu_.setOnSelected(imu_onselect);
 
     battery_.setOnEnter(battery_onenter);
+
+    fan_run_025_.setOnEnter(fan_run_025_onenter);
+    fan_run_050_.setOnEnter(fan_run_050_onenter);
+    fan_run_075_.setOnEnter(fan_run_075_onenter);
+    fan_run_100_.setOnEnter(fan_run_100_onenter);
 
     // ---------------------------
 
