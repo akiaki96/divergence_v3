@@ -29,7 +29,10 @@ static void unit_tests() {
         float w = TI_OMEGA_BP[i];
         std::snprintf(nm, sizeof nm, "static_ff(+%g)", w);  check(nm, omega_static_ff(w), FF_U_POS[i], 1e-6f);
         std::snprintf(nm, sizeof nm, "static_ff(-%g)", w);  check(nm, omega_static_ff(-w), -FF_U_NEG[i], 1e-6f);
-        std::snprintf(nm, sizeof nm, "accel_ff(%g,+1)", w); check(nm, omega_accel_ff(w, 1.f), FF_ACC[i], 1e-9f);
+        std::snprintf(nm, sizeof nm, "accel_ff(+%g,+1)", w); check(nm, omega_accel_ff(w, 1.f), FF_ACC_POS[i], 1e-9f);
+        if (w > 0.f) {   // w=0の-w は -0.0f となり符号判定(>=0)で+側の表が選ばれるため，ゼロは除く
+            std::snprintf(nm, sizeof nm, "accel_ff(-%g,-1)", w); check(nm, omega_accel_ff(-w, -1.f), -FF_ACC_NEG[i], 1e-9f);
+        }
         std::snprintf(nm, sizeof nm, "Ti(+%g)", w);         check(nm, omega_ti_schedule(w), TI_S_BP_POS[i], 1e-7f);
         std::snprintf(nm, sizeof nm, "Ti(-%g)", w);         check(nm, omega_ti_schedule(-w), TI_S_BP_NEG[i], 1e-7f);
     }
@@ -46,8 +49,9 @@ static void unit_tests() {
     check("static_ff continuous at 0", omega_static_ff(1e-3f) - omega_static_ff(-1e-3f), 0.f, 1e-4f);
     check("accel_ff zero rate", omega_accel_ff(wend, 0.f), 0.f, 1e-9f);
     check("accel_ff odd in rate", omega_accel_ff(wend, 1000.f) + omega_accel_ff(wend, -1000.f), 0.f, 1e-9f);
-    check("accel_ff clamp(+)", omega_accel_ff(wend, 1e9f), FF_ACC[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
-    check("accel_ff clamp(-)", omega_accel_ff(wend, -1e9f), -FF_ACC[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
+    check("accel_ff clamp(+,+)", omega_accel_ff(wend, 1e9f), FF_ACC_POS[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
+    check("accel_ff clamp(+,-)", omega_accel_ff(wend, -1e9f), -FF_ACC_POS[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
+    check("accel_ff clamp(-,-)", omega_accel_ff(-wend, -1e9f), -FF_ACC_NEG[TI_TABLE_SIZE - 1] * OMEGA_ACCEL_FF_MAX, 1e-5f);
 }
 
 struct Plant { float K, T, u0; };

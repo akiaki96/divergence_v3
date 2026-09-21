@@ -58,13 +58,15 @@ static float omega_static_ff(float omega_ref_dps) {
     return -interp_omega_bp(FF_U_NEG, -omega_ref_dps);
 }
 
-// 加速度FF [duty] = a_ff(|ω_ref|)·dω_ref/dt。dω_ref/dtは±OMEGA_ACCEL_FF_MAXに制限する
+// 加速度FF [duty] = a_ff(|ω_ref|, 符号)·dω_ref/dt。dω_ref/dtは±OMEGA_ACCEL_FF_MAXに制限する
 // （ステップ指令＝レート制限なしでも発散しない）
 static float omega_accel_ff(float omega_ref_dps, float dref_dt) {
     using namespace config::pid_omega;
     if (dref_dt > OMEGA_ACCEL_FF_MAX) dref_dt = OMEGA_ACCEL_FF_MAX;
     else if (dref_dt < -OMEGA_ACCEL_FF_MAX) dref_dt = -OMEGA_ACCEL_FF_MAX;
-    return interp_omega_bp(FF_ACC, abs_f(omega_ref_dps)) * dref_dt;
+    // 係数表はω_refの符号で正/負を選ぶ（方向別，config::pid_omega参照）
+    const float* acc_tbl = (omega_ref_dps >= 0.f) ? FF_ACC_POS : FF_ACC_NEG;
+    return interp_omega_bp(acc_tbl, abs_f(omega_ref_dps)) * dref_dt;
 }
 
 // Ki=Kc/Ti, Tt=Ti をスケジュールに合わせて設定する。積分項は出力単位で保持されるので

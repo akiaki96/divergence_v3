@@ -685,89 +685,90 @@ void rot_omega_tester(float target_omega, float accel_dps2, uint32_t duration_ms
     ledBar16.set(0x0000);
 }
 
-// data_analysis2/rot_gain_scheduling_plan.md §18：2自由度FF（F5）の検証用。
+// data_analysis2/rot_gain_scheduling_plan.md §21：F7（+側の加速度FF係数を全域1.6倍）の検証用（E11）。
 // 全てランプ指令（運用仕様2500dps/s^2）。保存先 omega_ff_v700_x
-//  omega_ff_*    : FF ON（加速度FF係数 1.0倍＝既定）
-//  omega_ffhi_*  : FF ON（加速度FF係数 1.6倍。係数の感度確認）
-//  omega_noff_*  : FF OFF（同一セッションの純PI基準）
-onenter(omega_ff_pos430,
+//  omega_f7_ff_*    : FF ON（既定＝F7。+側は加速度FF係数1.6倍）
+//  omega_f7_noff_*  : FF OFF（同一セッションの純PI基準）
+//  omega_f7_ffold_* : FF ON・加速度FF係数を0.625倍（＝F5相当。+側のみ意味を持つ：F7の+側表はF5の1.6倍，
+//                     -側は変更なしのため-側では使わない）
+onenter(omega_f7_ff_pos430,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ff_pos430");
+    logger.setFileName("omega_f7_ff_pos430");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f);
 )
 
-onenter(omega_ff_neg430,
+onenter(omega_f7_ff_neg430,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ff_neg430");
+    logger.setFileName("omega_f7_ff_neg430");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(-430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f);
 )
 
-onenter(omega_ffhi_pos430,
+onenter(omega_f7_noff_pos430,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ffhi_pos430");
-    logger.setIncludeTimestamp(false);
-    rot_omega_tester(430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.6f);
-)
-
-onenter(omega_ffhi_neg430,
-    id_init_log_omega();
-    logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ffhi_neg430");
-    logger.setIncludeTimestamp(false);
-    rot_omega_tester(-430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.6f);
-)
-
-onenter(omega_noff_pos430,
-    id_init_log_omega();
-    logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_noff_pos430");
+    logger.setFileName("omega_f7_noff_pos430");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, false, 1.f);
 )
 
-onenter(omega_noff_neg430,
+onenter(omega_f7_noff_neg430,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_noff_neg430");
+    logger.setFileName("omega_f7_noff_neg430");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(-430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, false, 1.f);
 )
 
-onenter(omega_ff_pos250,
+onenter(omega_f7_ffold_pos430,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ff_pos250");
+    logger.setFileName("omega_f7_ffold_pos430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 0.625f);
+)
+
+onenter(omega_f7_ff_pos250,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f7_ff_pos250");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(250.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f);
 )
 
-onenter(omega_ff_neg250,
+onenter(omega_f7_ff_neg250,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ff_neg250");
+    logger.setFileName("omega_f7_ff_neg250");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(-250.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f);
 )
 
-onenter(omega_ff_pos100,
+onenter(omega_f7_ff_pos100,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ff_pos100");
+    logger.setFileName("omega_f7_ff_pos100");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(100.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f);
 )
 
-onenter(omega_ff_neg100,
+onenter(omega_f7_ff_neg100,
     id_init_log_omega();
     logger.setDirName("omega_ff_v700_x");
-    logger.setFileName("omega_ff_neg100");
+    logger.setFileName("omega_f7_ff_neg100");
     logger.setIncludeTimestamp(false);
     rot_omega_tester(-100.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f);
+)
+
+onenter(omega_f7_ffold_pos250,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f7_ffold_pos250");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(250.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 0.625f);
 )
 
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
