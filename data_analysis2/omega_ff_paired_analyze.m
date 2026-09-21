@@ -10,7 +10,7 @@
 %  (2) 回帰  指標 ~ 1 + 時間[分] + FF  … 時間トレンドを補正したFF効果
 %      回帰  指標 ~ 1 + (|u_ss| - 平均) + FF … 感度(u_ss)を補正したFF効果
 % セッション（取得の時間間隔が20分超で分割）ごと・目標ごとに集計する。
-% ウォームアップ：セッションの先頭が「同じ種類が2本続く」形（例 ff, ff, noff, ...）のとき先頭1本を除外する。
+% ウォームアップ：セッション全体の最初の1本が「同じ目標で同じ種類が2本続く」形（例 ff, ff, noff, ...）のとき除外する。
 
 clear; clc;
 results_dir = 'results';
@@ -37,7 +37,9 @@ for ss = unique(R.session)'
         X = R(R.session == ss & R.target == tg, :);
         X = X(strcmp(X.kind, 'ff') | strcmp(X.kind, 'noff'), :);   % ffhiは別途
         if height(X) < 2, continue; end
-        if strcmp(X.kind{1}, X.kind{2}), X(1, :) = []; end             % ウォームアップ除外
+        % ウォームアップ除外：セッション全体の最初の1本で，かつ同じ目標の次の1本と種類が同じとき
+        % （ff, ff, noff, ... の形）。-430の先頭など，セッション先頭でない run は除外しない
+        if strcmp(X.kind{1}, X.kind{2}) && X.mtime(1) == min(R.mtime(R.session == ss)), X(1, :) = []; end
         t_min = (X.mtime - X.mtime(1)) * 24 * 60;
         fprintf('\n===== セッション%d  %s  target %+d：ff %d本 / noff %d本（%s〜） =====\n', ss, datestr(X.mtime(1), 'mm/dd HH:MM'), tg, ...
             sum(strcmp(X.kind, 'ff')), sum(strcmp(X.kind, 'noff')), datestr(X.mtime(1), 'HH:MM'));
