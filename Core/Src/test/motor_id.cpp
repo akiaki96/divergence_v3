@@ -2,6 +2,7 @@
 #include "common/etc.hpp"
 #include "common/prbs.hpp"
 #include "config/mouse_config.hpp"
+#include "common/debug.hpp"
 
 void id_init_log(void) {
     motorDriver.state = MotorDriverState::setDuty;
@@ -643,12 +644,40 @@ void id_init_log_omega(void) {
     );
 }
 
+// 回転FF試験（E11）はバッテリ電圧が低いと比較が成立しない：必要dutyが電圧にほぼ反比例して増え（u_ss×Vは約一定），
+// -430の飽和が電圧で大きく変わる（7.7V:約30%，7.9V:約9%，8.15V:0%。rot_gain_scheduling_plan.md §20.3）。
+// そのため電圧が閾値未満なら試験を実行せずメニューに戻る（試験モード内のみの処理）。
+// 判定は試験開始前の静止時の電圧（走行中は約0.03V低い）で行う。E10は13分で約0.3V低下したので，
+// 8.0Vで打ち切ると，8.3V付近で開始した約20本のセッションは完走でき，8.1V未満で開始すると途中で止まる。
+constexpr float kOmegaTestMinBatteryV = 8.0f;   // [V]
+
+// 電圧が十分ならtrue。不足ならledBar16を左右交互に点滅して知らせ（通常終了時の全点灯とは区別できる），falseを返す
+static bool omega_test_battery_ok(void) {
+    float v = battery.voltage();
+    if (v >= kOmegaTestMinBatteryV) {
+        return true;
+    }
+    LOG("omega test skipped: battery %.2f V < %.2f V (charge the battery)\r\n", v, kOmegaTestMinBatteryV);
+    for (int i = 0; i < 6; ++i) {   // 約3秒
+        ledBar16.set(0xFF00);
+        HAL_Delay(250);
+        ledBar16.set(0x00FF);
+        HAL_Delay(250);
+    }
+    ledBar16.set(0x0000);
+    return false;
+}
+
 // 並進速度700mm/sを閉ループで維持しつつ，目標角速度target_omegaへ指令する。
 // accel_dps2で指令のレート制限（最大角加速度）を試験ごとに指定する（運用仕様: config::pid_omega::OMEGA_ACCEL_MAX）。
 // ff_onで2自由度FF（静的FF＋加速度FF）のON/OFF，ff_scaleで加速度FF係数の倍率を試験ごとに指定する
 // （同一セッションでFF ON/OFF・係数を交互に取って比較するため）。試験後は既定値へ戻す。
 // FFなしの純粋PIに対し，FFありが追従を改善するか検証する
 void rot_omega_tester(float target_omega, float accel_dps2, uint32_t duration_ms, bool ff_on, float ff_scale) {
+    // 電圧不足なら何も動かさずメニューに戻る（モータ・IMU・ロガーには触れない）
+    if (!omega_test_battery_ok()) {
+        return;
+    }
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
     imu.calibrate();
