@@ -114,6 +114,10 @@ private:
             MenuNode fan_run_030_{"fan vsag 0.30"};
             MenuNode fan_run_040_{"fan vsag 0.40"};
             MenuNode fan_bringup_{"fan bringup"};
+            MenuNode fan_hold_010_{"fan hold 0.10"};
+            MenuNode fan_hold_020_{"fan hold 0.20"};
+            MenuNode fan_hold_030_{"fan hold 0.30"};
+            MenuNode fan_hold_040_{"fan hold 0.40"};
         MenuNode ir_{"IR"};
             MenuNode ir_r_{"IR Right"};
             MenuNode ir_fr_{"IR Front Right"};

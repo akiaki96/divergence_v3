@@ -111,3 +111,60 @@ onenter(fan_bringup,
     fan.init();
     ledBar16.set(0xFFFF);
 )
+
+// ---- 連続運転モード -------------------------------------------------------------------
+// ファンを一定dutyで回し続ける。止めるには機体を大きく傾ける（haltByAccZと同じ条件: 加速度Zが
+// 基準から1G以上下がる）。電池が下がった場合も自動で止める（LiPo 2Sの過放電防止）。
+namespace {
+constexpr float FAN_HOLD_MIN_START_V = 6.8f;   // [V] これ未満なら開始しない（USB給電のみ・電池未接続・低電圧の検出も兼ねる）
+constexpr float FAN_HOLD_CUTOFF_V    = 6.4f;   // [V] 運転中にこれを下回ったら停止（ファン負荷時の電圧で判定するので保守側）
+constexpr uint32_t FAN_HOLD_POLL_MS  = 50;
+constexpr uint32_t FAN_HOLD_LOG_MS   = 1000;   // 状態をシリアルに出す周期
+}
+
+// in: duty(0〜1) / out: なし（傾けるか電池低下で戻る）
+static void fan_hold(float duty) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);   // 車輪は止めておく
+
+    float v0 = battery.voltage();
+    if (v0 < FAN_HOLD_MIN_START_V) {
+        LOG("fan hold not started: battery %.2f V < %.2f V (LiPo not connected / low?)\r\n", v0, FAN_HOLD_MIN_START_V);
+        for (int i = 0; i < 6; ++i) {   // 開始できない合図: LEDバー左右交互点滅 約3s
+            ledBar16.set((i % 2 == 0) ? 0x00FF : 0xFF00);
+            HAL_Delay(500);
+        }
+        ledBar16.set(0x0000);
+        return;
+    }
+
+    LOG("fan hold: duty %.2f, battery %.2f V. Tilt the robot to stop.\r\n", duty, v0);
+    ledBar16.set(0x00FF);
+    fan.setDuty(duty);
+
+    const char* reason = "tilt";
+    uint32_t elapsed_ms = 0;
+    while (imu.accelZ() + config::imu::G > config::mode_selector::ACC_THRESH) {
+        float v = battery.voltage();
+        if (v < FAN_HOLD_CUTOFF_V) {
+            reason = "battery low";
+            break;
+        }
+        if (elapsed_ms % FAN_HOLD_LOG_MS == 0) {
+            LOG("fan hold: t=%lu s duty=%.2f battery=%.2f V\r\n", elapsed_ms / 1000, fan.getDuty(), v);
+        }
+        HAL_Delay(FAN_HOLD_POLL_MS);
+        elapsed_ms += FAN_HOLD_POLL_MS;
+    }
+
+    fan.stop();
+    LOG("fan hold stopped (%s) after %lu ms, battery %.2f V\r\n", reason, elapsed_ms, battery.voltage());
+    ledBar16.set(0xFFFF);
+    HAL_Delay(500);
+    ledBar16.set(0x0000);
+}
+
+onenter(fan_hold_010, fan_hold(0.10f);)
+onenter(fan_hold_020, fan_hold(0.20f);)
+onenter(fan_hold_030, fan_hold(0.30f);)
+onenter(fan_hold_040, fan_hold(0.40f);)

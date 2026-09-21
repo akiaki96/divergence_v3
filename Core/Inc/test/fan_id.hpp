@@ -10,3 +10,9 @@ void fan_run_020_onenter();
 void fan_run_030_onenter();
 void fan_run_040_onenter();
 void fan_bringup_onenter();   // 切り分け用: v2と同じ方法で40%を3秒回しレジスタをシリアル出力
+
+// ファンを一定dutyで回し続ける（機体を大きく傾けるか電池低下で停止）
+void fan_hold_010_onenter();
+void fan_hold_020_onenter();
+void fan_hold_030_onenter();
+void fan_hold_040_onenter();
