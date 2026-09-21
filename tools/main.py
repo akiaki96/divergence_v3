@@ -9,6 +9,8 @@ from plot_log import plot_csv
 
 import argparse
 
+import argcomplete
+
 # ArgumentParserの例を作成
 arg_parser = argparse.ArgumentParser()
 
@@ -21,6 +23,8 @@ arg_parser.add_argument(
     help="同名CSVが既に存在する場合の挙動。overwrite: 上書き（デフォルト）, "
          "sequence: '_1','_2',...の連番を付けて別ファイルとして両方保存する",
 )
+
+argcomplete.autocomplete(arg_parser)
 
 # オプションの解釈
 args = arg_parser.parse_args()
