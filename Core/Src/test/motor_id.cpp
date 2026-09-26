@@ -79,6 +79,21 @@ onenter(right_set050,
     ledBar16.set(0xFFFF);
 )
 
+onenter(right_set100, 
+    id_init_log();
+    logger.dirName = "right_set1_00";
+
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);
+    motorDriver.setDuty(0.f, 1.0f);
+    HAL_Delay(2000);
+    motorDriver.setBreak();
+    HAL_Delay(500);
+    logger.stop();
+    ledBar16.set(0xFFFF);
+)
+
 void lamp_tester(float lamp) {
     HAL_Delay(500);
 

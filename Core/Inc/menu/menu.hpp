@@ -39,6 +39,7 @@ private:
             MenuNode motor_l_{"Motor Left"};
             MenuNode motor_r_{"Motor Right"};
                 MenuNode right_050_{"Motor Right 0.5"};
+                MenuNode right_100_{"Motor Right 1.0"};
             MenuNode motor_sysid_step_{"Motor sysid step"};
                 MenuNode step_010_{"step 0.10"};
                 MenuNode step_015_{"step 0.15"};
