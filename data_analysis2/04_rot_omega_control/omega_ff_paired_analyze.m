@@ -16,7 +16,7 @@
 
 clear; clc;
 results_dir = 'results';
-src_dir = '../tools/log/omega_ff_v700_x/';
+src_dir = '../../tools/log/omega_ff_v700_x/';
 R = readtable(fullfile(results_dir, 'omega_ramp_summary_by_run.csv'));
 R = R(startsWith(R.group, 'F5') | startsWith(R.group, 'F7') | startsWith(R.group, 'F6'), :);
 if isempty(R), error('F5/F7のデータがありません。omega_ramp_analyze.m を先に実行してください。'); end

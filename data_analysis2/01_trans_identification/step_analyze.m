@@ -18,9 +18,9 @@ if ~exist(results_dir, 'dir')
 end
 
 files = {
-    '10', '../tools/log/step_x/step_0_10.csv';
-    '15', '../tools/log/step_x/step_0_15.csv';
-    '20', '../tools/log/step_x/step_0_20.csv';
+    '10', '../../tools/log/step_x/step_0_10.csv';
+    '15', '../../tools/log/step_x/step_0_15.csv';
+    '20', '../../tools/log/step_x/step_0_20.csv';
 };
 
 n = size(files, 1);

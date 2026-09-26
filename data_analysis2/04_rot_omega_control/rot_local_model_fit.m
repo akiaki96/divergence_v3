@@ -12,7 +12,7 @@
 
 clear; clc;
 results_dir = 'results';
-dirs = {'../tools/log/omega_step_v700_x/', '../tools/log/omega_ramp_v700_x/'};
+dirs = {'../../tools/log/omega_step_v700_x/', '../../tools/log/omega_ramp_v700_x/'};
 
 % 対象：|目標|=430の全run（+と-）を，方向×指令方式で集計
 L = [dir([dirs{1} 'omega_*430*.csv']); dir([dirs{2} 'omega_*430*.csv'])];

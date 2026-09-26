@@ -314,7 +314,7 @@ void id_init_log_rot_v700(void) {
 // 並進速度を閉ループでconfig::rot_step_v700::TRANSLATION_VELOCITY_MM_Sに固定したまま，
 // 左右duty差をステップ印加して回転方向の応答を励振する。
 // test_msは通常TEST_MS(600ms)だが，高振幅域では600msで整定しないことが確認されているため，
-// data_analysis2/rot_high_amplitude_test_plan.mdの試験1ではTEST_MS_LONG(2000ms)を渡す。
+// data_analysis2/03_rot_identification/rot_high_amplitude_test_plan.mdの試験1ではTEST_MS_LONG(2000ms)を渡す。
 void rot_step_v700_tester(float duty_diff, uint32_t test_ms) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -462,7 +462,7 @@ onenter(rot_step_v700_neg_028,
     rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_7, config::rot_step_v700::TEST_MS);
 )
 
-// data_analysis2/rot_high_amplitude_test_plan.md 試験1：
+// data_analysis2/03_rot_identification/rot_high_amplitude_test_plan.md 試験1：
 // +0.28が600msで未整定だったため，430dps付近の目標運用域に近い中間水準を
 // TEST_MS_LONG(2000ms)で励振し，真の整定値・時定数を確認する
 onenter(rot_step_v700_pos_022,
@@ -513,7 +513,7 @@ onenter(rot_step_v700_neg_026,
     rot_step_v700_tester(-config::rot_step_v700::DUTY_DIFF_10, config::rot_step_v700::TEST_MS_LONG);
 )
 
-// 回転方向PRBS本同定（data_analysis2/prbs_rot_design.m）。
+// 回転方向PRBS本同定（data_analysis2/03_rot_identification/prbs_rot_design.m）。
 // 並進速度700mm/sを閉ループで維持しつつ，duty_diffをPRBS（±0.06, Tc=4ms）で励振する。
 PRBS g_prbs_rot;
 
@@ -716,7 +716,7 @@ void rot_omega_tester(float target_omega, float accel_dps2, uint32_t duration_ms
     ledBar16.set(0x0000);
 }
 
-// data_analysis2/rot_gain_scheduling_plan.md §23：F6（バッテリ電圧補償＋電圧基準の出力上限）の検証用（E12）。
+// data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §23：F6（バッテリ電圧補償＋電圧基準の出力上限）の検証用（E12）。
 // 全てFF ON・ランプ指令（運用仕様2500dps/s^2）。保存先 omega_ff_v700_x
 //  omega_f6_on_*  : F6 ON（既定。出力に V_REF/V_batt，上限 DUTY_DIFF_LIMIT_V/V_batt）
 //  omega_f6_off_* : F6 OFF（従来動作＝F7：換算なし・上限0.28。同一セッションのA/B基準）

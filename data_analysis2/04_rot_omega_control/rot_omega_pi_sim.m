@@ -15,7 +15,7 @@
 clear; clc;
 results_dir = 'results';
 
-pr = readtable(fullfile(results_dir, 'rot_step_v700_p1fit_model_params.csv'));
+pr = readtable(fullfile('..', '03_rot_identification', 'results', 'rot_step_v700_p1fit_model_params.csv'));
 mapA = pr.K_a; mapB = pr.K_b; mapN = pr.K_n; mapT0 = pr.T_T0; mapC = pr.T_c; mapM = pr.T_m;
 Kmap  = @(x) sign(x) .* (mapA * abs(x) + mapB * abs(x) .^ mapN);
 Ktanf = @(x) mapA + mapN * mapB * abs(x) .^ (mapN - 1);

@@ -7,7 +7,7 @@
 
 clear; clc;
 results_dir = 'results';
-pr = readtable(fullfile(results_dir, 'rot_step_v700_p1fit_model_params.csv'));
+pr = readtable(fullfile('..', '03_rot_identification', 'results', 'rot_step_v700_p1fit_model_params.csv'));
 Kmap = @(x) sign(x) .* (pr.K_a * abs(x) + pr.K_b * abs(x) .^ pr.K_n);
 Tmap = @(x) pr.T_T0 + pr.T_c * abs(x) .^ pr.T_m;
 

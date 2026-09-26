@@ -18,7 +18,7 @@ results_dir = 'results';
 files  = {'pos200', 'neg200', 'pos250'};
 nf = numel(files);
 
-pr = readtable(fullfile(results_dir, 'rot_step_v700_p1fit_model_params.csv'));
+pr = readtable(fullfile('..', '03_rot_identification', 'results', 'rot_step_v700_p1fit_model_params.csv'));
 mapA = pr.K_a; mapB = pr.K_b; mapN = pr.K_n; mapT0 = pr.T_T0; mapC = pr.T_c; mapM = pr.T_m;
 Kmap  = @(x) sign(x) .* (mapA * abs(x) + mapB * abs(x) .^ mapN);
 Tmap  = @(x) mapT0 + mapC * abs(x) .^ mapM;
@@ -39,7 +39,7 @@ fig1 = figure('Position', [50 50 1300 900]);
 fit_tbl = zeros(nf, 5);
 
 for f = 1:nf
-    T = readtable(sprintf('../tools/log/omega_step_v700_x/omega_step_%s.csv', files{f}), 'VariableNamingRule', 'modify');
+    T = readtable(sprintf('../../tools/log/omega_step_v700_x/omega_step_%s.csv', files{f}), 'VariableNamingRule', 'modify');
     t = T.Global_time - T.Global_time(1);
     on = find(T.target_omega ~= 0, 1, 'first');
     tgt = T.target_omega(on);
@@ -118,7 +118,7 @@ labels    = {'pos002', 'pos004', 'pos006', 'pos010', 'pos014', 'pos020', 'pos022
 duty_vals = [0.02 0.04 0.06 0.10 0.14 0.20 0.22 0.24 0.26 0.28, -0.02 -0.04 -0.06 -0.10 -0.14 -0.20 -0.22 -0.24 -0.26 -0.28];
 step_fit = zeros(numel(labels), 2);
 for i = 1:numel(labels)
-    T = readtable(sprintf('../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', labels{i}), 'VariableNamingRule', 'modify');
+    T = readtable(sprintf('../../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', labels{i}), 'VariableNamingRule', 'modify');
     t = T.Global_time - T.Global_time(1);
     [onset, offset] = find_longest_nonzero_run(T.duty_diff);
     y0 = mean(T.gyro_z(max(1, onset - 300):onset - 1));

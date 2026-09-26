@@ -60,4 +60,4 @@
 ---
 
 **続編**: 試験1の結果を用いた動作点別フィット・ゲインスケジューリング検討と，今後の実験・処理計画は
-[`rot_gain_scheduling_plan.md`](./rot_gain_scheduling_plan.md) を参照。
+[`rot_gain_scheduling_plan.md`](../04_rot_omega_control/rot_gain_scheduling_plan.md) を参照。

@@ -24,9 +24,9 @@ if ~exist(results_dir, 'dir')
 end
 
 %% プラントモデル・feedforward（既存同定結果を使用）
-Kp_plant = 1518.9;   % data_analysis2/prbs_identification_report.md
+Kp_plant = 1518.9;   % data_analysis2/01_trans_identification/prbs_identification_report.md
 Tp1      = 0.4451;
-A_GAIN   = 1738.0;    % data_analysis2/step_identification_report.md
+A_GAIN   = 1738.0;    % data_analysis2/01_trans_identification/step_identification_report.md
 U0_DEADZONE = 0.1360;
 ZERO_VELOCITY_EPS = 1.0;
 

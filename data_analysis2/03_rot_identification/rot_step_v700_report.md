@@ -175,5 +175,5 @@ $$\omega_{ss} = a_{rot}(duty\_diff - duty\_diff_0)$$
   せず前試行の値が次試行冒頭に漏れ残っていた。`trans_pi_control`で修正済み（`1923fa2d`）。
   既存データは`find_longest_nonzero_run`で処理済み
 - 次のステップ：動作点別フィットで**ゲインスケジューリングが必要**と判明したため，
-  実験・処理計画は[`rot_gain_scheduling_plan.md`](./rot_gain_scheduling_plan.md)に従う
+  実験・処理計画は[`rot_gain_scheduling_plan.md`](../04_rot_omega_control/rot_gain_scheduling_plan.md)に従う
   （実機omega PI試験 → 微小step → firmware変更 → 再試験）

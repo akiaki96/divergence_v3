@@ -15,7 +15,7 @@
 
 clear; clc;
 results_dir = 'results';
-src = '../tools/log/omega_ff_v700_x/';
+src = '../../tools/log/omega_ff_v700_x/';
 L = dir([src 'omega_*.csv']);
 
 rows = struct('file', {}, 'group', {}, 'level', {}, 'err_pct', {}, 'sd_raw', {}, 'sd_ma', {}, 'os', {}, 'r90', {}, 'set10', {}, ...

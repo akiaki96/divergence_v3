@@ -37,7 +37,7 @@ fig_ts = figure('Position', [50 50 1000 700]);
 colors = lines(n);
 
 for i = 1:n
-    fname = sprintf('../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', labels{i});
+    fname = sprintf('../../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', labels{i});
     T = readtable(fname);
     t = T.Global_time - T.Global_time(1);
 

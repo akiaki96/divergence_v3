@@ -25,7 +25,7 @@ targets = {'300', '600', '900', 'neg600'};
 
 for i = 1:numel(targets)
     label = targets{i};
-    fname = sprintf('../tools/log/velocity_step_x/velocity_step_%s.csv', label);
+    fname = sprintf('../../tools/log/velocity_step_x/velocity_step_%s.csv', label);
     if ~isfile(fname)
         fprintf('%s: ファイルが見つからないためスキップ（%s）\n', label, fname);
         continue;

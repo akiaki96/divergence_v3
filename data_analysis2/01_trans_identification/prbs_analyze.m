@@ -37,7 +37,7 @@ id_data = cell(n_id, 1);
 
 fprintf('--- 同定用データの読み込み・トリミング ---\n');
 for i = 1:n_id
-    fname = sprintf('../tools/log/prbs_trans_x/prbs_trans_%s.csv', id_labels{i});
+    fname = sprintf('../../tools/log/prbs_trans_x/prbs_trans_%s.csv', id_labels{i});
     [id_data{i}, info] = load_prbs_trial(fname, Ts, ACCEL_COLLISION_THRESH, TRIM_MARGIN_SAMPLES);
     fprintf('%s: %s\n', id_labels{i}, info);
 end
@@ -46,7 +46,7 @@ n_val = numel(val_labels);
 val_data = cell(n_val, 1);
 fprintf('\n--- 検証(holdout)用データの読み込み・トリミング ---\n');
 for i = 1:n_val
-    fname = sprintf('../tools/log/prbs_trans_x/prbs_trans_%s.csv', val_labels{i});
+    fname = sprintf('../../tools/log/prbs_trans_x/prbs_trans_%s.csv', val_labels{i});
     [val_data{i}, info] = load_prbs_trial(fname, Ts, ACCEL_COLLISION_THRESH, TRIM_MARGIN_SAMPLES);
     fprintf('%s: %s\n', val_labels{i}, info);
 end

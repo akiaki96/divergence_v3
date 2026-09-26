@@ -33,7 +33,7 @@ base_dps = zeros(n,1);
 data_t  = cell(n,1); data_y = cell(n,1);
 
 for i = 1:n
-    fname = sprintf('../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', labels{i});
+    fname = sprintf('../../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', labels{i});
     T = readtable(fname, 'VariableNamingRule', 'modify');
     t = T.Global_time - T.Global_time(1);
     [onset, offset] = find_longest_nonzero_run(T.duty_diff);

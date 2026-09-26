@@ -11,7 +11,7 @@
 
 clear; clc;
 results_dir = 'results';
-datadir = '../tools/log/omega_step_v700_x/';
+datadir = '../../tools/log/omega_step_v700_x/';
 
 % {ファイル名, 目標, ファーム(1=旧E1, 2=Ti表(上限0.26), 3=F2(上限0.28))}
 runs = { ...
@@ -26,7 +26,7 @@ runs = { ...
     'neg400_1', -400, 3; 'neg400_2', -400, 3; 'neg430_1', -430, 3; 'neg430_2', -430, 3};
 nr = size(runs, 1);
 
-pr = readtable(fullfile(results_dir, 'rot_step_v700_p1fit_model_params.csv'));
+pr = readtable(fullfile('..', '03_rot_identification', 'results', 'rot_step_v700_p1fit_model_params.csv'));
 Kmap  = @(x) sign(x) .* (pr.K_a * abs(x) + pr.K_b * abs(x) .^ pr.K_n);
 Tmap  = @(x) pr.T_T0 + pr.T_c * abs(x) .^ pr.T_m;
 
@@ -189,7 +189,7 @@ for r = 1:nr
 end
 ol = {'pos020', 'pos022_long', 'pos024_long', 'pos026_long', 'pos028', 'neg020', 'neg022_long', 'neg024_long', 'neg026_long', 'neg028'};
 for i = 1:numel(ol)
-    T = readtable(sprintf('../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', ol{i}), 'VariableNamingRule', 'modify');
+    T = readtable(sprintf('../../tools/log/rot_step_v700_x/rot_step_v700_duty_%s.csv', ol{i}), 'VariableNamingRule', 'modify');
     t = T.Global_time - T.Global_time(1);
     nz = T.duty_diff ~= 0; d = diff([0; nz; 0]); rs = find(d == 1); re = find(d == -1) - 1; [~, k] = max(re - rs); on = rs(k); off = re(k);
     tt = t(on:off) - t(on); gg = T.gyro_z(on:off); st = tt >= 0.4;

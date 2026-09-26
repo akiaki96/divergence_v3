@@ -22,7 +22,7 @@
 
 clear; clc;
 results_dir = 'results';
-dirs = {'../tools/log/omega_step_v700_x/', '../tools/log/omega_ramp_v700_x/', '../tools/log/omega_ff_v700_x/'};
+dirs = {'../../tools/log/omega_step_v700_x/', '../../tools/log/omega_ramp_v700_x/', '../../tools/log/omega_ff_v700_x/'};
 
 rows = struct('file', {}, 'group', {}, 'target', {}, 'fw', {}, 'accel', {}, 'ss', {}, 'err_pct', {}, 'sd', {}, ...
     'u_ss', {}, 'u_max', {}, 'os100', {}, 'r90', {}, 'set10', {}, 'sat_pct', {}, 'vdrop', {}, 'track_err', {});

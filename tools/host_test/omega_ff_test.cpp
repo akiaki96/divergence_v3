@@ -6,7 +6,7 @@
 //     F6：バッテリ換算係数 V_REF/V の値・電圧クランプ・電圧基準の出力上限
 //  2. 閉ループ（簡易プラント族，不感帯付き一次遅れ）でFF ON/OFFを比較（MotorDriver::update()のomega分岐と同じ手順）
 //  3. F6：プラントの感度が電圧に比例する（実機の u_ss×V≒一定）として，電圧を振ったときの補償ON/OFFを比較
-//     ※ 簡易モデルの構造の見積り。実機の非線形は含まない（data_analysis2/rot_gain_scheduling_plan.md §17〜§18）
+//     ※ 簡易モデルの構造の見積り。実機の非線形は含まない（data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §17〜§18）
 #include <cstdio>
 #include <cmath>
 #include <vector>

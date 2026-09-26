@@ -43,9 +43,9 @@ inline constexpr float kVbattMinSafe = 5.0f;
 // プラントモデル: G_V(s) = K_p / (T_p1*s + 1)　（PIゲイン設計用の局所モデル）
 // 不感帯込みアフィンモデル: v = A_GAIN * (u - U0_DEADZONE * sign(v))　（feedforward用）
 //
-// K_p / T_p1 は data_analysis2/prbs_identification_report.md のPRBS本同定結果
+// K_p / T_p1 は data_analysis2/01_trans_identification/prbs_identification_report.md のPRBS本同定結果
 // （t01〜t08統合, holdoutフィット94.2%）を採用。
-// A_GAIN / U0_DEADZONE は data_analysis2/step_identification_report.md
+// A_GAIN / U0_DEADZONE は data_analysis2/01_trans_identification/step_identification_report.md
 // （duty10/15/20%のアフィンモデル）に基づく値のまま（PRBSでは不感帯を跨ぐ多点同定は未実施）。
 namespace config::pid_velocity_x {
 // --- プラントモデル ---
@@ -77,7 +77,7 @@ inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 // 並進速度を閉ループでTRANSLATION_VELOCITY_MM_Sに固定した状態で，左右duty差
 // （DUTY_DIFF_1〜5, R-L）をステップ印加し非線形性・IMU飽和有無を確認する。
 //
-// duty_diff0.02/0.04/0.06実測結果（data_analysis2/rot_step_v700_report.md）：
+// duty_diff0.02/0.04/0.06実測結果（data_analysis2/03_rot_identification/rot_step_v700_report.md）：
 //  - 定常ヨーレートは60dps止まり（IMU飽和±2000dpsの3%）で大きく余裕あり
 //  - duty水準が大きいほどゲインも大きくなる非線形性を確認（707→804 dps/duty）
 // 上記を踏まえ0.10, 0.14を追加。並進700mm/s時の基準duty実測値は約0.0714で，
@@ -89,7 +89,7 @@ inline constexpr uint32_t ACCEL_MS = 800;   // 並進速度700mm/sを閉ルー�
 inline constexpr uint32_t TEST_MS  = 600;   // duty差を保持する時間（励振時間，通常水準）
 // duty_diff>=0.22付近の高振幅域では600msで整定しない（+0.28で確認済み）ため，
 // 真の整定値・時定数を確認する試験専用に励振時間を延長する
-// （data_analysis2/rot_high_amplitude_test_plan.md 試験1）
+// （data_analysis2/03_rot_identification/rot_high_amplitude_test_plan.md 試験1）
 inline constexpr uint32_t TEST_MS_LONG = 2000;
 
 inline constexpr float DUTY_DIFF_1 = 0.02f;
@@ -109,7 +109,7 @@ inline constexpr float DUTY_DIFF_9  = 0.24f;
 inline constexpr float DUTY_DIFF_10 = 0.26f;
 }
 
-// 回転方向PRBS本同定（data_analysis2/prbs_rot_design.m，system_identification_flow.md §2 [3]）
+// 回転方向PRBS本同定（data_analysis2/03_rot_identification/prbs_rot_design.m，system_identification_flow.md §2 [3]）
 // duty_diff振幅はrot_step_v700で確認した「クリーン」線形領域の上限(±0.06)を採用。
 // Tc=4msはn=8固定のLFSRで高域分解能(tau_fast/2.8)側を優先した値
 // （下限2.5*tau_slow/nとは両立しないため）。全周期255クロックが約1.02sに収まるため，
@@ -138,9 +138,9 @@ inline constexpr uint16_t SEED_VAL02 = 0x4B26;
 // 使わずI主体で目標角速度へ追従させる。IMC整定 Kc=T/(K*λ), Ki=Kc/T ではTが小さいほど
 // Ki/Kp=1/Tが大きくなり，結果的に「Iゲインが大きい」制御になる。
 // 実機E1（旧ゲイン Kc=3.7e-4, Ti=23.1ms固定, 上限0.20）で ±200/+250dps を定常誤差1.5%以内で
-// 追従できることを確認済み（data_analysis2/omega_step_analyze.m）。
+// 追従できることを確認済み（data_analysis2/04_rot_omega_control/omega_step_analyze.m）。
 //
-// [ゲインスケジューリング] data_analysis2/rot_gain_scheduling_plan.md, rot_omega_pi_tune_sweep.m
+// [ゲインスケジューリング] data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md, rot_omega_pi_tune_sweep.m
 // 動作点別のP1D同定で，時定数Tが振幅で10ms→160msと大きく変わる一方，初期角加速度K/Tは
 // 1.7倍程度しか変わらないと判明した。IMC則 Kc=1/((K/T)*λ) は比K/Tで決まるため
 // 比例ゲインKcはほぼ一定でよく，積分時間Ti(=Ki=Kc/Ti)のみを指令角速度ω_refでスケジュールする。
@@ -161,7 +161,7 @@ inline constexpr float kd = 0.0f;
 // -側はTiを延ばすと立上りが急に遅くなる(T_loc≈75msで 173→404ms以上)ので現行のまま。
 // 250dps以下は現状OSが許容範囲(3.5〜5.7%)なので緩やかに延ばすに留める。
 // 0〜200dpsは正負同一（符号が切り替わる0付近でTiが跳ばない）。
-// (data_analysis2/rot_gain_scheduling_plan.md §14.4)
+// (data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §14.4)
 inline constexpr int TI_TABLE_SIZE = 6;
 inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE]   = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
 inline constexpr float TI_S_BP_POS[TI_TABLE_SIZE]   = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};  // ω_ref >= 0
@@ -170,7 +170,7 @@ inline constexpr float TI_S_BP_NEG[TI_TABLE_SIZE]   = {0.0090f, 0.01725f, 0.0345
 // 90%到達が約150→341msと運用仕様(2500dps/s^2)の半分以下に悪化した。OS対策は下記の2自由度FFで行い，
 // PIのTiは立上りを損なわない値(F3と同じ)に戻す。方向別にできる構造は残してある。
 
-// ---- 2自由度FF（F5, data_analysis2/rot_gain_scheduling_plan.md §17, §18）----
+// ---- 2自由度FF（F5, data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §17, §18）----
 // 出力: u_diff = u_ff_static(ω_ref) + a_ff(|ω_ref|)·dω_ref/dt + PI(ω_ref − ω)
 // 従来は必要なduty(0.18〜0.27)を積分項だけで作っていたため，指令に対しωが遅れる間の誤差が積分に
 // 積み上がりOSになっていた。FFで必要dutyを直接与え，PIはモデル誤差(±0.03程度)の補正に回す。
@@ -205,7 +205,7 @@ inline constexpr float OMEGA_ACCEL_FF_MAX = 5000.f;
 
 // 目標角速度の最大角加速度 [dps/s]（指令のレート制限）。運用仕様（700mm/s時 角加速度2500deg/s²）に合わせる。
 // 実機E5でステップ指令に対し+側高速(+400/+430)で6〜12%のオーバーシュートが再現したため，
-// 指令をランプ化して誤差積分の行き過ぎを抑える（data_analysis2/rot_gain_scheduling_plan.md §12, §13）。
+// 指令をランプ化して誤差積分の行き過ぎを抑える（data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §12, §13）。
 // 十分大きな値（例 1.0e9f）にすると従来のステップ指令と同じ動作になる。実行時は
 // MotorDriver::setOmegaAccelLimit()で試験ごとに上書きできる（このconstexprが既定値）。
 inline constexpr float OMEGA_ACCEL_MAX = 2500.f;
@@ -214,10 +214,10 @@ inline constexpr float OMEGA_ACCEL_MAX = 2500.f;
 // 高速ほど大きい），-400/-430dpsの定常duty≈-0.25では旧上限0.26まで余裕0.01しかなく
 // -430で飽和が144ms続いた。open-loopの±0.28 stepで974dpsまで検証済みの範囲である0.28まで許す
 // （正方向は約0.195で足りるため上限には触れず，実質負側の余裕確保。
-// data_analysis2/rot_gain_scheduling_plan.md §11.2）。0.28超は未検証のため上げない
+// data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §11.2）。0.28超は未検証のため上げない
 inline constexpr float DUTY_DIFF_LIMIT = 0.28f;
 
-// ---- F6：バッテリ電圧補償と電圧基準の出力上限（data_analysis2/rot_gain_scheduling_plan.md §23）----
+// ---- F6：バッテリ電圧補償と電圧基準の出力上限（data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §23）----
 // 回転のプラント感度は電圧にほぼ比例する（必要な出力電圧 u_ss×V は約一定：-430で1.9〜2.0V。E9〜E11）。
 // そこで角速度制御全体（FF表・PI・Ti・back-calculationの上限）を，基準電圧 BATT_V_REF でのduty空間で行い，
 // 出力の duty_diff = (PI+FF出力) × BATT_V_REF / V_batt として実dutyへ換算する。
@@ -236,7 +236,7 @@ inline constexpr float BATT_V_MAX = 9.0f;            // [V] 〃 上限
 inline constexpr float DUTY_DIFF_LIMIT_V = 2.6f;     // [V] duty_diffの出力上限（電圧換算）
 }
 
-// PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
+// PRBS入力設計（並進方向, data_analysis2/01_trans_identification/prbs_design.m）
 // Tc下限(LFSRカバレッジ): 2.5*tau_slow/n, Tc上限(速い極を粗く均さない): tau_fast/2.8
 // 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16]
 // 1試行の長さは走行距離を抑えるため3.0s→2.4s(80%)へ短縮。1試行あたりの励振ビット数が

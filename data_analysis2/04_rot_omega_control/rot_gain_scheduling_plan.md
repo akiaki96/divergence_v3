@@ -4,7 +4,7 @@
 （`tools/log/rot_step_v700_x/`）に動作点別のP1D/P2フィットをかけ，回転PI（`config::pid_omega`）の
 設計前提が運用域（700mm/s，最高430dps）で成り立つかを検証した結果と，今後の実験・処理計画。
 
-- フィット: [`rot_step_v700_p1fit.m`](./rot_step_v700_p1fit.m) →
+- フィット: [`rot_step_v700_p1fit.m`](../03_rot_identification/rot_step_v700_p1fit.m) →
   `results/rot_step_v700_p1fit_{summary,model_params}.csv`, `*_overlay.png`, `*_gain_schedule.png`
 - 閉ループ模擬: [`rot_omega_pi_sim.m`](./rot_omega_pi_sim.m) →
   `results/rot_omega_pi_sim_summary.csv`, `rot_omega_pi_sim.png`
@@ -222,7 +222,7 @@ Kc・Ti倍率を振り，**Kc=5×10⁻⁴（一定）・Ti表×0.75**を選定�
    中断基準：ある試験でスパイク的な振動・発散（\|ω\|が目標の1.3倍超）や壁への衝突が出たら
    そこで止めて報告する（次水準へ進まない）。
 
-4. 取得後 `data_analysis2/omega_step_analyze.m` の`files`に追加ファイル名を足して再実行
+4. 取得後 `data_analysis2/04_rot_omega_control/omega_step_analyze.m` の`files`に追加ファイル名を足して再実行
    （`{'pos100','neg100','pos200','neg200','pos250','neg250','pos400','neg400','pos430','neg430'}`）。
    ※ 現スクリプトの模擬は旧ゲイン（Kc=3.7e-4, Ti=23.1ms, 上限0.20）固定なので，E3の比較用には
    `rot_omega_pi_sim.m`のE案（Kc一定・Ti表）を参照すること。

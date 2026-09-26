@@ -33,7 +33,7 @@ I_fan = ΔV / R_eff        ΔV = V(OFF, ファン停止) − V(ON, 定常)
    `main.py --on_conflict sequence`）。
 5. 解析:
    ```
-   python data_analysis2/fan_current_estimate.py tools/log/fan_vsag_m2/fan_*.csv --plot fan_m2.png
+   python data_analysis2/05_fan/fan_current_estimate.py tools/log/fan_vsag_m2/fan_*.csv --plot fan_m2.png
    ```
    ΔV_ss（定常降下）、ΔV_off（OFF直後のジャンプ）、リプル、ドリフトが出る。
 
@@ -59,7 +59,7 @@ ADCが毎回PWMの同じ位相を拾い、リプル分の偏りが固定で乗�
   電流計を入れたまま ΔV を測ること（外して使う場合は別途校正が必要）。
 - 複数duty（電流レベルを変える）で取り、CSVと同じ順に渡す:
   ```
-  python data_analysis2/fan_current_estimate.py fan_020.csv fan_040.csv --i-meas <20%の実測A> <40%の実測A>
+  python data_analysis2/05_fan/fan_current_estimate.py fan_020.csv fan_040.csv --i-meas <20%の実測A> <40%の実測A>
   ```
   → `R_eff` と残差が出る。以後 `--r-eff <値>` で電流を推定できる。
 - 校正と推定で `--method`（`ss` = 定常降下 / `off` = OFF直後のジャンプ）を必ず揃える。
@@ -90,7 +90,7 @@ dutyは 0.10〜0.40 の4点。低dutyほど電流が小さく ΔV が ADC 分解
 
 ## 6. 検証状況
 
-`data_analysis2/fan_current_estimate_selftest.py`：既知のLiPoモデル（R0=80mΩ + 分極30mΩ/τ2s、ADC量子化、
+`data_analysis2/05_fan/fan_current_estimate_selftest.py`：既知のLiPoモデル（R0=80mΩ + 分極30mΩ/τ2s、ADC量子化、
 PWMリプル、スピンアップ電流）で合成したログから、校正に使っていないduty点を含めて電流を誤差1%以内で復元することを確認。
 **実機のR_effが時不変・電流によらない線形抵抗という仮定は実データで確認していない**。
 複数dutyで ΔV vs I が原点を通る直線になるかを、校正時に確認すること。
