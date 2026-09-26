@@ -58,6 +58,6 @@ onenter(log_wait,
     logger.stop();
     ledBar16.set(0xFFFF);
 
-    printf("%d, %d, %d\r\n", logger.dataSize(), logger.fieldCount(), logger.sampleCount());
+    printf("%lu, %lu, %lu\r\n", static_cast<unsigned long>(logger.dataSize()), static_cast<unsigned long>(logger.fieldCount()), static_cast<unsigned long>(logger.sampleCount()));
 
 )
