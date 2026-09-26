@@ -65,6 +65,12 @@ void omega_f6_on_neg250_onenter();
 void omega_f6_off_neg250_onenter();
 void omega_f6_on_pos100_onenter();
 void omega_f6_on_neg100_onenter();
+void omega_f7_on_pos430_onenter();
+void omega_f7_off_pos430_onenter();
+void omega_f7_on_pos250_onenter();
+void omega_f7_off_pos250_onenter();
+void omega_f7_on_pos100_onenter();
+void omega_f7_off_pos100_onenter();
 
 
 

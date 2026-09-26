@@ -13,15 +13,18 @@
 % F6（E12）：omega_f6_on_ を kind='ff'（F6 ON），omega_f6_off_ を kind='noff'（F6 OFF＝補償なしの従来動作）として扱う。
 %   出力の「ON−OFF」「FF効果」は，F6では「バッテリ補償＋電圧基準上限の効果」と読む（±250も対象）。
 %   E12はF7撤回後（F5の加速度FF係数）のファームで取るので，ON/OFFともFFは同じで，差はF6単独の効果になる。
+%   （ただし9/26 16:10〜16:15の±430の10本はマージ前でF7の係数。F6の効果としては有効だが，F7撤回後の本と混ぜない）
+% F8（F7 ON/OFF）：omega_f8_f7on_ を kind='ff'（F7相当），omega_f8_f7off_ を kind='noff'（F5）として扱う。ON−OFFはF7の効果。
 % ウォームアップ：セッション全体の最初の1本が「同じ目標で同じ種類が2本続く」形（例 ff, ff, noff, ...）のとき除外する。
 
 clear; clc;
 results_dir = 'results';
 src_dir = '../../tools/log/omega_ff_v700_x/';
 R = readtable(fullfile(results_dir, 'omega_ramp_summary_by_run.csv'));
-R = R(startsWith(R.group, 'F5') | startsWith(R.group, 'F7') | startsWith(R.group, 'F6'), :);
+R = R(startsWith(R.group, 'F5') | startsWith(R.group, 'F7') | startsWith(R.group, 'F6') | startsWith(R.group, 'F8'), :);
 if isempty(R), error('F5/F7のデータがありません。omega_ramp_analyze.m を先に実行してください。'); end
 R.kind = extractAfter(R.group, ' ');            % ff / ffhi / ffold / noff（F5/F7とも）
+R.gen = extractBefore(R.group, ' ');            % F5 / F6 / F7 / F8：同じセッションでも世代をまたいでペアを作らない
 mt = zeros(height(R), 1);
 for i = 1:height(R)
     d = dir([src_dir R.file{i}]);
@@ -36,15 +39,16 @@ metrics = {'os100', 'r90', 'track_err', 'err_pct', 'sat_pct', 'u_ss'};
 mlabel  = {'OS[%]', '90%到達[ms]', '指令への遅れ[%]', '定常誤差[%]', '飽和[%]', 'u_ss'};
 rows = {};
 for ss = unique(R.session)'
-    for tg = [430 -430 250 -250]
-        X = R(R.session == ss & R.target == tg, :);
+    for gn = unique(R.gen(R.session == ss))'
+    for tg = [430 -430 250 -250 100 -100]
+        X = R(R.session == ss & strcmp(R.gen, gn{1}) & R.target == tg, :);
         X = X(strcmp(X.kind, 'ff') | strcmp(X.kind, 'noff'), :);   % ffhiは別途
         if height(X) < 2, continue; end
         % ウォームアップ除外：セッション全体の最初の1本で，かつ同じ目標の次の1本と種類が同じとき
         % （ff, ff, noff, ... の形）。-430の先頭など，セッション先頭でない run は除外しない
         if strcmp(X.kind{1}, X.kind{2}) && X.mtime(1) == min(R.mtime(R.session == ss)), X(1, :) = []; end
         t_min = (X.mtime - X.mtime(1)) * 24 * 60;
-        fprintf('\n===== セッション%d  %s  target %+d：ff %d本 / noff %d本（%s〜） =====\n', ss, datestr(X.mtime(1), 'mm/dd HH:MM'), tg, ...
+        fprintf('\n===== セッション%d  %s  %s  target %+d：ff %d本 / noff %d本（%s〜） =====\n', ss, gn{1}, datestr(X.mtime(1), 'mm/dd HH:MM'), tg, ...
             sum(strcmp(X.kind, 'ff')), sum(strcmp(X.kind, 'noff')), datestr(X.mtime(1), 'HH:MM'));
         % (1) 隣り合うペア（両方向）
         on_first = []; off_first = [];
@@ -61,7 +65,7 @@ for ss = unique(R.session)'
             dall = [d1; d2];
             se = std(dall) / sqrt(numel(dall));
             fprintf('%-16s | %+9.2f            | %+9.2f            | %+7.2f ± %5.2f (%d)\n', mlabel{m}, mean(d1), mean(d2), mean(dall), se, numel(dall));
-            rows(end + 1, :) = {ss, tg, metrics{m}, mean(d1), mean(d2), mean(dall), se, numel(dall), mean(v(strcmp(X.kind, 'ff'))), mean(v(strcmp(X.kind, 'noff')))}; %#ok<SAGROW>
+            rows(end + 1, :) = {ss, gn{1}, tg, metrics{m}, mean(d1), mean(d2), mean(dall), se, numel(dall), mean(v(strcmp(X.kind, 'ff'))), mean(v(strcmp(X.kind, 'noff')))}; %#ok<SAGROW>
         end
         % (2) 回帰（ff/noffのみ）
         isff = double(strcmp(X.kind, 'ff'));
@@ -81,7 +85,7 @@ for ss = unique(R.session)'
         end
         % ffhi / ffold vs ff（同セッションの隣り合い。ffold=F5相当(係数0.625倍)なら ff−ffold がF7の効果）
         for other = {'ffhi', 'ffold'}
-            Y = R(R.session == ss & R.target == tg & (strcmp(R.kind, other{1}) | strcmp(R.kind, 'ff')), :);
+            Y = R(R.session == ss & strcmp(R.gen, gn{1}) & R.target == tg & (strcmp(R.kind, other{1}) | strcmp(R.kind, 'ff')), :);
             dh = zeros(0, 3);
             for i = 1:height(Y) - 1
                 if strcmp(Y.kind{i}, other{1}) && strcmp(Y.kind{i + 1}, 'ff')
@@ -96,6 +100,7 @@ for ss = unique(R.session)'
             end
         end
     end
+    end
 end
-T = cell2table(rows, 'VariableNames', {'session', 'target', 'metric', 'on_first_mean', 'off_first_mean', 'both_mean', 'se', 'n_pairs', 'mean_on', 'mean_off'});
+T = cell2table(rows, 'VariableNames', {'session', 'gen', 'target', 'metric', 'on_first_mean', 'off_first_mean', 'both_mean', 'se', 'n_pairs', 'mean_on', 'mean_off'});
 writetable(T, fullfile(results_dir, 'omega_ff_paired_summary.csv'));

@@ -802,6 +802,62 @@ onenter(omega_f6_on_neg100,
     rot_omega_tester(-100.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f, true);
 )
 
+// F7（+側の加速度FF係数を全域1.6倍）の実機ON/OFF比較。F7撤回（F8-1）後の表（F5の値）に対し，
+// 加速度FFの倍率 ff_scale=1.6 を与えると撤回前のF7と同じFFになる（F7は+側だけの変更なので+側のみ用意）。
+// 全てFF ON・F6 ON（既定）・ランプ指令（運用仕様2500dps/s^2）。保存先 omega_ff_v700_x
+//  omega_f8_f7on_*  : F7相当（ff_scale 1.6）
+//  omega_f8_f7off_* : 現行＝F5（ff_scale 1.0）
+// ファイル名の f8 は「F7撤回後のファーム」の世代（omega_ramp_analyze.m で分類する）
+constexpr float kF7AccelFFScale = 1.6f;
+
+onenter(omega_f7_on_pos430,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f8_f7on_pos430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, kF7AccelFFScale, true);
+)
+
+onenter(omega_f7_off_pos430,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f8_f7off_pos430");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(430.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f, true);
+)
+
+onenter(omega_f7_on_pos250,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f8_f7on_pos250");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(250.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, kF7AccelFFScale, true);
+)
+
+onenter(omega_f7_off_pos250,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f8_f7off_pos250");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(250.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f, true);
+)
+
+onenter(omega_f7_on_pos100,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f8_f7on_pos100");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(100.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, kF7AccelFFScale, true);
+)
+
+onenter(omega_f7_off_pos100,
+    id_init_log_omega();
+    logger.setDirName("omega_ff_v700_x");
+    logger.setFileName("omega_f8_f7off_pos100");
+    logger.setIncludeTimestamp(false);
+    rot_omega_tester(100.f, config::pid_omega::OMEGA_ACCEL_MAX, 800, true, 1.f, true);
+)
+
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
 // target_velocity_xへステップ指令し，実速度(left/right_encoder_velocity平均)の追従を
 // ログから確認する。duration_msは閉ループ時定数λ=0.1s基準で整定後も十分保持できる長さとする。

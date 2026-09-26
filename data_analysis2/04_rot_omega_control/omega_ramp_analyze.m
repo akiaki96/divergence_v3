@@ -6,6 +6,9 @@
 %  - omega_ref・omega_saturated とも あり = F4ファーム（方向別Ti，E8以降。ログ修正後）
 %  - omega_ff 列あり かつ ファイル名に f6 を含む = F6ファーム（バッテリ電圧補償＋電圧基準の出力上限，E12。F7を撤回しF5の係数）。
 %    omega_f6_on_=F6 ON(既定。kindは'ff'), omega_f6_off_=F6 OFF(補償なし・上限0.28。FFはONと同じF5。kindは'noff'として扱い，ON−OFFのペア差解析に流す)
+%    注意：9/26 16:10〜16:15の±430（10本）はF7撤回のマージ前のファームで取ったため，FFはF7の係数（+側1.6倍）。
+%  - omega_ff 列あり かつ ファイル名に f8 を含む = F7撤回後（F8-1）のファームでの F7 ON/OFF 比較（+側のみ，F6 ON）。
+%    omega_f8_f7on_=加速度FF倍率1.6(=F7相当。kindは'ff'), omega_f8_f7off_=倍率1.0(=F5。kindは'noff')。ON−OFFはF7の効果
 %  - omega_ff 列あり かつ ファイル名に f7 を含む = F7ファーム（+側の加速度FF係数を全域1.6倍，E11以降。
 %    omega_f7_ff_=FF ON(既定), omega_f7_noff_=FF OFF, omega_f7_ffold_=FF ON・係数0.625倍(=F5相当, +側のみ意味を持つ)）
 %  - omega_ff 列あり = F5ファーム（2自由度FF，omega_ff_v700_x/。ファイル名で omega_ff_=FF ON(係数1.0倍),
@@ -39,9 +42,11 @@ for d = 1:numel(dirs)
         if contains(fn, 'ramp4k'), acc = 4000; elseif contains(fn, 'ramp') || contains(fn, 'omega_ff'), acc = 2500; else, acc = Inf; end
         has_sat = ismember('omega_saturated', T.Properties.VariableNames);
         has_ff = ismember('omega_ff', T.Properties.VariableNames);
-        if has_ff && contains(fn, 'f6'), fwn = 'F6'; elseif has_ff && contains(fn, 'f7'), fwn = 'F7'; elseif has_ff, fwn = 'F5'; elseif has_ref && has_sat, fwn = 'F4'; elseif has_ref, fwn = 'F3'; else, fwn = 'pre-F3'; end
+        if has_ff && contains(fn, 'f8'), fwn = 'F8'; elseif has_ff && contains(fn, 'f6'), fwn = 'F6'; elseif has_ff && contains(fn, 'f7'), fwn = 'F7'; elseif has_ff, fwn = 'F5'; elseif has_ref && has_sat, fwn = 'F4'; elseif has_ref, fwn = 'F3'; else, fwn = 'pre-F3'; end
         if has_ff && strcmp(fwn, 'F6')
             if contains(fn, '_off_'), kind = 'noff'; else, kind = 'ff'; end   % F6 OFF/ON（補償なし/あり）
+        elseif has_ff && strcmp(fwn, 'F8')
+            if contains(fn, 'f7off'), kind = 'noff'; else, kind = 'ff'; end   % F7 OFF/ON（加速度FF倍率1.0/1.6）
         elseif has_ff
             if contains(fn, 'noff'), kind = 'noff'; elseif contains(fn, 'ffold'), kind = 'ffold'; elseif contains(fn, 'ffhi'), kind = 'ffhi'; else, kind = 'ff'; end
         elseif isinf(acc), kind = 'step';
@@ -130,8 +135,8 @@ end
 
 %% 重ね書き：目標ごとに，符号を揃えた100ms移動平均
 levels = [430 -430 250 -250 100 -100];
-keys = {'pre_F3_step', 'F3_step', 'F3_ramp2500', 'F3_ramp4000', 'F4_step', 'F4_ramp2500', 'F4_ramp4000', 'F5_ff', 'F5_ffhi', 'F5_noff', 'F7_ff', 'F7_noff', 'F7_ffold', 'F6_ff', 'F6_noff'};
-colors = [0.2 0.2 0.2; 0.85 0.33 0.1; 0 0.45 0.74; 0.47 0.67 0.19; 0.64 0.08 0.18; 0.49 0.18 0.56; 0.93 0.69 0.13; 0 0.6 0.3; 0.3 0.75 0.9; 0.5 0.5 0.5; 0.85 0.1 0.6; 0.35 0.35 0.35; 0.9 0.6 0.2];
+keys = {'pre_F3_step', 'F3_step', 'F3_ramp2500', 'F3_ramp4000', 'F4_step', 'F4_ramp2500', 'F4_ramp4000', 'F5_ff', 'F5_ffhi', 'F5_noff', 'F7_ff', 'F7_noff', 'F7_ffold', 'F6_ff', 'F6_noff', 'F8_ff', 'F8_noff'};
+colors = [0.2 0.2 0.2; 0.85 0.33 0.1; 0 0.45 0.74; 0.47 0.67 0.19; 0.64 0.08 0.18; 0.49 0.18 0.56; 0.93 0.69 0.13; 0 0.6 0.3; 0.3 0.75 0.9; 0.5 0.5 0.5; 0.85 0.1 0.6; 0.35 0.35 0.35; 0.9 0.6 0.2; 0.0 0.3 0.9; 0.6 0.6 0.9; 0.8 0.0 0.0; 1.0 0.6 0.6];   % keysと同数
 fig = figure('Position', [30 30 1500 900]);
 for li = 1:numel(levels)
     subplot(2, 3, li); hold on; grid on;
@@ -144,7 +149,7 @@ for li = 1:numel(levels)
         if ~shown(ki), dn = strrep(q.grp, '_', '\_'); shown(ki) = true; else, dn = ''; end
         h = plot(q.tr * 1000, sign(q.tgt) * q.g100, 'Color', colors(ki, :));
         if isempty(dn), h.HandleVisibility = 'off'; else, h.DisplayName = dn; end
-        if (contains(q.grp, 'ramp') || contains(q.grp, 'F5') || contains(q.grp, 'F7') || contains(q.grp, 'F6')) && ~contains(q.grp, 'pre')
+        if (contains(q.grp, 'ramp') || contains(q.grp, 'F5') || contains(q.grp, 'F7') || contains(q.grp, 'F6') || contains(q.grp, 'F8')) && ~contains(q.grp, 'pre')
             hr = plot(q.tr * 1000, sign(q.tgt) * q.ref, ':', 'Color', colors(ki, :)); hr.HandleVisibility = 'off';
         end
     end
