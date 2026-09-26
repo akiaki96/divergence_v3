@@ -4,8 +4,8 @@
 %  - 列 omega_ref を持たないCSV = F3以前（E3/E5/E6）のステップ指令
 %  - omega_ref あり・omega_saturated なし = F3ファーム（E7。列数上限でomega_saturatedが欠落していた）
 %  - omega_ref・omega_saturated とも あり = F4ファーム（方向別Ti，E8以降。ログ修正後）
-%  - omega_ff 列あり かつ ファイル名に f6 を含む = F6ファーム（バッテリ電圧補償＋電圧基準の出力上限，E12。F7の係数のまま）。
-%    omega_f6_on_=F6 ON(既定。kindは'ff'), omega_f6_off_=F6 OFF(従来動作=F7。kindは'noff'として扱い，ON−OFFのペア差解析に流す)
+%  - omega_ff 列あり かつ ファイル名に f6 を含む = F6ファーム（バッテリ電圧補償＋電圧基準の出力上限，E12。F7を撤回しF5の係数）。
+%    omega_f6_on_=F6 ON(既定。kindは'ff'), omega_f6_off_=F6 OFF(補償なし・上限0.28。FFはONと同じF5。kindは'noff'として扱い，ON−OFFのペア差解析に流す)
 %  - omega_ff 列あり かつ ファイル名に f7 を含む = F7ファーム（+側の加速度FF係数を全域1.6倍，E11以降。
 %    omega_f7_ff_=FF ON(既定), omega_f7_noff_=FF OFF, omega_f7_ffold_=FF ON・係数0.625倍(=F5相当, +側のみ意味を持つ)）
 %  - omega_ff 列あり = F5ファーム（2自由度FF，omega_ff_v700_x/。ファイル名で omega_ff_=FF ON(係数1.0倍),

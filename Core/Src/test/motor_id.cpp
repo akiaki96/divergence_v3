@@ -719,7 +719,8 @@ void rot_omega_tester(float target_omega, float accel_dps2, uint32_t duration_ms
 // data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §23：F6（バッテリ電圧補償＋電圧基準の出力上限）の検証用（E12）。
 // 全てFF ON・ランプ指令（運用仕様2500dps/s^2）。保存先 omega_ff_v700_x
 //  omega_f6_on_*  : F6 ON（既定。出力に V_REF/V_batt，上限 DUTY_DIFF_LIMIT_V/V_batt）
-//  omega_f6_off_* : F6 OFF（従来動作＝F7：換算なし・上限0.28。同一セッションのA/B基準）
+//  omega_f6_off_* : F6 OFF（従来動作：換算なし・上限0.28。同一セッションのA/B基準）
+// FFの係数はF7撤回（F8-1）後のF5の値（正負同じ加速度FF表）。ON/OFFともFFは同じなので，ON−OFFはF6単独の効果になる。
 
 onenter(omega_f6_on_pos430,
     id_init_log_omega();

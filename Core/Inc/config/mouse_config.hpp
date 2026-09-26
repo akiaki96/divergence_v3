@@ -191,14 +191,12 @@ inline constexpr float FF_U_NEG[TI_TABLE_SIZE] = {0.f, 0.100f, 0.185f, 0.186f, 0
 // 加速度FF係数 [duty/(dps/s)] ≈ T_loc/K_loc（動作点別。局所回帰: +側 T≈290ms/K≈6000, -側 T≈75ms/K≈1700 で
 // 約4.4〜4.8e-5，0からのstep由来のH1では1.4〜2.0e-5）。2500dps/s^2で 0.04〜0.14 duty。
 // 効果が消えるのは係数不足側で，過大側には寛容（試算 rot_ff2dof_study.m）。
-// [方向別（F7）] 実機E10で，+側の加速度FF係数を**全動作点で**1.6倍（`ffhi`）にすると +430 の
-// OS 4.3→2.1%，90%到達 141→126ms とさらに改善した（隣り合うffとの差: OS -3.1pt, -22ms）。
-// 実機で検証済みのこの構成（+側の表を全域1.6倍）をそのまま採用する。250dps以上だけを上げる案は，
-// 簡易プラント族の試算（tools/host_test）で速いプラント(T=100ms)のOSが増え平均OSが悪化
-// （6.8→9.9%）したうえ実機未検証のため採らない。+250/+100dpsで悪化しないかは実機で確認する（E11）。
-// -側は必要dutyが大きく上限0.28の余裕が乏しい（E9 7.7V: -430で1.6倍にすると静的0.22+加速度0.14が
-// 上限を大きく超え90%到達296msに悪化）ため据え置く。
-inline constexpr float FF_ACC_POS[TI_TABLE_SIZE] = {2.4e-5f, 3.2e-5f, 4.48e-5f, 4.8e-5f, 5.6e-5f, 5.6e-5f};   // ω_ref >= 0（F5の表の1.6倍）
+// [F7を撤回（F8-1）] F7では+側の係数を全動作点で1.6倍にした（E10のffhi: +430のOS 4.3→2.1%，n=2）が，
+// 実機E11（同一セッション・隣り合う4組）で F7 は F5 相当より OS が +1.5pt（4組とも+0.7〜+2.5）悪く，
+// 立上りは約9ms速いだけだった。E10のffhiの好結果は再現せず，OSの最小はF5の係数付近
+// （data_analysis2/04_rot_omega_control/rot_gain_scheduling_plan.md §22.2, §22.5）。
+// そのため+側もF5の値（-側と同じ表）に戻す。ω_refの符号で正/負の表を選ぶ構造は残してある。
+inline constexpr float FF_ACC_POS[TI_TABLE_SIZE] = {1.5e-5f, 2.0e-5f, 2.8e-5f, 3.0e-5f, 3.5e-5f, 3.5e-5f};   // ω_ref >= 0（F5の値）
 inline constexpr float FF_ACC_NEG[TI_TABLE_SIZE] = {1.5e-5f, 2.0e-5f, 2.8e-5f, 3.0e-5f, 3.5e-5f, 3.5e-5f};   // ω_ref < 0
 // 加速度FFに使う dω_ref/dt の上限 [dps/s]。ステップ指令(レート制限なし)で加速度FFが発散しないようにする
 inline constexpr float OMEGA_ACCEL_FF_MAX = 5000.f;
