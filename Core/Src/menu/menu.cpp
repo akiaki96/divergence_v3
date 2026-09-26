@@ -30,8 +30,6 @@ void Menu::buildTree() {
                     omega_f6_.setChildren(std::array{&omega_f6_on_pos430_, &omega_f6_off_pos430_, &omega_f6_on_neg430_, &omega_f6_off_neg430_, &omega_f6_on_pos250_, &omega_f6_off_pos250_, &omega_f6_on_neg250_, &omega_f6_off_neg250_, &omega_f6_on_pos100_, &omega_f6_on_neg100_});
                     omega_f7_.setChildren(std::array{&omega_f7_on_pos430_, &omega_f7_off_pos430_, &omega_f7_on_pos250_, &omega_f7_off_pos250_, &omega_f7_on_pos100_, &omega_f7_off_pos100_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_neg600_});
-        log_test_.setChildren(std::array{&log_wait_, &log_dump_});
-
     
     root_.setParentRec();
     root_.setParent(&root_);
@@ -59,7 +57,6 @@ onenter(log_dump,
 
 void Menu::setFunction() {
     log_dump_.setOnEnter(log_dump_onenter);
-    log_wait_.setOnEnter(log_wait_onenter);
 
     run_.setOnSelected(run_onselect);
     device_.setOnSelected(device_onselect);
