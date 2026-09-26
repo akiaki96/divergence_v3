@@ -4,6 +4,7 @@
 #include "device/device_test.hpp"
 #include "test/motor_id.hpp"
 #include "test/fan_id.hpp"
+#include "test/enkai.hpp"
 
 Menu::Menu() {
     buildTree();
@@ -13,6 +14,8 @@ Menu::Menu() {
 void Menu::buildTree() {
     root_.setChildren(std::array{&run_, &device_, &log_dump_});
 
+        run_.setChildren(std::array{&enkai_});
+        
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
             fan_.setChildren(std::array{&fan_run_010_, &fan_run_020_, &fan_run_030_, &fan_run_040_, &fan_bringup_, &fan_hold_010_, &fan_hold_020_, &fan_hold_030_, &fan_hold_040_});
             ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
@@ -59,6 +62,9 @@ void Menu::setFunction() {
     log_dump_.setOnEnter(log_dump_onenter);
 
     run_.setOnSelected(run_onselect);
+
+    enkai_.setOnEnter(enkai_onenter);
+
     device_.setOnSelected(device_onselect);
 
     imu_.setOnSelected(imu_onselect);

@@ -99,14 +99,30 @@ void MotorDriver::enableOmegaControl() {
 }
 
 void MotorDriver::init() {
+    // 並進FFは目標速度v_refから計算し，外部FFとして毎tick与える（update()参照）。
+    // PIに渡す指令v_cmdは位置PIの補正を含むため，ff(target)には使わない
     pid_velocity_x_.setGains(
         config::pid_velocity_x::kp,
         config::pid_velocity_x::ki,
         config::pid_velocity_x::kd,
-        velocity_x_ff,
+        omega_ff_zero,
         config::pid_velocity_x::BACK_CALC_TT
     );
     set_omega_gains(pid_omega_, 0.f);   // 角速度PIの初期ゲイン（Ti(0)）を設定
+    pid_position_.setGains(
+        config::pid_position::kp,
+        config::pid_position::ki,
+        config::pid_position::kd,
+        omega_ff_zero,
+        config::pid_position::BACK_CALC_TT
+    );
+    pid_angle_.setGains(
+        config::pid_angle::kp,
+        config::pid_angle::ki,
+        config::pid_angle::kd,
+        omega_ff_zero,
+        config::pid_angle::BACK_CALC_TT
+    );
 }
 
 void MotorDriver::enable() {
@@ -144,8 +160,35 @@ float MotorDriver::dutyFromVoltage(float voltage) const {
     return duty;
 }
 
+void MotorDriver::enablePositionControl() {
+    pid_position_.reset();
+    position_origin_ = (encoderLeft.distance() + encoderRight.distance()) / 2.f;
+    target_position_ = 0.f;
+    position_control_enabled_ = true;
+}
+
+void MotorDriver::enableAngleControl() {
+    if (!omega_control_enabled_) {
+        enableOmegaControl();
+    }
+    pid_angle_.reset();
+    angle_origin_ = imu.gyroAngleZ();
+    target_angle_ = 0.f;
+    angle_control_enabled_ = true;
+}
+
+float MotorDriver::getPosition() const {
+    return (encoderLeft.distance() + encoderRight.distance()) / 2.f - position_origin_;
+}
+
+float MotorDriver::getAngle() const {
+    return imu.gyroAngleZ() - angle_origin_;
+}
+
 void MotorDriver::switchToVelocityX() {
     pid_velocity_x_.reset();
+    position_control_enabled_ = false;
+    angle_control_enabled_ = false;
     duty_diff_ = 0.f;
     applied_duty_diff_ = 0.f;
     prbs_rot_diff_ = nullptr;
@@ -196,9 +239,22 @@ void MotorDriver::update() {
         break;
 
         case MotorDriverState::setVelocity: {
+            // 外側ループ（位置PI）：目標位置を目標速度の積分で進め，v_cmd = v_ref + PI(x_ref − x)
+            float v_cmd = velocity_x_;
+            if (position_control_enabled_) {
+                target_position_ += velocity_x_ * config::control::DT_S;
+                bool pos_sat = false;
+                v_cmd += pid_position_.update(target_position_, getPosition(), config::pid_position::VELOCITY_CORRECTION_LIMIT, pos_sat);
+            }
+            velocity_x_cmd_ = v_cmd;
+
+            // FFは目標速度v_refから（補正分を含めない：静止付近で補正が±をまたいでも不感帯補償が切り替わらない）
+            velocity_x_ff_ = velocity_x_ff(velocity_x_);
+            pid_velocity_x_.setExternalFF(velocity_x_ff_);
+
             bool saturated = false;
             float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
-            float base_batt = pid_velocity_x_.update(velocity_x_, (encoderLeft.velocity() + encoderRight.velocity()) / 2.f, limit, saturated);
+            float base_batt = pid_velocity_x_.update(v_cmd, (encoderLeft.velocity() + encoderRight.velocity()) / 2.f, limit, saturated);
             velocity_pid_saturated_ = saturated;
 
             // 注意：setVoltage()はstateをMotorDriverState::setVoltageへ書き換えてしまうため，
@@ -219,6 +275,15 @@ void MotorDriver::update() {
                 omega_ref_ += d;
                 set_omega_gains(pid_omega_, omega_ref_);
 
+                // 外側ループ（角度PI）：目標角度をレート制限後の目標角速度の積分で進め，ω_cmd = ω_ref + PI(θ_ref − θ)
+                float omega_cmd = omega_ref_;
+                if (angle_control_enabled_) {
+                    target_angle_ += omega_ref_ * config::control::DT_S;
+                    bool angle_sat = false;
+                    omega_cmd += pid_angle_.update(target_angle_, getAngle(), config::pid_angle::OMEGA_CORRECTION_LIMIT, angle_sat);
+                }
+                omega_cmd_ = omega_cmd;
+
                 // 2自由度FF：静的FF＋加速度FFをPIの出力に加算（PIは偏差の補正）。
                 // 加速度FFの dω_ref/dt は，レート制限後の指令の1tick差分から得る
                 float ff = 0.f;
@@ -237,7 +302,7 @@ void MotorDriver::update() {
                 pid_omega_.setExternalFF(ff);
 
                 bool omega_sat = false;
-                diff = pid_omega_.update(omega_ref_, imu.gyroZ(), limit, omega_sat) * scale;
+                diff = pid_omega_.update(omega_cmd, imu.gyroZ(), limit, omega_sat) * scale;
                 omega_saturated_ = omega_sat;
             }
             applied_duty_diff_ = diff;   // ログ用：PRBS/PI駆動時もgetDutyDiff()で実値を参照できるようにする

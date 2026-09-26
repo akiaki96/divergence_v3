@@ -234,6 +234,33 @@ inline constexpr float BATT_V_MAX = 9.0f;            // [V] 〃 上限
 inline constexpr float DUTY_DIFF_LIMIT_V = 2.6f;     // [V] duty_diffの出力上限（電圧換算）
 }
 
+// ---- 位置・角度のカスケードPI（外側ループ，目標速度FFつき）----
+// 目標位置・目標角度は目標速度の積分として毎tick進める（MotorDriver::enablePositionControl()/enableAngleControl()）。
+//   位置: x_ref += v_ref·DT,  内側の速度指令 v_cmd = v_ref + PI(x_ref − x)       （内側: config::pid_velocity_x）
+//   角度: θ_ref += ω_ref·DT,  内側の角速度指令 ω_cmd = ω_ref + PI(θ_ref − θ)    （内側: config::pid_omega）
+//   v_ref は setTargetVelocityX()，ω_ref は setTargetOmega() を OMEGA_ACCEL_MAX でレート制限した値。
+// 追従の大部分は目標速度のFFが担い，外側PIは位置・角度の偏差だけを補正する。
+// 位置は左右エンコーダ distance() の平均，角度は imu.gyroAngleZ()。有効化時の値を原点とする。
+// [要調整] 初期値は仮（未実験）。外側の帯域（≈kp [rad/s]）は内側より十分低く（目安1/3〜1/5）とる：
+//   内側の速度ループは 1/LAMBDA ≈ 33 rad/s。まず ki=0 の P のみで kp を決め，定常偏差が残れば ki を足す
+// *_CORRECTION_LIMIT は外側PIの出力（補正量）の上限。これも仮の値で，内側PIが飽和しない範囲・
+// 許容できる戻りの速さを見て決める
+namespace config::pid_position {
+inline constexpr float kp = 10.0f;            // [(mm/s)/mm]
+inline constexpr float ki = 0.0f;             // [(mm/s)/(mm*s)]
+inline constexpr float kd = 0.0f;
+inline constexpr float BACK_CALC_TT = 0.5f;   // [s] back-calculation時定数（目安 kp/ki）
+inline constexpr float VELOCITY_CORRECTION_LIMIT = 300.f;   // [mm/s] 補正量（v_cmd − v_ref）の上限
+}
+
+namespace config::pid_angle {
+inline constexpr float kp = 40.0f;            // [dps/deg]
+inline constexpr float ki = 0.0f;             // [dps/(deg*s)]
+inline constexpr float kd = 0.0f;
+inline constexpr float BACK_CALC_TT = 0.5f;   // [s] back-calculation時定数（目安 kp/ki）
+inline constexpr float OMEGA_CORRECTION_LIMIT = 360.f;   // [dps] 補正量（ω_cmd − ω_ref）の上限
+}
+
 // PRBS入力設計（並進方向, data_analysis2/01_trans_identification/prbs_design.m）
 // Tc下限(LFSRカバレッジ): 2.5*tau_slow/n, Tc上限(速い極を粗く均さない): tau_fast/2.8
 // 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16]

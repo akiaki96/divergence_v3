@@ -83,6 +83,7 @@ public:
     // 有効化時，指令ランプの起点を現在のgyro値に合わせる（バンプレス）
     void enableOmegaControl();
     void disableOmegaControl() {
+        angle_control_enabled_ = false;   // 角度PIは角速度PIの外側ループなので一緒に止める
         omega_control_enabled_ = false;
         target_omega_ = 0.f;
         omega_ref_ = 0.f;
@@ -117,6 +118,46 @@ public:
         omega_accel_ff_scale_ = scale;
     }
 
+    // 位置・角度のカスケードPI（外側ループ，目標速度FFつき。config::pid_position / config::pid_angle）。
+    // 目標位置・目標角度は，setTargetVelocityX()の目標速度・setTargetOmega()の（レート制限後の）目標角速度を
+    // 毎tick積分して進める。内側へは「目標速度 + 外側PIの補正」を渡す：
+    //   v_cmd = v_ref + PI(x_ref − x),  ω_cmd = ω_ref + PI(θ_ref − θ)
+    // setVelocity状態（switchToVelocityX()後）でのみ動作する。有効化時の現在位置/角度を原点とし，
+    // 目標位置・角度0から始める（有効化直後は偏差0でバンプレス）
+    void enablePositionControl();
+    void disablePositionControl() {
+        position_control_enabled_ = false;
+    }
+    // 目標位置 [mm]（原点からの相対）を直接書き換える。通常は目標速度の積分で自動的に進むので不要
+    void setTargetPosition(float position_mm) {
+        target_position_ = position_mm;
+    }
+    // 内側の角速度PIが無効なら有効化する
+    void enableAngleControl();
+    void disableAngleControl() {
+        angle_control_enabled_ = false;
+    }
+    // 目標角度 [deg]（原点からの相対）を直接書き換える。通常は目標角速度の積分で自動的に進むので不要
+    void setTargetAngle(float angle_deg) {
+        target_angle_ = angle_deg;
+    }
+    // 原点（有効化時）からの位置 [mm]・角度 [deg]。ログ用
+    float getPosition() const;
+    float getAngle() const;
+    float getTargetPosition() const {
+        return target_position_;
+    }
+    float getTargetAngle() const {
+        return target_angle_;
+    }
+    // 内側PIに実際に渡した指令（目標速度 + 外側PIの補正）。ログ用
+    float getVelocityXCommand() const {
+        return velocity_x_cmd_;
+    }
+    float getOmegaCommand() const {
+        return omega_cmd_;
+    }
+
     float getTargetOmega() const {
         return target_omega_;
     }
@@ -149,7 +190,7 @@ public:
         return pid_velocity_x_.getIntegralTerm();
     }
     float getVelocityXFeedforward() const {
-        return pid_velocity_x_.getLastFeedforward();
+        return velocity_x_ff_;
     }
     float getVelocityXSaturated() const {
         return velocity_pid_saturated_ ? 1.f : 0.f;
@@ -172,7 +213,9 @@ private:
 
     float dutyFromVoltage(float voltage) const;
 
-    float velocity_x_ = 0.f;
+    float velocity_x_ = 0.f;              // 目標並進速度 v_ref [mm/s]（setTargetVelocityX()）
+    float velocity_x_cmd_ = 0.f;          // 内側PIに渡した指令 v_cmd（ログ用）
+    float velocity_x_ff_ = 0.f;           // 直近tickの並進FF [V]（ログ用）
     float duty_diff_ = 0.f;
     float applied_duty_diff_ = 0.f;   // ログ用：直近tickで実際に印加されたduty差
     PRBS* prbs_rot_diff_ = nullptr;
@@ -181,7 +224,8 @@ private:
 
     bool omega_control_enabled_ = false;
     float target_omega_ = 0.f;            // 最終目標
-    float omega_ref_ = 0.f;               // レート制限後の指令（PIに渡る値）
+    float omega_ref_ = 0.f;               // レート制限後の目標角速度 ω_ref（FF・Tiスケジュールの基準）
+    float omega_cmd_ = 0.f;               // 内側PIに渡した指令 ω_cmd（角度PI無効時は omega_ref_ と同じ。ログ用）
     bool omega_ff_enabled_ = config::pid_omega::OMEGA_FF_ENABLED;
     float omega_accel_ff_scale_ = 1.f;
     bool omega_batt_comp_enabled_ = config::pid_omega::OMEGA_BATT_COMP_ENABLED;
@@ -189,4 +233,14 @@ private:
     float omega_accel_max_ = config::pid_omega::OMEGA_ACCEL_MAX;
     PIDController pid_omega_;
     bool omega_saturated_ = false;
+
+    bool position_control_enabled_ = false;
+    float position_origin_ = 0.f;         // 有効化時の位置 [mm]
+    float target_position_ = 0.f;         // 原点からの目標位置 [mm]
+    PIDController pid_position_;
+
+    bool angle_control_enabled_ = false;
+    float angle_origin_ = 0.f;            // 有効化時の角度 [deg]
+    float target_angle_ = 0.f;            // 原点からの目標角度 [deg]
+    PIDController pid_angle_;
 };

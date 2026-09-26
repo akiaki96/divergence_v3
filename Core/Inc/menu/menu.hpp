@@ -24,6 +24,8 @@ private:
 
     MenuNode log_dump_{"LogDump"};
 
+    MenuNode enkai_{"Enkaigei"};
+
     MenuNode run_{"Run"};
 
     MenuNode device_{"Device"};
