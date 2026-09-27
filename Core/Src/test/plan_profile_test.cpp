@@ -5,8 +5,8 @@
 // PlanProfile（stepVelocity / stepAccel / vel2vel）の実機試験の共通環境。
 // IMU校正 → planProfile.init()（目標値0・原点取り直し）→ ログ開始 → profile() → planProfile.stop() で停止
 // → 停止待ち → ブレーキ → ログダンプ。ログは速度試験と同じ項目（目標/実測の速度・位置）。
-// 各プロファイル関数は距離到達まで戻らないので，profile()内では必ず到達できる呼び方だけを使う
-// （目標速度0のstepVelocityや，v2=0への減速はループが終わらないおそれがある）。停止は最後のstop()で行う。
+// 閉ループへの切替（planProfile.start()）は走行開始時の1回だけで，区間の間ではPIも原点もリセットしない。
+// 各区間は目標値で終わりを判定するので，vel2vel(0, d)で減速して止めることもできる。
 static void plan_profile_tester_head(void) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -18,6 +18,7 @@ static void plan_profile_tester_head(void) {
     ledBar16.set(0x0000);
     logger.start();
     HAL_Delay(100);   // 静止区間：オフセット推定用
+    planProfile.start();
 }
 
 static void plan_profile_tester_tail(void) {
@@ -43,13 +44,13 @@ static void profile_step_accel(void) {
     planProfile.stepVelocity(600.f, 90.f);
 }
 
-// 0→600mm/sを90mmで加速 → 600→300mm/sを90mmで減速 → 300mm/sで90mm等速
+// 0→600mm/sを90mmで加速 → 600mm/sで180mm等速 → 600→300mm/sを90mmで減速 → 300→0mm/sを90mmで減速して停止
 static void profile_vel2vel(void) {
-    planProfile.vel2vel(0.f, 600.f, 90.f);
-    planProfile.vel2vel(600.f, 600.f, 90.f);
+    planProfile.vel2vel(600.f, 90.f);
+    planProfile.vel2vel(600.f, 90.f);
     planProfile.stepVelocity(600.f, 90.f);
-    planProfile.vel2vel(600.f, 300.f, 90.f);
-    planProfile.vel2vel(300.f, 0.f, 90.f);
+    planProfile.vel2vel(300.f, 90.f);
+    planProfile.vel2vel(0.f, 90.f);
 }
 
 onenter(plan_step_velocity,

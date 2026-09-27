@@ -43,40 +43,63 @@ void PlanProfile::update() {
 }
 
 
+// 走行開始時に1回だけ呼ぶ：速度・位置・角度のPIを初期化して閉ループへ切り替える。
+// 以降の区間（stepVelocity/stepAccel/vel2vel）はPIもエンコーダ（位置の原点）もリセットせず，
+// 目標値を前の区間の終わりから連続につなぐ（リセットは実測速度の乱れ・出力の段差になる）
+void PlanProfile::start(void) {
+    motorDriver_.switchToVelocityX();
+}
+
+// 区間の終わりは目標値で判定する（実測は制御ループが追いかけるだけで，軌道の進行には関わらない）：
+// 目標位置が終点に達した，または目標速度が0で止まった（減速で終端速度0に固定された）
+bool PlanProfile::isSegmentDone(float x_end) const {
+    return motorDriver_.getTargetPositionX() >= x_end ||
+           (motorDriver_.getTargetAccelX() == 0.f && motorDriver_.getTargetVelocityX() <= 0.f);
+}
+
+// 目標速度をtarget_velocity_xへステップしてdistance[mm]進む（前進のみ）。
+// target_velocity_x<=0なら速度を設定してすぐ戻る（停止にはstop()を使う）
 void PlanProfile::stepVelocity(float target_velocity_x, float distance) {
-    motorDriver_.switchToVelocityX();
-    motorDriver_.setTargetVelocityX(target_velocity_x);
+    float x_end = motorDriver_.getTargetPositionX() + distance;
     motorDriver_.setTargetAccelX(0.f);
-    resetTargetPositionX();
+    motorDriver_.setTargetVelocityX(target_velocity_x);
 
-    while (fabsf(current_position_x_) < fabsf(distance)) {
+    while (!isSegmentDone(x_end)) {
         // wait
     }
 }
 
+// 目標加速度target_accel_x[mm/s^2]でdistance[mm]進み，終わったら加速度を0にする（速度はそのまま）。
+// 減速（負の加速度）は目標速度0で止める（負にはしない）
 void PlanProfile::stepAccel(float target_accel_x, float distance) {
-    motorDriver_.switchToVelocityX();
-    motorDriver_.setTargetAccelX(target_accel_x);
-    resetTargetPositionX();
+    float x_end = motorDriver_.getTargetPositionX() + distance;
+    if (target_accel_x < 0.f) {
+        motorDriver_.setTargetAccelX(target_accel_x, 0.f);
+    } else {
+        motorDriver_.setTargetAccelX(target_accel_x);
+    }
 
-    while (fabsf(current_position_x_) < fabsf(distance)) {
+    while (!isSegmentDone(x_end)) {
+        // wait
+    }
+    motorDriver_.setTargetAccelX(0.f);
+}
+
+// 今の目標速度からvelocity2へ，distance[mm]で等加速度に変化させる（v2^2 = v1^2 + 2*a*d）。
+// 初速は引数ではなく今の目標速度を使うので，前の区間から速度が連続につながる。
+// 目標速度がvelocity2に達したら割り込み側で固定され（a=0），velocity2=0ならそこで止まって戻る
+void PlanProfile::vel2vel(float velocity2, float distance) {
+    if (distance <= 0.f) return;
+    float velocity1 = motorDriver_.getTargetVelocityX();
+    float x_end = motorDriver_.getTargetPositionX() + distance;
+    float accel = (velocity2 * velocity2 - velocity1 * velocity1) / (2.f * distance);
+    motorDriver_.setTargetAccelX(accel, velocity2);
+
+    // 終端速度に達して（a=0）から，目標位置が終点に達する（離散化で数tickずれる）か0で止まるまで待つ
+    while (!(motorDriver_.getTargetAccelX() == 0.f && isSegmentDone(x_end))) {
         // wait
     }
 }
-
-void PlanProfile::vel2vel(float velocity1, float velocity2, float distance) {
-    motorDriver_.switchToVelocityX();
-    motorDriver_.setTargetVelocityX(velocity1);
-    motorDriver_.setTargetAccelX((velocity2 * velocity2 - velocity1 * velocity1) / (2.f * distance));  // v2^2 = v1^2 + 2*a*d
-    resetTargetPositionX();
-
-    while (fabsf(current_position_x_) < fabsf(distance)) {
-        // wait
-    }
-
-    motorDriver_.setTargetVelocityX(velocity2);
-}
-
 void PlanProfile::stop(void) {
     motorDriver_.setTargetAccelX(0.f);
     motorDriver_.setTargetVelocityX(0.f);

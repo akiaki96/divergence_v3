@@ -137,6 +137,12 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
         case MotorDriverState::setVelocity: {
 
             target_velocity_x_ += target_accel_x_ * config::control::DT_S;  // 速度指令を積分して目標速度を更新
+            // 終端速度に達したら固定して加速度を切る（減速で0を越えて負になる・加速で行き過ぎるのを防ぐ）
+            if ((target_accel_x_ > 0.f && target_velocity_x_ >= end_velocity_x_) ||
+                (target_accel_x_ < 0.f && target_velocity_x_ <= end_velocity_x_)) {
+                target_velocity_x_ = end_velocity_x_;
+                target_accel_x_ = 0.f;
+            }
             target_position_x_ += target_velocity_x_ * config::control::DT_S;  // 速度指令を積分して目標位置を更新
 
             float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x);

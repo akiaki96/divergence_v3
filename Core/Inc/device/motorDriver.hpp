@@ -36,8 +36,21 @@ public:
 
     void switchToVelocityX();
 
-    void setTargetAccelX(float accel_x) {
+    // 目標加速度を設定する。end_velocity_xを与えると，目標速度がそこに達した時点で割り込み側が
+    // 目標速度=end_velocity_x，目標加速度=0に固定する（区間の終端速度。行き過ぎ・符号反転を防ぐ）。
+    // 省略時は終端速度なし（加速度をかけ続ける）
+    void setTargetAccelX(float accel_x, float end_velocity_x) {
+        target_accel_x_ = 0.f;              // 旧加速度と新しい終端速度の組で割り込みが固定しないように先に止める
+        end_velocity_x_ = end_velocity_x;
         target_accel_x_ = accel_x;
+    }
+
+    void setTargetAccelX(float accel_x) {
+        setTargetAccelX(accel_x, (accel_x >= 0.f) ? NO_END_VELOCITY : -NO_END_VELOCITY);
+    }
+
+    float getTargetAccelX() const {
+        return target_accel_x_;
     }
 
     void setTargetVelocityX(float velocity_x) {
@@ -118,9 +131,12 @@ private:
 
     float dutyFromVoltage(float voltage) const;
 
-    float target_accel_x_ = 0.f;
-    float target_velocity_x_ = 0.f;
-    float target_position_x_ = 0.f;
+    // 目標値は割り込み（update()）で積分し，メインコンテキスト（PlanProfileの待ちループ）でも読み書きするのでvolatile
+    static constexpr float NO_END_VELOCITY = 1.0e9f;
+    volatile float target_accel_x_ = 0.f;
+    volatile float target_velocity_x_ = 0.f;
+    volatile float target_position_x_ = 0.f;
+    volatile float end_velocity_x_ = NO_END_VELOCITY;   // [mm/s] 目標速度の終端（setTargetAccelX参照）
 
     PIDController pid_velocity_x_;
     PIDController pid_position_x_;

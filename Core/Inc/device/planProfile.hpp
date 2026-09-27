@@ -8,9 +8,13 @@ public:
     void init();
     void update();
 
+    // 走行開始時に1回だけ呼ぶ（PIの初期化と閉ループへの切替）。区間の間ではリセットしない
+    void start(void);
+
+    // 各区間は目標値（目標位置・目標速度）で終わりを判定し，前の区間の目標値から連続につなぐ
     void stepVelocity(float target_velocity_x, float distance);
     void stepAccel(float target_accel_x, float distance);
-    void vel2vel(float velocity1, float velocity2, float distance);
+    void vel2vel(float velocity2, float distance);   // 初速は今の目標速度
 
     // 目標加速度・目標速度を0にして止める（目標位置はその場で保持）。各プロファイルの後に呼ぶ
     void stop(void);
@@ -38,6 +42,8 @@ public:
     void resetCurrentAngle(void);
 
 private:
+    bool isSegmentDone(float x_end) const;
+
     MotorDriver& motorDriver_;
 
     // 以下は制御周期の割り込み（update()）とメインコンテキスト（プロファイルの待ちループ等）の両方から
