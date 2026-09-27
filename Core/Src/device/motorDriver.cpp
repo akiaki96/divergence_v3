@@ -103,10 +103,6 @@ float MotorDriver::getRightDuty(void) const {
     return motorRight_.getDuty();
 }
 
-void MotorDriver::setLampGrad(float lamp) {
-    lamp_grad_ = lamp;
-}
-
 float MotorDriver::dutyFromVoltage(float voltage) const {
     float vbatt = battery.voltage();
     // 安全下限：Vbatt異常低下（センサ異常・切断等）時のゼロ割り/暴走防止
@@ -146,24 +142,6 @@ void MotorDriver::update() {
 
         case MotorDriverState::setDuty:
         break;
-
-        case MotorDriverState::lampDuty:
-            setDuty(
-                getLeftDuty() + lamp_grad_*config::control::DT_S,
-                getRightDuty() + lamp_grad_*config::control::DT_S
-            );
-        break;
-
-        case MotorDriverState::prbsDuty: {
-            if (prbs_ == nullptr || prbs_->isFinished()) {
-                setBreak();
-                state = MotorDriverState::off;
-                break;
-            }
-            float duty = prbs_->update();
-            setDuty(duty, duty);   // 並進方向：左右同相
-            break;
-        }
 
         case MotorDriverState::modeSelecting:
         break;

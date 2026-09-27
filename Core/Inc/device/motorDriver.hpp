@@ -2,7 +2,6 @@
 
 #include "common/etc.hpp"
 #include "device/motor.hpp"
-#include "common/prbs.hpp"
 #include "config/mouse_config.hpp"
 #include "common/pid.hpp"
 
@@ -10,8 +9,6 @@ enum MotorDriverState {
     off,
     modeSelecting,
     setDuty,
-    lampDuty,
-    prbsDuty,
     setVelocity 
 };
 
@@ -34,15 +31,6 @@ public:
         state = MotorDriverState::setDuty;
         motorLeft_.setBreak();
         motorRight_.setBreak();
-    }
-
-    void setPRBS(PRBS* prbs) {
-        prbs_ = prbs;
-        state = MotorDriverState::prbsDuty;
-    }
-
-    bool isPRBSFinished() const {
-        return (state != MotorDriverState::prbsDuty);
     }
 
     void switchToVelocityX();
@@ -126,7 +114,6 @@ public:
 
     float getLeftDuty(void) const;
     float getRightDuty(void) const;
-    void setLampGrad(float lamp);
 
     MotorDriverState state = MotorDriverState::setDuty;
 private:
@@ -134,9 +121,6 @@ private:
     Motor& motorRight_;
     float target_voltage_L_ = 0.f;
     float target_voltage_R_ = 0.f;
-    PRBS* prbs_ = nullptr;
-
-    float lamp_grad_ = 0.f;
 
     float dutyFromVoltage(float voltage) const;
 
