@@ -80,6 +80,42 @@ inline constexpr float kp = 1.f / (4 * config::pid_velocity_x::LAMBDA * ZETA * Z
 
 }
 
+// 回転角速度 PI + feedforward 制御（data_analysis2/04_rot_omega_control）
+//
+// 並進と同じく電圧空間で計算する。同定・FF設計はduty空間（実測の中央付近 7.9V）で行ったので，
+// duty値×BATT_V_REFで電圧へ換算する（回転の感度は電圧にほぼ比例：rot_gain_scheduling_plan.md §20.3, §23）。
+// プラントは動作点で T 10→160ms, K 550→3200dps/duty と非線形（並進700mm/s, |ω|≦430dpsで同定）。
+// FFは線形近似 u_ff = ω_ref/K± + A_FF·α_ref。K±は430dpsで実測u_ssの下限付近（保守側：FF過大はOSになる）で，
+// 100〜250dpsで不足する分（約0.05duty）はPIの積分が補う。
+namespace config::pid_omega {
+inline constexpr float BATT_V_REF = 7.9f;  // [V] duty値→電圧の換算基準
+
+// --- feedforward（線形）---
+inline constexpr float K_FF_POS = 2400.f / BATT_V_REF;   // [dps/V] ω_ref >= 0
+inline constexpr float K_FF_NEG = 1950.f / BATT_V_REF;   // [dps/V] ω_ref < 0（-側は約0.03duty多く要る）
+inline constexpr float A_FF = 3.0e-5f * BATT_V_REF;      // [V/(dps/s)] 加速度FF係数 T/K（F5表の高速側。不足側に弱く過大側に寛容）
+
+// --- PIフィードバック ---
+// Kc=5e-4duty/dps（実機E3〜E11で使用）。Kcは動作点によらずほぼ一定でよく，Ti(=Kc/Ki)のみ|ω_ref|でスケジュールする
+inline constexpr float kp = 5.0e-4f * BATT_V_REF;        // [V/dps]
+inline constexpr float kd = 0.0f;
+inline constexpr int TI_TABLE_SIZE = 6;
+inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE] = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
+inline constexpr float TI_S_BP[TI_TABLE_SIZE]     = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};   // [s]
+
+// --- 出力飽和（duty_diffの電圧換算。7.9Vで約0.33duty。0.28duty超は開ループ未検証：§23.1）---
+inline constexpr float VOLTAGE_LIMIT = 2.6f;   // [V]
+
+// 閉ループ時定数の目安（Kc×接線ゲイン/T ≈ 5〜9万dps/s/duty から λ≈0.02〜0.04s）。角度ループの設計に使う
+inline constexpr float LAMBDA = 0.03f;   // [s]
+}
+
+// 角度のP制御（外側ループ）。位置と同じ設計則：ω_cmd = ω_ref + kp(θ_ref − θ)
+namespace config::pid_angle {
+inline constexpr float ZETA = 1.0f;
+inline constexpr float kp = 1.f / (4 * config::pid_omega::LAMBDA * ZETA * ZETA);   // [dps/deg]
+}
+
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
 // Tc下限(LFSRカバレッジ): 2.5*tau_slow/n, Tc上限(速い極を粗く均さない): tau_fast/2.8
 // 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16]

@@ -85,6 +85,44 @@ public:
         return velocity_pid_saturated_ ? 1.f : 0.f;
     }
 
+    // ---- 回転（角速度・角度）----
+    void setTargetAlpha(float alpha) {
+        target_alpha_ = alpha;
+    }
+
+    void setTargetOmega(float omega) {
+        target_omega_ = omega;
+    }
+
+    // 角度の原点を現在の姿勢に取り直し，目標角度を0にする
+    void resetTargetAngle(void);
+
+    float getTargetAlpha() const {
+        return target_alpha_;
+    }
+
+    float getTargetOmega() const {
+        return target_omega_;
+    }
+
+    float getTargetAngle() const {
+        return target_angle_;
+    }
+
+    float getCurrentAngle() const {
+        return current_angle_;
+    }
+
+    float getOmegaIntegralTerm() const {
+        return pid_omega_.getIntegralTerm();
+    }
+    float getOmegaFeedforward() const {
+        return pid_omega_.getLastFeedforward();
+    }
+    float getOmegaSaturated() const {
+        return omega_pid_saturated_ ? 1.f : 0.f;
+    }
+
 
     float getLeftDuty(void) const;
     float getRightDuty(void) const;
@@ -113,4 +151,15 @@ private:
     PIDController pid_position_x_;
     bool velocity_pid_saturated_ = false;
     bool position_pid_saturated_ = false;
+
+    float target_alpha_ = 0.f;   // [dps/s]
+    float target_omega_ = 0.f;   // [dps]
+    float target_angle_ = 0.f;   // [deg]
+
+    float angle_origin_ = 0.f;   // [deg] resetTargetAngle()時のimu.gyroAngleZ()
+    float current_angle_ = 0.f;  // [deg]
+
+    PIDController pid_omega_;
+    PIDController pid_angle_;
+    bool omega_pid_saturated_ = false;
 };
