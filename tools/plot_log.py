@@ -17,6 +17,11 @@ def plot_csv(filename):
     data = list(zip(*rows))
     data = [[float(x) for x in col] for col in data]
 
+    plot_data(headers, data)
+
+
+# in: headers(list[str]), data(list[list[float]], 列ごとの値。data[0]が横軸) / out: なし（グラフウィンドウを表示）
+def plot_data(headers, data):
     x = data[0]  # time列
 
     fig, ax = plt.subplots()

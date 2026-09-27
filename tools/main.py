@@ -5,7 +5,7 @@ from parser import LogParser
 from realtime_plot import RealtimePlot
 from data_logger import CSVLogger
 from get_log import Saver
-from plot_log import plot_csv
+from plot_log import plot_csv, plot_data
 
 import argparse
 
@@ -14,6 +14,7 @@ arg_parser = argparse.ArgumentParser()
 
 # オプションの設定
 arg_parser.add_argument("--no_gui", action="store_true", help="Do not show graph")
+arg_parser.add_argument("--no_save", action="store_true", help="Do not save received data to CSV")
 
 # オプションの解釈
 args = arg_parser.parse_args()
@@ -49,10 +50,11 @@ while True:
         ]
         print(headers)
         parser = LogParser(headers)
-        logger = CSVLogger(
-            "log.csv",
-            headers
-        )
+        if not args.no_save:
+            logger = CSVLogger(
+                "log.csv",
+                headers
+            )
 
         # receiver.read_bytes(expected_size:int) -> binary: bytes(長さexpected_size)
         binary = receiver.read_bytes(expected_size)
@@ -65,13 +67,20 @@ while True:
         # parser.parse(binary:bytes) -> data: list[dict]（1要素=1サンプル）
         data = parser.parse(binary)
 
-        # saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp) -> filename: str（保存先CSVパス）
-        saver = Saver()
-        filename = saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp)
+        if args.no_save:
+            print("Not saved (--no_save)")
+            # plot_data(headers, columns) -> なし（グラフウィンドウを表示）
+            if not args.no_gui:
+                columns = [[row[h] for row in data] for h in headers]
+                plot_data(headers, columns)
+        else:
+            # saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp) -> filename: str（保存先CSVパス）
+            saver = Saver()
+            filename = saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp)
 
-        # plot_csv(filename:str) -> なし（グラフウィンドウを表示）
-        if not args.no_gui:
-            plot_csv(filename)
+            # plot_csv(filename:str) -> なし（グラフウィンドウを表示）
+            if not args.no_gui:
+                plot_csv(filename)
 
     else:
         if line == "":
