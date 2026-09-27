@@ -18,7 +18,7 @@ void Menu::buildTree() {
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_});
                 motor_r_.setChildren(std::array{&right_050_});
-                motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_neg600_});
+                motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_000_});
 
     
     root_.setParentRec();
@@ -67,5 +67,5 @@ void Menu::setFunction() {
     velocity_step_300_.setOnEnter(velocity_step_300_onenter);
     velocity_step_600_.setOnEnter(velocity_step_600_onenter);
     velocity_step_900_.setOnEnter(velocity_step_900_onenter);
-    velocity_step_neg600_.setOnEnter(velocity_step_neg600_onenter);
+    velocity_step_000_.setOnEnter(velocity_step_000_onenter);
 }

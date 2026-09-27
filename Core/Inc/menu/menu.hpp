@@ -41,7 +41,7 @@ private:
                 MenuNode velocity_step_300_{"v step +300"};
                 MenuNode velocity_step_600_{"v step +600"};
                 MenuNode velocity_step_900_{"v step +900"};
-                MenuNode velocity_step_neg600_{"v step -600"};
+                MenuNode velocity_step_000_{"v step 0"};
 
 
         MenuNode fan_{"Fan"};

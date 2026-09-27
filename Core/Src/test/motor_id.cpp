@@ -125,10 +125,10 @@ onenter(velocity_step_900,
     velocity_step_tester(900.f, 2000);
 )
 
-onenter(velocity_step_neg600,
+onenter(velocity_step_000,
     id_init_log_velocity();
     logger.setDirName("velocity_step_x");
-    logger.setFileName("velocity_step_neg600");
+    logger.setFileName("velocity_step_000");
     logger.setIncludeTimestamp(false);
-    velocity_step_tester(-600.f, 2000);
+    velocity_step_tester(0.f, 2000);
 )
