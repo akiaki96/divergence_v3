@@ -35,29 +35,3 @@ onenter(battery,
         ledBar16.set(battery.voltage(), pmbit8, 12.f);
     }
 )
-
-onenter(log_wait, 
-    logger.initLoggedVal();
-    logger.dirName = "log_wait";
-    // logger.add("right_encoder_velocity", encoderRight.velocity());
-    // logger.add("left_encoder_velocity", encoderLeft.velocity());
-    logger.add(
-        "left_encoder_velocity",
-        etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderLeft)
-    );
-    logger.add(
-        "accel_x",
-        etl::delegate<float()>::create<Imu, &Imu::accelX>(imu)
-    );
-
-    ledBar16.set(0xFFFF);
-    HAL_Delay(1000);
-    ledBar16.set(0x0000);
-    logger.start();
-    HAL_Delay(1000);
-    logger.stop();
-    ledBar16.set(0xFFFF);
-
-    printf("%d, %d, %d\r\n", logger.dataSize(), logger.fieldCount(), logger.sampleCount());
-
-)

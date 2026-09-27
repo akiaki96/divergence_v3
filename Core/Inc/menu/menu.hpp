@@ -22,9 +22,7 @@ private:
 private:
     MenuNode root_{"Root"};
 
-    MenuNode log_test_{"LogTest"};
-        MenuNode log_dump_{"LogDump"};
-        MenuNode log_wait_{"LogWait"};
+    MenuNode log_dump_{"LogDump"};
 
     MenuNode run_{"Run"};
 

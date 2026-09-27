@@ -10,7 +10,7 @@ Menu::Menu() {
 }
 
 void Menu::buildTree() {
-    root_.setChildren(std::array{&run_, &device_, &log_test_});
+    root_.setChildren(std::array{&run_, &device_, &log_dump_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
             ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
@@ -19,7 +19,6 @@ void Menu::buildTree() {
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_});
                 motor_r_.setChildren(std::array{&right_050_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_neg600_});
-        log_test_.setChildren(std::array{&log_wait_, &log_dump_});
 
     
     root_.setParentRec();
@@ -48,7 +47,6 @@ onenter(log_dump,
 
 void Menu::setFunction() {
     log_dump_.setOnEnter(log_dump_onenter);
-    log_wait_.setOnEnter(log_wait_onenter);
 
     run_.setOnSelected(run_onselect);
     device_.setOnSelected(device_onselect);
