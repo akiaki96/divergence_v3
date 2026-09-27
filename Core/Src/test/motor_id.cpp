@@ -17,7 +17,7 @@ void id_init_log(void) {
     // );
     logger.add(
         "encoder_velocity_x",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getCurrentVelocityX>(motorDriver)
+        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentVelocityX>(planProfile)
     );
     logger.add(
         "battery",
@@ -53,7 +53,7 @@ void id_init_log_velocity(void) {
     );
     logger.add(
         "current_distance_x",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getCurrentPositionX>(motorDriver)
+        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentPositionX>(planProfile)
     );
     logger.add(
         "target_distance_x",
@@ -91,7 +91,7 @@ void id_init_log_omega(void) {
     );
     logger.add(
         "current_angle",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getCurrentAngle>(motorDriver)
+        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentAngle>(planProfile)
     );
     logger.add(
         "omega_integral_term",
@@ -131,6 +131,7 @@ void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
     motorDriver.setTargetAlpha(0.f);   // 回転は目標角度0を保持（直進）
     motorDriver.setTargetOmega(0.f);
     motorDriver.resetTargetAngle();
+    planProfile.resetCurrentAngle();
 
     ledBar16.set(0x0000);
     logger.start();
@@ -213,6 +214,7 @@ void omega_ramp_tester(float omega_target, uint32_t hold_ms) {
     motorDriver.setTargetAlpha(0.f);
     motorDriver.setTargetOmega(0.f);
     motorDriver.resetTargetAngle();
+    planProfile.resetCurrentAngle();
 
     ledBar16.set(0x0000);
     logger.start();

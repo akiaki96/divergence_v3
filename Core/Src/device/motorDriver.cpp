@@ -128,13 +128,7 @@ void MotorDriver::resetTargetPositionX(void) {
     target_position_x_ = 0.f;
 }
 
-void MotorDriver::resetTargetAngle(void) {
-    angle_origin_ = imu.gyroAngleZ();
-    current_angle_ = 0.f;
-    target_angle_ = 0.f;
-}
-
-void MotorDriver::update() {
+void MotorDriver::update(float current_velocity_x, float current_position_x, float current_omega, float current_angle) {
     switch (state) {
         case MotorDriverState::off:
             setDuty(0.f, 0.f);
@@ -148,26 +142,22 @@ void MotorDriver::update() {
 
         case MotorDriverState::setVelocity: {
 
-            current_velocity_x_ = (encoderLeft.velocity() + encoderRight.velocity()) / 2.f;
-            current_position_x_ = (encoderLeft.distance() + encoderRight.distance()) / 2.f;
-
             target_velocity_x_ += target_accel_x_ * config::control::DT_S;  // 速度指令を積分して目標速度を更新
             target_position_x_ += target_velocity_x_ * config::control::DT_S;  // 速度指令を積分して目標位置を更新
 
-            float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x_);
+            float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x);
 
             bool saturated = false;
             float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
-            float base_batt = pid_velocity_x_.update(local_target_velocity_x, current_velocity_x_, limit, saturated);
+            float base_batt = pid_velocity_x_.update(local_target_velocity_x, current_velocity_x, limit, saturated);
             velocity_pid_saturated_ = saturated;
 
             // ---- 回転：角度P（外側）→ 角速度PI+FF（内側）。並進と同じ2自由度カスケード ----
-            current_angle_ = imu.gyroAngleZ() - angle_origin_;
 
             target_omega_ += target_alpha_ * config::control::DT_S;  // 角加速度指令を積分して目標角速度を更新
             target_angle_ += target_omega_ * config::control::DT_S;  // 目標角速度を積分して目標角度を更新
 
-            float local_target_omega = pid_angle_.update(target_angle_, current_angle_);
+            float local_target_omega = pid_angle_.update(target_angle_, current_angle);
 
             // FF・Tiのスケジュール変数は補正を含まない目標角速度ω_ref（既知・無雑音）
             float ti = omega_ti_schedule(target_omega_);
@@ -175,7 +165,7 @@ void MotorDriver::update() {
             pid_omega_.back_calc_tt = ti;
 
             bool omega_saturated = false;
-            float diff_batt = pid_omega_.update(local_target_omega, imu.gyroZ(), config::pid_omega::VOLTAGE_LIMIT, omega_saturated);
+            float diff_batt = pid_omega_.update(local_target_omega, current_omega, config::pid_omega::VOLTAGE_LIMIT, omega_saturated);
             omega_pid_saturated_ = omega_saturated;
 
             // diff = R − L（正でω正）。v_L = v − diff/2, v_R = v + diff/2 のkinematic配分

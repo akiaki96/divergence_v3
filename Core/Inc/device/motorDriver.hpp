@@ -17,7 +17,8 @@ public:
     MotorDriver(Motor& left, Motor& right);
 
     void init();
-    void update();
+    // 実測の並進速度・位置と角速度・角度（状態推定はPlanProfileの責務）を受け取り，制御出力を更新する
+    void update(float current_velocity_x, float current_position_x, float current_omega, float current_angle);
 
     void enable();
     void disable();
@@ -54,14 +55,6 @@ public:
         return target_position_x_;
     }
 
-    float getCurrentVelocityX() const {
-        return current_velocity_x_;
-    }
-
-    float getCurrentPositionX() const {
-        return current_position_x_;
-    }
-
     // PI+FF診断用ログ：積分ワインドアップ・feedforward寄与・飽和状態を確認するため
     float getVelocityXIntegralTerm() const {
         return pid_velocity_x_.getIntegralTerm();
@@ -82,8 +75,10 @@ public:
         target_omega_ = omega;
     }
 
-    // 角度の原点を現在の姿勢に取り直し，目標角度を0にする
-    void resetTargetAngle(void);
+    // 目標角度を0にする（実測角度の原点はPlanProfile::resetCurrentAngle()で取り直す）
+    void resetTargetAngle(void) {
+        target_angle_ = 0.f;
+    }
 
     float getTargetAlpha() const {
         return target_alpha_;
@@ -95,10 +90,6 @@ public:
 
     float getTargetAngle() const {
         return target_angle_;
-    }
-
-    float getCurrentAngle() const {
-        return current_angle_;
     }
 
     float getOmegaIntegralTerm() const {
@@ -128,9 +119,6 @@ private:
     float target_velocity_x_ = 0.f;
     float target_position_x_ = 0.f;
 
-    float current_velocity_x_ = 0.f;
-    float current_position_x_ = 0.f;
-
     PIDController pid_velocity_x_;
     PIDController pid_position_x_;
     bool velocity_pid_saturated_ = false;
@@ -139,9 +127,6 @@ private:
     float target_alpha_ = 0.f;   // [dps/s]
     float target_omega_ = 0.f;   // [dps]
     float target_angle_ = 0.f;   // [deg]
-
-    float angle_origin_ = 0.f;   // [deg] resetTargetAngle()時のimu.gyroAngleZ()
-    float current_angle_ = 0.f;  // [deg]
 
     PIDController pid_omega_;
     PIDController pid_angle_;

@@ -21,4 +21,18 @@ void PlanProfile::init() {
     motorDriver_.setTargetAlpha(0.f);
     motorDriver_.setTargetOmega(0.f);
     motorDriver_.resetTargetAngle();
+    resetCurrentAngle();
+}
+
+void PlanProfile::resetCurrentAngle(void) {
+    angle_origin_ = imu.gyroAngleZ();
+    current_angle_ = 0.f;
+}
+
+void PlanProfile::update() {
+    current_velocity_x_ = (encoderLeft.velocity() + encoderRight.velocity()) / 2.f;
+    current_position_x_ = (encoderLeft.distance() + encoderRight.distance()) / 2.f;
+
+    current_omega_ = imu.gyroZ();
+    current_angle_ = imu.gyroAngleZ() - angle_origin_;
 }

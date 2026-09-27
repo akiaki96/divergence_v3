@@ -12,7 +12,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         encoderLeft.update();
         encoderRight.update();
 
-        motorDriver.update();
+        planProfile.update();   // エンコーダ更新後に実測の並進速度・位置と角速度・角度を計算
+        motorDriver.update(
+            planProfile.getCurrentVelocityX(), planProfile.getCurrentPositionX(),
+            planProfile.getCurrentOmega(), planProfile.getCurrentAngle()
+        );
     
         imu.update();
 
