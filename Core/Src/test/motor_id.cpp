@@ -143,6 +143,7 @@ void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
     logger.stop();
     HAL_Delay(500);
     ledBar16.set(0xFFFF);
+    motorDriver.setBreak();
     haltByAccZ();
     logger.dump();
     ledBar16.set(0x0000);
