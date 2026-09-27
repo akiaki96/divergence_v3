@@ -12,8 +12,6 @@ enum MotorDriverState {
     setDuty,
     lampDuty,
     prbsDuty,
-    setVoltage,    // 追加：電圧指令（毎tickでVbatt補償）
-    prbsVoltage,   // 追加：電圧PRBS（毎tickでVbatt補償）
     setVelocity 
 };
 
@@ -30,12 +28,6 @@ public:
     void setDuty(float left, float right) {
         motorLeft_.setDuty(left);
         motorRight_.setDuty(right);
-    }
-
-    void setVoltage(float voltage_L, float voltage_R) {
-        target_voltage_L_ = voltage_L;
-        target_voltage_R_ = voltage_R;
-        state = MotorDriverState::setVoltage;
     }
 
     void setBreak() {
