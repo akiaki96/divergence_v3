@@ -1,7 +1,7 @@
 #pragma once
 #include <cstdint>
 
-enum LedBarDotMode {
+enum class LedBarDotMode {
   normal,
   dot16,
   dot8,
@@ -9,7 +9,7 @@ enum LedBarDotMode {
   dot2,
 };
 
-enum LedBarValMode {
+enum class LedBarValMode {
   pmbit8,
   pmlinear8,
   pbit16,

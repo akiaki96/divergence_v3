@@ -5,7 +5,7 @@
 #include "config/mouse_config.hpp"
 #include "common/pid.hpp"
 
-enum MotorDriverState {
+enum class MotorDriverState {
     off,
     modeSelecting,
     setDuty,

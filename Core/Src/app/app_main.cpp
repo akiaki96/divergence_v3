@@ -22,7 +22,7 @@ void app_init() {
     imu.init();
     motorDriver.init();
 
-    ledBar16.set(battery.voltage() - 7.6f, plinear16, 8.4f-7.6f);
+    ledBar16.set(battery.voltage() - 7.6f, LedBarValMode::plinear16, 8.4f-7.6f);
 }
 
 // #include <etl/vector.h>
