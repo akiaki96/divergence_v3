@@ -122,12 +122,6 @@ void MotorDriver::switchToVelocityX() {
     state = MotorDriverState::setVelocity;
 }
 
-void MotorDriver::resetTargetPositionX(void) {
-    encoderLeft.reset();
-    encoderRight.reset();
-    target_position_x_ = 0.f;
-}
-
 void MotorDriver::update(float current_velocity_x, float current_position_x, float current_omega, float current_angle) {
     switch (state) {
         case MotorDriverState::off:

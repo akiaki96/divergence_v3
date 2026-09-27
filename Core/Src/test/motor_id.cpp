@@ -127,7 +127,7 @@ void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
 
     motorDriver.setTargetAccelX(0.f);
     motorDriver.setTargetVelocityX(0.f);
-    motorDriver.resetTargetPositionX();
+    planProfile.resetTargetPositionX();
     motorDriver.setTargetAlpha(0.f);   // 回転は目標角度0を保持（直進）
     motorDriver.setTargetOmega(0.f);
     motorDriver.resetTargetAngle();
@@ -210,7 +210,7 @@ void omega_ramp_tester(float omega_target, uint32_t hold_ms) {
 
     motorDriver.setTargetAccelX(0.f);
     motorDriver.setTargetVelocityX(0.f);
-    motorDriver.resetTargetPositionX();
+    planProfile.resetTargetPositionX();
     motorDriver.setTargetAlpha(0.f);
     motorDriver.setTargetOmega(0.f);
     motorDriver.resetTargetAngle();

@@ -3,6 +3,7 @@
 #include "device/device_instance.hpp"
 #include "device/device_test.hpp"
 #include "test/motor_id.hpp"
+#include "test/plan_profile_test.hpp"
 
 Menu::Menu() {
     buildTree();
@@ -16,9 +17,10 @@ void Menu::buildTree() {
             ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
-            motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &motor_omega_});
+            motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &motor_omega_, &plan_profile_});
                 motor_r_.setChildren(std::array{&right_050_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_000_});
+                plan_profile_.setChildren(std::array{&plan_step_velocity_, &plan_step_accel_, &plan_vel2vel_});
                 motor_omega_.setChildren(std::array{&omega_ramp_pos430_, &omega_ramp_neg430_, &omega_ramp_pos250_, &omega_ramp_neg250_, &omega_ramp_pos100_, &omega_ramp_neg100_});
 
     
@@ -69,6 +71,10 @@ void Menu::setFunction() {
     velocity_step_600_.setOnEnter(velocity_step_600_onenter);
     velocity_step_900_.setOnEnter(velocity_step_900_onenter);
     velocity_step_000_.setOnEnter(velocity_step_000_onenter);
+
+    plan_step_velocity_.setOnEnter(plan_step_velocity_onenter);
+    plan_step_accel_.setOnEnter(plan_step_accel_onenter);
+    plan_vel2vel_.setOnEnter(plan_vel2vel_onenter);
 
     omega_ramp_pos430_.setOnEnter(omega_ramp_pos430_onenter);
     omega_ramp_neg430_.setOnEnter(omega_ramp_neg430_onenter);

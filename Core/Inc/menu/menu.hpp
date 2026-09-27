@@ -42,6 +42,10 @@ private:
                 MenuNode velocity_step_600_{"v step +600"};
                 MenuNode velocity_step_900_{"v step +900"};
                 MenuNode velocity_step_000_{"v step 0"};
+            MenuNode plan_profile_{"Plan profile"};
+                MenuNode plan_step_velocity_{"stepVelocity"};
+                MenuNode plan_step_accel_{"stepAccel"};
+                MenuNode plan_vel2vel_{"vel2vel"};
             MenuNode motor_omega_{"Motor omega"};
                 MenuNode omega_ramp_pos430_{"w ramp +430"};
                 MenuNode omega_ramp_neg430_{"w ramp -430"};

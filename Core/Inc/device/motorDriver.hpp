@@ -44,7 +44,10 @@ public:
         target_velocity_x_ = velocity_x;
     }
 
-    void resetTargetPositionX(void);
+    // 目標位置を直接設定する（位置の原点の取り直しはPlanProfile::resetTargetPositionX()）
+    void setTargetPositionX(float position_x) {
+        target_position_x_ = position_x;
+    }
 
     // 追従性検証用ログ（target_velocity_x）で参照する
     float getTargetVelocityX() const {
