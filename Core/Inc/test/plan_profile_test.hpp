@@ -6,3 +6,7 @@
 void plan_step_velocity_onenter();
 void plan_step_accel_onenter();
 void plan_vel2vel_onenter();
+
+void plan_turn_pos430_onenter();
+void plan_turn_neg430_onenter();
+void plan_turn_step_alpha_pos430_onenter();

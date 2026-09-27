@@ -100,7 +100,63 @@ void PlanProfile::vel2vel(float velocity2, float distance) {
         // wait
     }
 }
+// 回転区間の終わり（目標値で判定）：目標角度が angle_start からangle（符号つき）だけ進んだ，
+// または目標角速度が回転方向に対して0で止まった（減速で終端角速度0に固定された）
+bool PlanProfile::isRotationDone(float angle_start, float angle) const {
+    float dir = (angle >= 0.f) ? 1.f : -1.f;
+    float progress = (motorDriver_.getTargetAngle() - angle_start) * dir;
+    return progress >= angle * dir ||
+           (motorDriver_.getTargetAlpha() == 0.f && motorDriver_.getTargetOmega() * dir <= 0.f);
+}
+
+// 目標角速度をtarget_omegaへステップしてangle[deg]回る。target_omegaが回転方向と逆または0ならすぐ戻る
+void PlanProfile::stepOmega(float target_omega, float angle) {
+    if (angle == 0.f) return;
+    float angle_start = motorDriver_.getTargetAngle();
+    motorDriver_.setTargetAlpha(0.f);
+    motorDriver_.setTargetOmega(target_omega);
+
+    while (!isRotationDone(angle_start, angle)) {
+        // wait
+    }
+}
+
+// 目標角加速度target_alphaでangle[deg]回り，終わったら角加速度を0にする（角速度はそのまま）。
+// 回転方向と逆向きの角加速度（減速）は目標角速度0で止める（逆回転にはしない）
+void PlanProfile::stepAlpha(float target_alpha, float angle) {
+    if (angle == 0.f) return;
+    float angle_start = motorDriver_.getTargetAngle();
+    if (target_alpha * angle < 0.f) {
+        motorDriver_.setTargetAlpha(target_alpha, 0.f);
+    } else {
+        motorDriver_.setTargetAlpha(target_alpha);
+    }
+
+    while (!isRotationDone(angle_start, angle)) {
+        // wait
+    }
+    motorDriver_.setTargetAlpha(0.f);
+}
+
+// 今の目標角速度からomega2へ，angle[deg]で等角加速度に変化させる（ω2^2 = ω1^2 + 2*α*θ，符号つきで成り立つ）。
+// ω1・ω2は回転方向と同じ向き（または0）を想定。目標角速度がomega2に達したら割り込み側で固定され，
+// omega2=0ならそこで止まって戻る
+void PlanProfile::omega2omega(float omega2, float angle) {
+    if (angle == 0.f) return;
+    float omega1 = motorDriver_.getTargetOmega();
+    float angle_start = motorDriver_.getTargetAngle();
+    float alpha = (omega2 * omega2 - omega1 * omega1) / (2.f * angle);
+    motorDriver_.setTargetAlpha(alpha, omega2);
+
+    // 終端角速度に達して（α=0）から，目標角度が終点に達するか0で止まるまで待つ
+    while (!(motorDriver_.getTargetAlpha() == 0.f && isRotationDone(angle_start, angle))) {
+        // wait
+    }
+}
+
 void PlanProfile::stop(void) {
     motorDriver_.setTargetAccelX(0.f);
     motorDriver_.setTargetVelocityX(0.f);
+    motorDriver_.setTargetAlpha(0.f);
+    motorDriver_.setTargetOmega(0.f);
 }

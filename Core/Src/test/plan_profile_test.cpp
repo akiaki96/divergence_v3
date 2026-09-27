@@ -83,3 +83,55 @@ onenter(plan_vel2vel,
     profile_vel2vel();
     plan_profile_tester_tail();
 )
+
+// ---- 回転（stepOmega / stepAlpha / omega2omega）----
+// FF・Tiは並進700mm/sで同定した値なので，700mm/sまで加速してから旋回し，旋回後に減速して止める。
+// 旋回は ω: 0→±430dps（2500dps/s, 37°）→ ±430dpsで90° → 0（37°）の計約164°。記録は約1.7s（ログ上限2.0s）
+
+// omega2omegaで角速度を台形に変化させる。dir=+1で左旋回，-1で右旋回
+static void profile_turn_omega2omega(float dir) {
+    planProfile.vel2vel(700.f, 100.f);
+    planProfile.omega2omega(dir * 430.f, dir * 37.f);
+    planProfile.stepOmega(dir * 430.f, dir * 90.f);
+    planProfile.omega2omega(0.f, dir * 37.f);
+    planProfile.vel2vel(0.f, 100.f);
+}
+
+// 同じ旋回をstepAlpha（加速・減速）とstepOmega（等角速度）で行う
+static void profile_turn_step_alpha(float dir) {
+    planProfile.vel2vel(700.f, 100.f);
+    planProfile.stepAlpha(dir * 2500.f, dir * 37.f);
+    planProfile.stepOmega(dir * 430.f, dir * 90.f);
+    planProfile.stepAlpha(-dir * 2500.f, dir * 37.f);   // 減速は目標角速度0で止まる
+    planProfile.vel2vel(0.f, 100.f);
+}
+
+onenter(plan_turn_pos430,
+    id_init_log_omega();
+    logger.setDirName("plan_profile_x");
+    logger.setFileName("plan_turn_omega2omega_pos430");
+    logger.setIncludeTimestamp(false);
+    plan_profile_tester_head();
+    profile_turn_omega2omega(1.f);
+    plan_profile_tester_tail();
+)
+
+onenter(plan_turn_neg430,
+    id_init_log_omega();
+    logger.setDirName("plan_profile_x");
+    logger.setFileName("plan_turn_omega2omega_neg430");
+    logger.setIncludeTimestamp(false);
+    plan_profile_tester_head();
+    profile_turn_omega2omega(-1.f);
+    plan_profile_tester_tail();
+)
+
+onenter(plan_turn_step_alpha_pos430,
+    id_init_log_omega();
+    logger.setDirName("plan_profile_x");
+    logger.setFileName("plan_turn_step_alpha_pos430");
+    logger.setIncludeTimestamp(false);
+    plan_profile_tester_head();
+    profile_turn_step_alpha(1.f);
+    plan_profile_tester_tail();
+)
