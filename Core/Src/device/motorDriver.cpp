@@ -29,6 +29,14 @@ void MotorDriver::init() {
         velocity_x_ff,
         config::pid_velocity_x::BACK_CALC_TT
     );
+
+    pid_position_x_.setGains(
+        config::pid_position_x::kp,
+        0.f,
+        0.f,
+        [](float) { return motorDriver.getTargetVelocityX(); },
+        0.f
+    );
 }
 
 void MotorDriver::enable() {
@@ -71,6 +79,11 @@ void MotorDriver::switchToVelocityX() {
     state = MotorDriverState::setVelocity;
 }
 
+void MotorDriver::resetTargetPositionX(void) {
+    encoderLeft.reset();
+    encoderRight.reset();
+    target_position_x_ = 0.f;
+}
 
 void MotorDriver::update() {
     switch (state) {
@@ -103,9 +116,18 @@ void MotorDriver::update() {
         break;
 
         case MotorDriverState::setVelocity: {
+
+            current_velocity_x_ = (encoderLeft.velocity() + encoderRight.velocity()) / 2.f;
+            current_position_x_ = (encoderLeft.distance() + encoderRight.distance()) / 2.f;
+
+            target_velocity_x_ += target_accel_x_ * config::control::DT_S;  // 速度指令を積分して目標速度を更新
+            target_position_x_ += target_velocity_x_ * config::control::DT_S;  // 速度指令を積分して目標位置を更新
+
+            float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x_);
+
             bool saturated = false;
             float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
-            float base_batt = pid_velocity_x_.update(velocity_x_, (encoderLeft.velocity() + encoderRight.velocity()) / 2.f, limit, saturated);
+            float base_batt = pid_velocity_x_.update(local_target_velocity_x, current_velocity_x_, limit, saturated);
             velocity_pid_saturated_ = saturated;
 
             setDuty(dutyFromVoltage(base_batt), dutyFromVoltage(base_batt));

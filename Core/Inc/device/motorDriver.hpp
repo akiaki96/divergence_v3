@@ -47,13 +47,31 @@ public:
 
     void switchToVelocityX();
 
-    void setTargetVelocityX(float velocity_x) {
-        velocity_x_ = velocity_x;
+    void setTargetAccelX(float accel_x) {
+        target_accel_x_ = accel_x;
     }
+
+    void setTargetVelocityX(float velocity_x) {
+        target_velocity_x_ = velocity_x;
+    }
+
+    void resetTargetPositionX(void);
 
     // 追従性検証用ログ（target_velocity_x）で参照する
     float getTargetVelocityX() const {
-        return velocity_x_;
+        return target_velocity_x_;
+    }
+
+    float getTargetPositionX() const {
+        return target_position_x_;
+    }
+
+    float getCurrentVelocityX() const {
+        return current_velocity_x_;
+    }
+
+    float getCurrentPositionX() const {
+        return current_position_x_;
     }
 
     // PI+FF診断用ログ：積分ワインドアップ・feedforward寄与・飽和状態を確認するため
@@ -84,7 +102,15 @@ private:
 
     float dutyFromVoltage(float voltage) const;
 
-    float velocity_x_ = 0.f;
+    float target_accel_x_ = 0.f;
+    float target_velocity_x_ = 0.f;
+    float target_position_x_ = 0.f;
+
+    float current_velocity_x_ = 0.f;
+    float current_position_x_ = 0.f;
+
     PIDController pid_velocity_x_;
+    PIDController pid_position_x_;
     bool velocity_pid_saturated_ = false;
+    bool position_pid_saturated_ = false;
 };

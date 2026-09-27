@@ -7,13 +7,17 @@ void id_init_log(void) {
     motorDriver.setDuty(0.f, 0.f);
 
     logger.initLoggedVal();
+    // logger.add(
+    //     "left_encoder_velocity",
+    //     etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderLeft)
+    // );
+    // logger.add(
+    //     "right_encoder_velocity",
+    //     etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderRight)
+    // );
     logger.add(
-        "left_encoder_velocity",
-        etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderLeft)
-    );
-    logger.add(
-        "right_encoder_velocity",
-        etl::delegate<float()>::create<Encoder, &Encoder::velocity>(encoderRight)
+        "encoder_velocity_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getCurrentVelocityX>(motorDriver)
     );
     logger.add(
         "battery",
@@ -47,19 +51,27 @@ void id_init_log_velocity(void) {
         "target_velocity_x",
         etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetVelocityX>(motorDriver)
     );
-    // 積分ワインドアップとfeedforward寄与を確認するための診断フィールド
     logger.add(
-        "pid_integral_term",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXIntegralTerm>(motorDriver)
+        "current_distance_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getCurrentPositionX>(motorDriver)
     );
     logger.add(
-        "pid_feedforward",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXFeedforward>(motorDriver)
+        "target_distance_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetPositionX>(motorDriver)
     );
-    logger.add(
-        "pid_saturated",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXSaturated>(motorDriver)
-    );
+    // // 積分ワインドアップとfeedforward寄与を確認するための診断フィールド
+    // logger.add(
+    //     "pid_integral_term",
+    //     etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXIntegralTerm>(motorDriver)
+    // );
+    // logger.add(
+    //     "pid_feedforward",
+    //     etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXFeedforward>(motorDriver)
+    // );
+    // logger.add(
+    //     "pid_saturated",
+    //     etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXSaturated>(motorDriver)
+    // );
 }
 
 onenter(right_set050, 
@@ -85,14 +97,19 @@ void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
     motorDriver.setDuty(0.f, 0.f);
     imu.calibrate();
     HAL_Delay(1100);
+
+    motorDriver.setTargetAccelX(0.f);
+    motorDriver.setTargetVelocityX(0.f);
+    motorDriver.resetTargetPositionX();
+
     ledBar16.set(0x0000);
     logger.start();
     HAL_Delay(100);   // 静止区間：オフセット推定用
     motorDriver.switchToVelocityX();
     motorDriver.setTargetVelocityX(target_velocity_x);
-    HAL_Delay(duration_ms);
-    motorDriver.setBreak();
-    HAL_Delay(50);
+    HAL_Delay(duration_ms/2);
+    motorDriver.setTargetVelocityX(0.f);
+    HAL_Delay(duration_ms/2);
     logger.stop();
     HAL_Delay(500);
     ledBar16.set(0xFFFF);

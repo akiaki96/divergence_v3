@@ -73,6 +73,13 @@ inline constexpr float voltage_limit_ratio = 0.95f;
 inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 }
 
+namespace config::pid_position_x {
+inline constexpr float ZETA = 1.0f;
+inline constexpr float kp = 1.f / (4 * config::pid_velocity_x::LAMBDA * ZETA * ZETA);
+// inline constexpr float kp = 0.f;
+
+}
+
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）
 // Tc下限(LFSRカバレッジ): 2.5*tau_slow/n, Tc上限(速い極を粗く均さない): tau_fast/2.8
 // 採用: Tc=0.145s, n=8(PRBSクラスのタップ多項式に対応した固定値), duty=[0.08,0.16]
