@@ -128,7 +128,7 @@ void Logger::dump() {
     printf("%s\r\n", dirName);
     printf("%s\r\n", fileName != nullptr ? fileName : "");
     printf("TIMESTAMP:%d\r\n", includeTimestamp ? 1 : 0);
-    printf("SIZE:%u\r\n", static_cast<uint32_t>(dataSize()));
+    printf("SIZE:%lu\r\n", static_cast<unsigned long>(dataSize()));
     for (uint32_t i = 0; i < fieldCount_; ++i) {
         if (i > 0) {
             printf(",");
