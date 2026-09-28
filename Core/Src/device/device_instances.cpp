@@ -24,4 +24,6 @@ Motor motorRight(&htim2, TIM_CHANNEL_1, MOTOR_R_CW_GPIO_Port, MOTOR_R_CW_Pin, MO
 MotorDriver motorDriver(motorLeft, motorRight);
 PlanProfile planProfile(motorDriver);
 
+Fan fan(&htim3, TIM_CHANNEL_1);
+
 Logger logger;

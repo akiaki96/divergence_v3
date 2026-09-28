@@ -7,6 +7,7 @@
 #include "device/adcValue.hpp"
 #include "device/motorDriver.hpp"
 #include "device/planProfile.hpp"
+#include "device/fan.hpp"
 #include "app/logger.hpp"
 
 extern float globalTime;
@@ -31,5 +32,7 @@ extern Motor motorLeft;
 extern Motor motorRight;
 extern MotorDriver motorDriver;
 extern PlanProfile planProfile;
+
+extern Fan fan;
 
 extern Logger logger;

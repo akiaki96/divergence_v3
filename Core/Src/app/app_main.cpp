@@ -18,6 +18,7 @@ void app_init() {
     encoderRight.init();
 
     motorDriver.enable();
+    fan.init();
 
     imu.init();
     motorDriver.init();
