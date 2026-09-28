@@ -83,8 +83,17 @@ public:
     }
 
     // ---- 回転（角速度・角度）----
-    void setTargetAlpha(float alpha) {
+    // 目標角加速度を設定する。end_omegaを与えると，目標角速度がそこに達した時点で割り込み側が
+    // 目標角速度=end_omega，目標角加速度=0に固定する（区間の終端角速度。並進のsetTargetAccelXと同じ）。
+    // 省略時は終端角速度なし（角加速度をかけ続ける）
+    void setTargetAlpha(float alpha, float end_omega) {
+        target_alpha_ = 0.f;              // 旧角加速度と新しい終端角速度の組で割り込みが固定しないように先に止める
+        end_omega_ = end_omega;
         target_alpha_ = alpha;
+    }
+
+    void setTargetAlpha(float alpha) {
+        setTargetAlpha(alpha, (alpha >= 0.f) ? NO_END_VELOCITY : -NO_END_VELOCITY);
     }
 
     void setTargetOmega(float omega) {
@@ -143,9 +152,11 @@ private:
     bool velocity_pid_saturated_ = false;
     bool position_pid_saturated_ = false;
 
-    float target_alpha_ = 0.f;   // [dps/s]
-    float target_omega_ = 0.f;   // [dps]
-    float target_angle_ = 0.f;   // [deg]
+    // 並進と同じく割り込みとメインコンテキストで共有するのでvolatile
+    volatile float target_alpha_ = 0.f;   // [dps/s]
+    volatile float target_omega_ = 0.f;   // [dps]
+    volatile float target_angle_ = 0.f;   // [deg]
+    volatile float end_omega_ = NO_END_VELOCITY;   // [dps] 目標角速度の終端（setTargetAlpha参照）
 
     PIDController pid_omega_;
     PIDController pid_angle_;
