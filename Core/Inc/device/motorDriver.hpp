@@ -36,30 +36,10 @@ public:
 
     void switchToVelocityX();
 
-    // 目標加速度を設定する。end_velocity_xを与えると，目標速度がそこに達した時点で割り込み側が
-    // 目標速度=end_velocity_x，目標加速度=0に固定する（区間の終端速度。行き過ぎ・符号反転を防ぐ）。
-    // 省略時は終端速度なし（加速度をかけ続ける）
-    void setTargetAccelX(float accel_x, float end_velocity_x) {
-        target_accel_x_ = 0.f;              // 旧加速度と新しい終端速度の組で割り込みが固定しないように先に止める
-        end_velocity_x_ = end_velocity_x;
-        target_accel_x_ = accel_x;
-    }
-
-    void setTargetAccelX(float accel_x) {
-        setTargetAccelX(accel_x, (accel_x >= 0.f) ? NO_END_VELOCITY : -NO_END_VELOCITY);
-    }
-
-    float getTargetAccelX() const {
-        return target_accel_x_;
-    }
-
-    void setTargetVelocityX(float velocity_x) {
-        target_velocity_x_ = velocity_x;
-    }
-
-    // 目標位置を直接設定する（位置の原点の取り直しはPlanProfile::resetTargetPositionX()）
-    void setTargetPositionX(float position_x) {
+    // 並進の目標値（軌道生成はPlanProfileの責務。毎tick PlanProfile::update()から渡される）
+    void setTargetX(float position_x, float velocity_x) {
         target_position_x_ = position_x;
+        target_velocity_x_ = velocity_x;
     }
 
     // 追従性検証用ログ（target_velocity_x）で参照する
@@ -83,26 +63,12 @@ public:
     }
 
     // ---- 回転（角速度・角度）----
-    // 目標角加速度を設定する。end_omegaを与えると，目標角速度がそこに達した時点で割り込み側が
-    // 目標角速度=end_omega，目標角加速度=0に固定する（区間の終端角速度。並進のsetTargetAccelXと同じ）。
-    // 省略時は終端角速度なし（角加速度をかけ続ける）
-    void setTargetAlpha(float alpha, float end_omega) {
-        target_alpha_ = 0.f;              // 旧角加速度と新しい終端角速度の組で割り込みが固定しないように先に止める
-        end_omega_ = end_omega;
-        target_alpha_ = alpha;
-    }
-
-    void setTargetAlpha(float alpha) {
-        setTargetAlpha(alpha, (alpha >= 0.f) ? NO_END_VELOCITY : -NO_END_VELOCITY);
-    }
-
-    void setTargetOmega(float omega) {
+    // 回転の目標値（並進と同じくPlanProfile::update()から毎tick渡される）。
+    // alphaは角加速度FFの入力としてだけ使う（積分はしない）
+    void setTargetRotation(float angle, float omega, float alpha) {
+        target_angle_ = angle;
         target_omega_ = omega;
-    }
-
-    // 目標角度を0にする（実測角度の原点はPlanProfile::resetCurrentAngle()で取り直す）
-    void resetTargetAngle(void) {
-        target_angle_ = 0.f;
+        target_alpha_ = alpha;
     }
 
     float getTargetAlpha() const {
@@ -140,23 +106,18 @@ private:
 
     float dutyFromVoltage(float voltage) const;
 
-    // 目標値は割り込み（update()）で積分し，メインコンテキスト（PlanProfileの待ちループ）でも読み書きするのでvolatile
-    static constexpr float NO_END_VELOCITY = 1.0e9f;
-    volatile float target_accel_x_ = 0.f;
-    volatile float target_velocity_x_ = 0.f;
-    volatile float target_position_x_ = 0.f;
-    volatile float end_velocity_x_ = NO_END_VELOCITY;   // [mm/s] 目標速度の終端（setTargetAccelX参照）
+    // 目標値（PlanProfile::update()から毎tick渡される）
+    float target_velocity_x_ = 0.f;   // [mm/s]
+    float target_position_x_ = 0.f;   // [mm]
 
     PIDController pid_velocity_x_;
     PIDController pid_position_x_;
     bool velocity_pid_saturated_ = false;
     bool position_pid_saturated_ = false;
 
-    // 並進と同じく割り込みとメインコンテキストで共有するのでvolatile
-    volatile float target_alpha_ = 0.f;   // [dps/s]
-    volatile float target_omega_ = 0.f;   // [dps]
-    volatile float target_angle_ = 0.f;   // [deg]
-    volatile float end_omega_ = NO_END_VELOCITY;   // [dps] 目標角速度の終端（setTargetAlpha参照）
+    float target_alpha_ = 0.f;   // [dps/s] 角加速度FFの入力
+    float target_omega_ = 0.f;   // [dps]
+    float target_angle_ = 0.f;   // [deg]
 
     PIDController pid_omega_;
     PIDController pid_angle_;

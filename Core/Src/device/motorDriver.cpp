@@ -135,16 +135,7 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
         break;
 
         case MotorDriverState::setVelocity: {
-
-            target_velocity_x_ += target_accel_x_ * config::control::DT_S;  // 速度指令を積分して目標速度を更新
-            // 終端速度に達したら固定して加速度を切る（減速で0を越えて負になる・加速で行き過ぎるのを防ぐ）
-            if ((target_accel_x_ > 0.f && target_velocity_x_ >= end_velocity_x_) ||
-                (target_accel_x_ < 0.f && target_velocity_x_ <= end_velocity_x_)) {
-                target_velocity_x_ = end_velocity_x_;
-                target_accel_x_ = 0.f;
-            }
-            target_position_x_ += target_velocity_x_ * config::control::DT_S;  // 速度指令を積分して目標位置を更新
-
+            // 目標値（軌道）はPlanProfile::update()が生成して渡す。ここでは追従制御だけを行う
             float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x);
 
             bool saturated = false;
@@ -153,16 +144,6 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
             velocity_pid_saturated_ = saturated;
 
             // ---- 回転：角度P（外側）→ 角速度PI+FF（内側）。並進と同じ2自由度カスケード ----
-
-            target_omega_ += target_alpha_ * config::control::DT_S;  // 角加速度指令を積分して目標角速度を更新
-            // 終端角速度に達したら固定して角加速度を切る（並進と同じ）
-            if ((target_alpha_ > 0.f && target_omega_ >= end_omega_) ||
-                (target_alpha_ < 0.f && target_omega_ <= end_omega_)) {
-                target_omega_ = end_omega_;
-                target_alpha_ = 0.f;
-            }
-            target_angle_ += target_omega_ * config::control::DT_S;  // 目標角速度を積分して目標角度を更新
-
             float local_target_omega = pid_angle_.update(target_angle_, current_angle);
 
             // FF・Tiのスケジュール変数は補正を含まない目標角速度ω_ref（既知・無雑音）

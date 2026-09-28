@@ -125,21 +125,15 @@ void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
     imu.calibrate();
     HAL_Delay(1100);
 
-    motorDriver.setTargetAccelX(0.f);
-    motorDriver.setTargetVelocityX(0.f);
-    planProfile.resetTargetPositionX();
-    motorDriver.setTargetAlpha(0.f);   // 回転は目標角度0を保持（直進）
-    motorDriver.setTargetOmega(0.f);
-    motorDriver.resetTargetAngle();
-    planProfile.resetCurrentAngle();
+    planProfile.init();   // 並進・回転の目標値0・原点取り直し（回転は目標角度0を保持＝直進）
 
     ledBar16.set(0x0000);
     logger.start();
     HAL_Delay(100);   // 静止区間：オフセット推定用
-    motorDriver.switchToVelocityX();
-    motorDriver.setTargetVelocityX(target_velocity_x);
+    planProfile.start();
+    planProfile.setTargetVelocityX(target_velocity_x);
     HAL_Delay(duration_ms/2);
-    motorDriver.setTargetVelocityX(0.f);
+    planProfile.setTargetVelocityX(0.f);
     HAL_Delay(duration_ms/2);
     logger.stop();
     HAL_Delay(500);
@@ -182,15 +176,13 @@ onenter(velocity_step_000,
     velocity_step_tester(0.f, 2000);
 )
 
-// 目標角速度をalpha[dps/s]のランプでomega_targetへ動かす（ランプ終了後は値を丸めて角加速度0）
+// 目標角速度をalpha[dps/s]のランプでomega_targetへ動かす（omega2omegaで，角加速度がalphaになる角度を与える：
+// θ = (ω2^2 − ω1^2) / (2α)，αはω1→ω2の向き）。終端角速度で固定されるまで戻らない
 static void omega_ramp_to(float omega_target, float alpha) {
-    float d = omega_target - motorDriver.getTargetOmega();
-    float a = (d >= 0.f) ? alpha : -alpha;
-    uint32_t ramp_ms = (uint32_t)(1000.f * d / a);
-    motorDriver.setTargetAlpha(a);
-    HAL_Delay(ramp_ms);
-    motorDriver.setTargetAlpha(0.f);
-    motorDriver.setTargetOmega(omega_target);
+    float omega1 = motorDriver.getTargetOmega();
+    float a = (omega_target >= omega1) ? alpha : -alpha;
+    float angle = (omega_target * omega_target - omega1 * omega1) / (2.f * a);
+    planProfile.omega2omega(omega_target, angle);
 }
 
 // 回転角速度PI+FF（omega_ff, config::pid_omega）と角度P（config::pid_angle）の追従性検証。
@@ -208,25 +200,19 @@ void omega_ramp_tester(float omega_target, uint32_t hold_ms) {
     imu.calibrate();
     HAL_Delay(1100);
 
-    motorDriver.setTargetAccelX(0.f);
-    motorDriver.setTargetVelocityX(0.f);
-    planProfile.resetTargetPositionX();
-    motorDriver.setTargetAlpha(0.f);
-    motorDriver.setTargetOmega(0.f);
-    motorDriver.resetTargetAngle();
-    planProfile.resetCurrentAngle();
+    planProfile.init();
 
     ledBar16.set(0x0000);
     logger.start();
     HAL_Delay(100);   // 静止区間：オフセット推定用
-    motorDriver.switchToVelocityX();
-    motorDriver.setTargetVelocityX(V_X);
+    planProfile.start();
+    planProfile.setTargetVelocityX(V_X);
     HAL_Delay(STRAIGHT_MS);
     omega_ramp_to(omega_target, ALPHA);
     HAL_Delay(hold_ms);
     omega_ramp_to(0.f, ALPHA);
     HAL_Delay(200);
-    motorDriver.setTargetVelocityX(0.f);
+    planProfile.setTargetVelocityX(0.f);
     HAL_Delay(300);
     logger.stop();
     motorDriver.setBreak();
