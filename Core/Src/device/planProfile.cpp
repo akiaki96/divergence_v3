@@ -1,4 +1,5 @@
 #include "device/planProfile.hpp"
+#include <cmath>
 #include "device/device_instance.hpp"
 
 PlanProfile::PlanProfile(MotorDriver& motorDriver)
@@ -12,12 +13,10 @@ void PlanProfile::init() {
     motorDriver_.state = MotorDriverState::setDuty;
     motorDriver_.setDuty(0.f, 0.f);
 
-    setAccelX(0.f);
-    target_velocity_x_ = 0.f;
+    setFreeVelocity(trans_, 0.f);
     resetTargetPositionX();
 
-    setAlpha(0.f);
-    target_omega_ = 0.f;
+    setFreeVelocity(rot_, 0.f);
     resetTargetAngle();
 }
 
@@ -25,19 +24,18 @@ void PlanProfile::resetTargetPositionX(void) {
     encoderLeft.reset();
     encoderRight.reset();
     current_position_x_ = 0.f;
-    target_position_x_ = 0.f;
+    trans_.pos = 0.f;
 }
 
 void PlanProfile::resetTargetAngle(void) {
     angle_origin_ = imu.gyroAngleZ();
     current_angle_ = 0.f;
-    target_angle_ = 0.f;
+    rot_.pos = 0.f;
 }
 
 // 制御周期の割り込みから毎tick呼ぶ（MotorDriver::update()の前）：
 // 1. 実測値（並進速度・位置，角速度・角度）を計算する
-// 2. 閉ループ中は目標値（軌道）を進める：加速度→速度→位置，角加速度→角速度→角度と積分し，
-//    終端速度・終端角速度に達したらそこで固定して加速度を切る（減速で0を越えて負になる・行き過ぎるのを防ぐ）
+// 2. 閉ループ中は目標軌道を1tick進める（advance()）
 // 3. 目標値をmotorDriverへ渡す（motorDriverは受け取った目標値に追従するだけ）
 void PlanProfile::update() {
     current_velocity_x_ = (encoderLeft.velocity() + encoderRight.velocity()) / 2.f;
@@ -47,47 +45,102 @@ void PlanProfile::update() {
     current_angle_ = imu.gyroAngleZ() - angle_origin_;
 
     if (motorDriver_.state == MotorDriverState::setVelocity) {
-        target_velocity_x_ += target_accel_x_ * config::control::DT_S;
-        if ((target_accel_x_ > 0.f && target_velocity_x_ >= end_velocity_x_) ||
-            (target_accel_x_ < 0.f && target_velocity_x_ <= end_velocity_x_)) {
-            target_velocity_x_ = end_velocity_x_;
-            target_accel_x_ = 0.f;
-        }
-        target_position_x_ += target_velocity_x_ * config::control::DT_S;
-
-        target_omega_ += target_alpha_ * config::control::DT_S;
-        if ((target_alpha_ > 0.f && target_omega_ >= end_omega_) ||
-            (target_alpha_ < 0.f && target_omega_ <= end_omega_)) {
-            target_omega_ = end_omega_;
-            target_alpha_ = 0.f;
-        }
-        target_angle_ += target_omega_ * config::control::DT_S;
+        advance(trans_, config::control::DT_S);
+        advance(rot_, config::control::DT_S);
     }
 
-    motorDriver_.setTargetX(target_position_x_, target_velocity_x_);
-    motorDriver_.setTargetRotation(target_angle_, target_omega_, target_alpha_);
+    motorDriver_.setTargetX(trans_.pos, trans_.vel);
+    motorDriver_.setTargetRotation(rot_.pos, rot_.vel, rot_.acc);
 }
 
-// 目標加速度を設定する。end_velocity_xに達したらupdate()で目標速度をそこに固定し，加速度を0にする
-void PlanProfile::setAccelX(float accel_x, float end_velocity_x) {
-    target_accel_x_ = 0.f;              // 旧加速度と新しい終端速度の組で割り込みが固定しないように先に止める
-    end_velocity_x_ = end_velocity_x;
-    target_accel_x_ = accel_x;
+// 目標軌道を1tick進める（割り込み側）。開始要求があれば今の目標位置をx0として区間を始め，
+// 区間中は解析式で位置・速度を計算し，t >= T で終点（x0 + d, v_end）にちょうどそろえて終える
+void PlanProfile::advance(Axis& ax, float dt) {
+    if (ax.pending) {
+        ax.x0 = ax.pos;
+        ax.v0 = ax.req_v0;
+        ax.a = ax.req_a;
+        ax.T = ax.req_T;
+        ax.x_end = ax.pos + ax.req_d;
+        ax.v_end = ax.req_v_end;
+        ax.t = 0.f;
+        ax.active = true;
+        ax.pending = false;
+    }
+
+    if (ax.active) {
+        ax.t += dt;
+        if (ax.t >= ax.T) {
+            ax.pos = ax.x_end;
+            ax.vel = ax.v_end;
+            ax.acc = 0.f;
+            ax.active = false;
+        } else {
+            ax.pos = ax.x0 + ax.v0 * ax.t + 0.5f * ax.a * ax.t * ax.t;
+            ax.vel = ax.v0 + ax.a * ax.t;
+            ax.acc = ax.a;
+        }
+    } else {
+        ax.pos += ax.vel * dt;
+        ax.acc = 0.f;
+    }
 }
 
-void PlanProfile::setAccelX(float accel_x) {
-    setAccelX(accel_x, (accel_x >= 0.f) ? NO_END_VELOCITY : -NO_END_VELOCITY);
+// 区間の開始を割り込み側へ要求し，終わるまで待つ（メインコンテキスト）
+void PlanProfile::runSegment(Axis& ax, float v0, float a, float T, float d, float v_end) {
+    ax.req_v0 = v0;
+    ax.req_a = a;
+    ax.req_T = T;
+    ax.req_d = d;
+    ax.req_v_end = v_end;
+    ax.pending = true;
+
+    while (ax.pending || ax.active) {
+        // wait
+    }
 }
 
-// 目標角加速度を設定する。end_omegaに達したらupdate()で目標角速度をそこに固定し，角加速度を0にする
-void PlanProfile::setAlpha(float alpha, float end_omega) {
-    target_alpha_ = 0.f;
-    end_omega_ = end_omega;
-    target_alpha_ = alpha;
+// 区間を打ち切り，目標速度velで等速に進める（区間の終わりを待たない）
+void PlanProfile::setFreeVelocity(Axis& ax, float vel) {
+    ax.pending = false;
+    ax.active = false;
+    ax.vel = vel;
+    ax.acc = 0.f;
 }
 
-void PlanProfile::setAlpha(float alpha) {
-    setAlpha(alpha, (alpha >= 0.f) ? NO_END_VELOCITY : -NO_END_VELOCITY);
+// 目標速度をvelへステップしてd進む（所要時間 T = d / vel）。velがdと逆向きか0なら等速にしてすぐ戻る
+void PlanProfile::segmentStepVelocity(Axis& ax, float vel, float d) {
+    if (vel * d <= 0.f) {
+        setFreeVelocity(ax, vel);
+        return;
+    }
+    runSegment(ax, vel, 0.f, d / vel, d, vel);
+}
+
+// 今の目標速度から加速度accでd進む（d = v0·T + acc·T²/2 を解く）。終わったら加速度0で速度はそのまま。
+// d進む前に速度が0になる減速は，その場（速度0）で止めて終える（このときだけ差分はdより短い）
+void PlanProfile::segmentStepAccel(Axis& ax, float acc, float d) {
+    if (d == 0.f) return;
+    float v0 = ax.vel;
+    float s = (d > 0.f) ? 1.f : -1.f;   // 進む向きで正にそろえて解く
+    float v0p = s * v0, ap = s * acc, dp = s * d;
+    float disc = v0p * v0p + 2.f * ap * dp;
+    if (disc >= 0.f && v0p + sqrtf(disc) > 0.f) {
+        float T = 2.f * dp / (v0p + sqrtf(disc));   // 桁落ちしない形の解
+        runSegment(ax, v0, acc, T, d, v0 + acc * T);
+    } else if (ap < 0.f && v0p > 0.f) {
+        float T = -v0p / ap;
+        runSegment(ax, v0, acc, T, s * v0p * v0p / (-2.f * ap), 0.f);
+    }
+}
+
+// 今の目標速度からvel2へ，等加速度でちょうどd進む（T = 2d / (v0 + v2), a = (v2 − v0) / T）。
+// v0・v2がdと同じ向き（または一方が0）であること
+void PlanProfile::segmentVel2Vel(Axis& ax, float vel2, float d) {
+    float v0 = ax.vel;
+    if ((v0 + vel2) * d <= 0.f) return;
+    float T = 2.f * d / (v0 + vel2);
+    runSegment(ax, v0, (vel2 - v0) / T, T, d, vel2);
 }
 
 // 走行開始時に1回だけ呼ぶ：速度・位置・角度のPIを初期化して閉ループへ切り替える。
@@ -99,117 +152,36 @@ void PlanProfile::start(void) {
 
 // 目標速度をステップで変える（加速度0）。区間の終わりを待たない（試験で時間指定の走行に使う）
 void PlanProfile::setTargetVelocityX(float velocity_x) {
-    setAccelX(0.f);
-    target_velocity_x_ = velocity_x;
+    setFreeVelocity(trans_, velocity_x);
 }
 
-// 区間の終わりは目標値で判定する（実測は制御ループが追いかけるだけで，軌道の進行には関わらない）：
-// 目標位置が終点に達した，または目標速度が0で止まった（減速で終端速度0に固定された）
-bool PlanProfile::isSegmentDone(float x_end) const {
-    return target_position_x_ >= x_end ||
-           (target_accel_x_ == 0.f && target_velocity_x_ <= 0.f);
-}
-
-// 目標速度をtarget_velocity_xへステップしてdistance[mm]進む（前進のみ）。
-// target_velocity_x<=0なら速度を設定してすぐ戻る（停止にはstop()を使う）
+// 各区間は目標位置・目標角度がちょうど指定の距離・角度だけ進んだところで終わり，次の区間はそこから始まる
 void PlanProfile::stepVelocity(float target_velocity_x, float distance) {
-    float x_end = target_position_x_ + distance;
-    setTargetVelocityX(target_velocity_x);
-
-    while (!isSegmentDone(x_end)) {
-        // wait
-    }
+    segmentStepVelocity(trans_, target_velocity_x, distance);
 }
 
-// 目標加速度target_accel_x[mm/s^2]でdistance[mm]進み，終わったら加速度を0にする（速度はそのまま）。
-// 減速（負の加速度）は目標速度0で止める（負にはしない）
 void PlanProfile::stepAccel(float target_accel_x, float distance) {
-    float x_end = target_position_x_ + distance;
-    if (target_accel_x < 0.f) {
-        setAccelX(target_accel_x, 0.f);
-    } else {
-        setAccelX(target_accel_x);
-    }
-
-    while (!isSegmentDone(x_end)) {
-        // wait
-    }
-    setAccelX(0.f);
+    segmentStepAccel(trans_, target_accel_x, distance);
 }
 
-// 今の目標速度からvelocity2へ，distance[mm]で等加速度に変化させる（v2^2 = v1^2 + 2*a*d）。
-// 初速は引数ではなく今の目標速度を使うので，前の区間から速度が連続につながる。
-// 目標速度がvelocity2に達したらupdate()で固定され（a=0），velocity2=0ならそこで止まって戻る
 void PlanProfile::vel2vel(float velocity2, float distance) {
-    if (distance <= 0.f) return;
-    float velocity1 = target_velocity_x_;
-    float x_end = target_position_x_ + distance;
-    float accel = (velocity2 * velocity2 - velocity1 * velocity1) / (2.f * distance);
-    setAccelX(accel, velocity2);
-
-    // 終端速度に達して（a=0）から，目標位置が終点に達する（離散化で数tickずれる）か0で止まるまで待つ
-    while (!(target_accel_x_ == 0.f && isSegmentDone(x_end))) {
-        // wait
-    }
+    segmentVel2Vel(trans_, velocity2, distance);
 }
 
-// 回転区間の終わり（目標値で判定）：目標角度が angle_start からangle（符号つき）だけ進んだ，
-// または目標角速度が回転方向に対して0で止まった（減速で終端角速度0に固定された）
-bool PlanProfile::isRotationDone(float angle_start, float angle) const {
-    float dir = (angle >= 0.f) ? 1.f : -1.f;
-    float progress = (target_angle_ - angle_start) * dir;
-    return progress >= angle * dir ||
-           (target_alpha_ == 0.f && target_omega_ * dir <= 0.f);
-}
-
-// 目標角速度をtarget_omegaへステップしてangle[deg]回る。target_omegaが回転方向と逆または0ならすぐ戻る
+// 回転。angle[deg]は符号つき（正で左旋回）
 void PlanProfile::stepOmega(float target_omega, float angle) {
-    if (angle == 0.f) return;
-    float angle_start = target_angle_;
-    setAlpha(0.f);
-    target_omega_ = target_omega;
-
-    while (!isRotationDone(angle_start, angle)) {
-        // wait
-    }
+    segmentStepVelocity(rot_, target_omega, angle);
 }
 
-// 目標角加速度target_alphaでangle[deg]回り，終わったら角加速度を0にする（角速度はそのまま）。
-// 回転方向と逆向きの角加速度（減速）は目標角速度0で止める（逆回転にはしない）
 void PlanProfile::stepAlpha(float target_alpha, float angle) {
-    if (angle == 0.f) return;
-    float angle_start = target_angle_;
-    if (target_alpha * angle < 0.f) {
-        setAlpha(target_alpha, 0.f);
-    } else {
-        setAlpha(target_alpha);
-    }
-
-    while (!isRotationDone(angle_start, angle)) {
-        // wait
-    }
-    setAlpha(0.f);
+    segmentStepAccel(rot_, target_alpha, angle);
 }
 
-// 今の目標角速度からomega2へ，angle[deg]で等角加速度に変化させる（ω2^2 = ω1^2 + 2*α*θ，符号つきで成り立つ）。
-// ω1・ω2は回転方向と同じ向き（または0）を想定。目標角速度がomega2に達したらupdate()で固定され，
-// omega2=0ならそこで止まって戻る
 void PlanProfile::omega2omega(float omega2, float angle) {
-    if (angle == 0.f) return;
-    float omega1 = target_omega_;
-    float angle_start = target_angle_;
-    float alpha = (omega2 * omega2 - omega1 * omega1) / (2.f * angle);
-    setAlpha(alpha, omega2);
-
-    // 終端角速度に達して（α=0）から，目標角度が終点に達するか0で止まるまで待つ
-    while (!(target_alpha_ == 0.f && isRotationDone(angle_start, angle))) {
-        // wait
-    }
+    segmentVel2Vel(rot_, omega2, angle);
 }
 
 void PlanProfile::stop(void) {
-    setAccelX(0.f);
-    target_velocity_x_ = 0.f;
-    setAlpha(0.f);
-    target_omega_ = 0.f;
+    setFreeVelocity(trans_, 0.f);
+    setFreeVelocity(rot_, 0.f);
 }

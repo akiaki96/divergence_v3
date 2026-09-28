@@ -14,12 +14,13 @@ public:
     // 目標速度をステップで変える（加速度0）。区間の終わりを待たない
     void setTargetVelocityX(float velocity_x);
 
-    // 各区間は目標値（目標位置・目標速度）で終わりを判定し，前の区間の目標値から連続につなぐ
+    // 各区間は目標位置がちょうどdistanceだけ進んだところで終わり（区間ごとの差分がちょうどdistance），
+    // 次の区間はその位置と速度から連続に始まる
     void stepVelocity(float target_velocity_x, float distance);
     void stepAccel(float target_accel_x, float distance);
     void vel2vel(float velocity2, float distance);   // 初速は今の目標速度
 
-    // 回転。angle[deg]は符号つき（正で左旋回＝ω正）。並進と同じく目標角度で終わりを判定し，
+    // 回転。angle[deg]は符号つき（正で左旋回＝ω正）。並進と同じく目標角度がちょうどangleだけ進んだところで終わり，
     // 前の区間の目標値から連続につなぐ。並進の目標速度はそのまま保たれるので，走行中の旋回にも使える
     void stepOmega(float target_omega, float angle);
     void stepAlpha(float target_alpha, float angle);
@@ -51,14 +52,29 @@ public:
     void resetTargetAngle(void);
 
 private:
-    bool isSegmentDone(float x_end) const;
-    bool isRotationDone(float angle_start, float angle) const;
+    // 1軸（並進 or 回転）の目標軌道。区間は時間の関数として解析的に生成する：
+    //   x(t) = x0 + v0·t + a·t²/2,  v(t) = v0 + a·t   （0 <= t < T）
+    // t >= T になったtickで x = x0 + d，v = v_end ちょうどにそろえて区間を終える（区間ごとの差分がちょうどd）。
+    // 区間外（free）は v 一定で x += v·dt。区間の開始（x0の確定）は割り込み側で行う（pending → active）
+    struct Axis {
+        volatile float pos = 0.f;   // 目標位置 [mm] / 目標角度 [deg]
+        volatile float vel = 0.f;   // 目標速度 [mm/s] / 目標角速度 [dps]
+        volatile float acc = 0.f;   // 目標加速度 [mm/s^2] / 目標角加速度 [dps/s]（FF用）
+        volatile bool pending = false;   // メイン→割り込み：区間の開始要求
+        volatile bool active = false;    // 区間の実行中
+        // 開始要求の内容（pendingをtrueにする前に書く）
+        float req_v0 = 0.f, req_a = 0.f, req_T = 0.f, req_d = 0.f, req_v_end = 0.f;
+        // 実行中の区間（割り込み側だけが使う）
+        float t = 0.f, x0 = 0.f, v0 = 0.f, a = 0.f, T = 0.f, x_end = 0.f, v_end = 0.f;
+    };
 
-    // 目標（角）加速度と終端（角）速度の設定。省略時は終端なし（かけ続ける）
-    void setAccelX(float accel_x, float end_velocity_x);
-    void setAccelX(float accel_x);
-    void setAlpha(float alpha, float end_omega);
-    void setAlpha(float alpha);
+    static void advance(Axis& ax, float dt);
+    static void runSegment(Axis& ax, float v0, float a, float T, float d, float v_end);
+    static void setFreeVelocity(Axis& ax, float vel);
+    // 区間の種類（並進・回転共通。dは符号つきの距離・角度）
+    static void segmentStepVelocity(Axis& ax, float vel, float d);
+    static void segmentStepAccel(Axis& ax, float acc, float d);
+    static void segmentVel2Vel(Axis& ax, float vel2, float d);
 
     MotorDriver& motorDriver_;
 
@@ -74,14 +90,7 @@ private:
     volatile float current_angle_ = 0.f;  // [deg] resetTargetAngle()時の姿勢を0とする
     volatile float angle_origin_ = 0.f;   // [deg] resetTargetAngle()時のimu.gyroAngleZ()
 
-    // 目標値（軌道）。update()で積分してmotorDriverへ渡す
-    static constexpr float NO_END_VELOCITY = 1.0e9f;
-    volatile float target_accel_x_ = 0.f;      // [mm/s^2]
-    volatile float target_velocity_x_ = 0.f;   // [mm/s]
-    volatile float target_position_x_ = 0.f;   // [mm]
-    volatile float end_velocity_x_ = NO_END_VELOCITY;   // [mm/s] 目標速度の終端（setAccelX参照）
-    volatile float target_alpha_ = 0.f;        // [dps/s]
-    volatile float target_omega_ = 0.f;        // [dps]
-    volatile float target_angle_ = 0.f;        // [deg]
-    volatile float end_omega_ = NO_END_VELOCITY;        // [dps] 目標角速度の終端（setAlpha参照）
+    // 目標軌道。update()で進めてmotorDriverへ渡す
+    Axis trans_;   // 並進 [mm]
+    Axis rot_;     // 回転 [deg]
 };
