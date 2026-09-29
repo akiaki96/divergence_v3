@@ -138,29 +138,63 @@ onenter(plan_turn_step_alpha_pos430,
 )
 
 // ---- 並進の高速試験（吸引ファンON）----
-// ファン20%で吸着させ，0→2000mm/s（180mm）→ 2000mm/sで360mm → 2000→0mm/s（180mm）の計720mm。
-// 加速度は 2000^2/(2*180) ≈ 11,100mm/s^2（約1.13G）。所要約0.54s。停止の遅れも含め1m以上の直線を確保すること。
-// 並進の同定（K_p, T_p1, FF）は約900mm/sまでの実測なので，2000mm/sでの追従は外挿（ログで確認する）。
+// ファンで吸着させて高速・高加速度で走る。並進の同定（K_p, T_p1, FF）は約900mm/s・ファンなしの実測なので，
+// 高速域の追従は外挿（ログで確認する）。停止の遅れも含め，経路長＋0.3m以上の直線を確保すること。
 namespace {
 constexpr float FAST_FAN_DUTY = 0.20f;
 constexpr uint32_t FAST_FAN_SPINUP_MS = 1000;   // ファンのスピンアップ待ち（吸着力が立ち上がるまで）
-constexpr float FAST_MIN_BATTERY_V = 7.4f;      // [V] これ未満なら走らない（2000mm/sに必要な電圧余裕の確保）
-constexpr float FAST_V_MAX = 2000.f;            // [mm/s]
-constexpr float FAST_ACCEL_DIST = 180.f;        // [mm]
-constexpr float FAST_CRUISE_DIST = 360.f;       // [mm]
-constexpr float FAST_DECEL_DIST = 180.f;        // [mm]
+
+// 台形（加速→定速→減速）の高速試験
+struct FastProfile {
+    float v_max;        // [mm/s]
+    float accel_dist;   // [mm] 0→v_max
+    float cruise_dist;  // [mm] v_maxで定速
+    float decel_dist;   // [mm] v_max→0
+};
+
+// 台形の加速・減速がプロファイルの加速度の上限（config::profile_limit）内か。超えていればコンパイルエラーにする
+constexpr bool withinAccelLimit(const FastProfile& p) {
+    return config::profile_limit::withinAccelLimit(0.f, p.v_max, p.accel_dist) &&
+           config::profile_limit::withinAccelLimit(p.v_max, 0.f, p.decel_dist);
 }
 
-// IMU校正はファンを回す前に行う（ファンの振動がジャイロのオフセット推定に乗らないように）。
-// ファンをスピンアップさせてから原点を取り，ログを始めて走る。停止後にファンを止める
-static void plan_fast_tester(void) {
+// 0→2000mm/s（180mm, 約1.13G）→ 360mm → 0（180mm）。経路720mm，所要約0.54s
+constexpr FastProfile FAST_2000 = {2000.f, 180.f, 360.f, 180.f};
+static_assert(withinAccelLimit(FAST_2000), "FAST_2000 exceeds config::profile_limit");
+
+constexpr float FAST_MIN_BATTERY_V = 7.4f;   // [V] これ未満なら走らない（高速に必要な電圧余裕の確保）
+}
+
+// 高速試験のログ：速度試験の項目に，ファンduty・目標加速度・速度PIの飽和フラグを加える（13列＝約1.8s）
+static void plan_fast_init_log(const char* file_name) {
+    id_init_log_velocity();
+    logger.add(
+        "fan_duty",
+        etl::delegate<float()>::create<Fan, &Fan::getDuty>(fan)
+    );
+    logger.add(
+        "target_accel_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetAccelX>(motorDriver)
+    );
+    logger.add(
+        "velocity_saturated",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXSaturated>(motorDriver)
+    );
+    logger.setDirName("plan_profile_x");
+    logger.setFileName(file_name);
+    logger.setIncludeTimestamp(false);
+}
+
+// ファンONの高速試験の共通環境：電池電圧の確認 → IMU校正（ファンの振動がジャイロのオフセット推定に
+// 乗らないようにファンを回す前に行う）→ ファンのスピンアップ → 原点取り → ログ開始 → profile() → 停止 → ファン停止
+static void plan_fan_tester(void (*profile)(void), float min_battery_v) {
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
     fan.stop();
 
     float v0 = battery.voltage();
-    if (v0 < FAST_MIN_BATTERY_V) {
-        LOG("fast test not started: battery %.2f V < %.2f V\r\n", v0, FAST_MIN_BATTERY_V);
+    if (v0 < min_battery_v) {
+        LOG("fast test not started: battery %.2f V < %.2f V\r\n", v0, min_battery_v);
         for (int i = 0; i < 6; ++i) {   // 開始できない合図: LEDバー左右交互点滅 約3s
             ledBar16.set((i % 2 == 0) ? 0x00FF : 0xFF00);
             HAL_Delay(500);
@@ -182,11 +216,9 @@ static void plan_fast_tester(void) {
     HAL_Delay(100);   // 静止区間（ファンON）：オフセット推定用
     planProfile.start();
 
-    planProfile.vel2vel(FAST_V_MAX, FAST_ACCEL_DIST);
-    planProfile.stepVelocity(FAST_V_MAX, FAST_CRUISE_DIST);
-    planProfile.vel2vel(0.f, FAST_DECEL_DIST);
+    profile();
 
-    HAL_Delay(500);   // 停止の整定
+    HAL_Delay(500);   // 停止の整定（目標から遅れた分を位置Pで追いつく時間を含む）
     planProfile.stop();
     logger.stop();
     motorDriver.setBreak();
@@ -198,18 +230,13 @@ static void plan_fast_tester(void) {
     ledBar16.set(0x0000);
 }
 
+static void run_fast_profile(const FastProfile& profile) {
+    planProfile.vel2vel(profile.v_max, profile.accel_dist);
+    planProfile.stepVelocity(profile.v_max, profile.cruise_dist);
+    planProfile.vel2vel(0.f, profile.decel_dist);
+}
+
 onenter(plan_fast_2000,
-    id_init_log_velocity();
-    logger.add(
-        "fan_duty",
-        etl::delegate<float()>::create<Fan, &Fan::getDuty>(fan)
-    );
-    logger.add(
-        "target_accel_x",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetAccelX>(motorDriver)
-    );
-    logger.setDirName("plan_profile_x");
-    logger.setFileName("plan_fast_2000_fan020");
-    logger.setIncludeTimestamp(false);
-    plan_fast_tester();
+    plan_fast_init_log("plan_fast_2000_fan020");
+    plan_fan_tester([] { run_fast_profile(FAST_2000); }, FAST_MIN_BATTERY_V);
 )
