@@ -9,15 +9,16 @@ MotorDriver::MotorDriver(Motor& left, Motor& right)
     motorRight_(right)
 {}
 
-// 並進速度feedforwardの静的成分（translational_gain_tuning.md §2.2）:
-//   u_ff(v) = v/A_GAIN + U0_DEADZONE*sign(v)
-// 加速度成分（T_p1/K_p · a_ref）は速度PIのff（MotorDriver::init()）で加える
-float velocity_x_ff(float velocity_x) {
+// 並進速度feedforward [V]（translational_gain_tuning.md §2.2 + 1次遅れの逆モデル）:
+//   u_ff(v, a) = v/A_GAIN + U0_DEADZONE*sign(v) + ACCEL_FF_GAIN*a
+// 静的成分は速度指令v（位置Pの補正を含む）から，加速度成分は軌道の目標加速度aから作る
+static float velocity_x_ff(float velocity_x, float accel_x) {
+    float accel_ff = config::pid_velocity_x::ACCEL_FF_GAIN * accel_x;
     float abs_v = (velocity_x < 0.f) ? -velocity_x : velocity_x;
-    if (abs_v < config::pid_velocity_x::ZERO_VELOCITY_EPS) return 0.f;
+    if (abs_v < config::pid_velocity_x::ZERO_VELOCITY_EPS) return accel_ff;
 
     float sign = (velocity_x > 0.f) ? 1.f : -1.f;
-    return (velocity_x / config::pid_velocity_x::A_GAIN) + sign * config::pid_velocity_x::U0_DEADZONE;
+    return (velocity_x / config::pid_velocity_x::A_GAIN) + sign * config::pid_velocity_x::U0_DEADZONE + accel_ff;
 }
 
 static float abs_f(float x) {
@@ -28,7 +29,7 @@ static float abs_f(float x) {
 //   u_ff(ω_ref, α_ref) = ω_ref/K_FF± + A_FF·α_ref
 // 静的項の傾きはω_refの符号で正/負を選ぶ（-側は同じ角速度でより大きな出力が要る）。0では両側とも0で連続。
 // 並進と違い加速度項を入れる：回転は必要出力の大部分を積分で作るとOSになり，加速度FFで遅れを消すのが本質（§17）
-float omega_ff(float omega, float alpha) {
+static float omega_ff(float omega, float alpha) {
     float k = (omega >= 0.f) ? config::pid_omega::K_FF_POS : config::pid_omega::K_FF_NEG;
     return (omega / k) + config::pid_omega::A_FF * alpha;
 }
@@ -52,10 +53,6 @@ void MotorDriver::init() {
         config::pid_velocity_x::kp,
         config::pid_velocity_x::ki,
         config::pid_velocity_x::kd,
-        // FF = 静的成分（速度指令から）＋ 加速度成分（PlanProfileの目標加速度から）
-        [](float velocity_x) {
-            return velocity_x_ff(velocity_x) + config::pid_velocity_x::ACCEL_FF_GAIN * motorDriver.getTargetAccelX();
-        },
         config::pid_velocity_x::BACK_CALC_TT
     );
 
@@ -63,7 +60,6 @@ void MotorDriver::init() {
         config::pid_position_x::kp,
         0.f,
         0.f,
-        [](float) { return motorDriver.getTargetVelocityX(); },
         0.f
     );
 
@@ -73,7 +69,6 @@ void MotorDriver::init() {
         config::pid_omega::kp,
         config::pid_omega::kp / ti0,
         config::pid_omega::kd,
-        [](float) { return omega_ff(motorDriver.getTargetOmega(), motorDriver.getTargetAlpha()); },
         ti0
     );
 
@@ -81,7 +76,6 @@ void MotorDriver::init() {
         config::pid_angle::kp,
         0.f,
         0.f,
-        [](float) { return motorDriver.getTargetOmega(); },
         0.f
     );
 }
@@ -137,16 +131,19 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
         break;
 
         case MotorDriverState::setVelocity: {
-            // 目標値（軌道）はPlanProfile::update()が生成して渡す。ここでは追従制御だけを行う
-            float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x);
+            // 目標値（軌道）はPlanProfile::update()が生成して渡す。ここでは追従制御だけを行う。
+            // 各ループのfeedforwardは目標値から計算してupdate()に渡す
+            // 並進：位置P（FF=目標速度）→ 速度PI（FF=静的成分＋加速度成分）
+            float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x, target_velocity_x_);
 
             bool saturated = false;
             float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
-            float base_batt = pid_velocity_x_.update(local_target_velocity_x, current_velocity_x, limit, saturated);
+            float velocity_ff = velocity_x_ff(local_target_velocity_x, target_accel_x_);
+            float base_batt = pid_velocity_x_.update(local_target_velocity_x, current_velocity_x, velocity_ff, limit, saturated);
             velocity_pid_saturated_ = saturated;
 
-            // ---- 回転：角度P（外側）→ 角速度PI+FF（内側）。並進と同じ2自由度カスケード ----
-            float local_target_omega = pid_angle_.update(target_angle_, current_angle);
+            // ---- 回転：角度P（FF=目標角速度）→ 角速度PI（FF=角速度・角加速度から）。並進と同じ2自由度カスケード ----
+            float local_target_omega = pid_angle_.update(target_angle_, current_angle, target_omega_);
 
             // FF・Tiのスケジュール変数は補正を含まない目標角速度ω_ref（既知・無雑音）
             float ti = omega_ti_schedule(target_omega_);
@@ -154,7 +151,8 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
             pid_omega_.back_calc_tt = ti;
 
             bool omega_saturated = false;
-            float diff_batt = pid_omega_.update(local_target_omega, current_omega, config::pid_omega::VOLTAGE_LIMIT, omega_saturated);
+            float omega_feedforward = omega_ff(target_omega_, target_alpha_);
+            float diff_batt = pid_omega_.update(local_target_omega, current_omega, omega_feedforward, config::pid_omega::VOLTAGE_LIMIT, omega_saturated);
             omega_pid_saturated_ = omega_saturated;
 
             // diff = R − L（正でω正）。v_L = v − diff/2, v_R = v + diff/2 のkinematic配分
