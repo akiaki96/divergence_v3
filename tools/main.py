@@ -61,14 +61,18 @@ while True:
         print("Actually revieved:", len(binary))
 
         end_line = receiver.read_line()
-        if end_line != "BIN_END":
+        bin_end_ok = end_line == "BIN_END"
+        if not bin_end_ok:
             print("Warning: BIN_END not received correctly")
 
         # parser.parse(binary:bytes) -> data: list[dict]（1要素=1サンプル）
         data = parser.parse(binary)
 
-        if args.no_save:
-            print("Not saved (--no_save)")
+        if args.no_save or not bin_end_ok:
+            if args.no_save:
+                print("Not saved (--no_save)")
+            else:
+                print("Not saved (BIN_END not received)")
             # plot_data(headers, columns) -> なし（グラフウィンドウを表示）
             if not args.no_gui:
                 columns = [[row[h] for row in data] for h in headers]
