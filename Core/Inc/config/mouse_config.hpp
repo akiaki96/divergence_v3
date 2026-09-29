@@ -71,6 +71,11 @@ inline constexpr float voltage_limit_ratio = 0.95f;
 
 // --- feedforwardのゼロ速度judgement（停止指令時に不感帯補償を入れずビビリを防ぐ）---
 inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
+
+// --- 加速度feedforward（1次遅れモデル T_p1·dv/dt + v = K_p·u の逆モデルの微分項）---
+// u_acc = (T_p1/K_p)·a_ref。目標加速度a_refはPlanProfileの軌道から与える（加減速区間だけ非0）。
+// 2000mm/sまで180mmで加速（約11,100mm/s^2）すると約3.3V。0にすると加速度FFなし（静的FFのみ）
+inline constexpr float ACCEL_FF_GAIN = T_p1 / K_p;  // [V/(mm/s^2)] ≈ 2.93e-4
 }
 
 namespace config::pid_position_x {

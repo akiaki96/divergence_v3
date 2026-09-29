@@ -36,10 +36,16 @@ public:
 
     void switchToVelocityX();
 
-    // 並進の目標値（軌道生成はPlanProfileの責務。毎tick PlanProfile::update()から渡される）
-    void setTargetX(float position_x, float velocity_x) {
+    // 並進の目標値（軌道生成はPlanProfileの責務。毎tick PlanProfile::update()から渡される）。
+    // accel_xは加速度FFの入力としてだけ使う（積分はしない）
+    void setTargetX(float position_x, float velocity_x, float accel_x) {
         target_position_x_ = position_x;
         target_velocity_x_ = velocity_x;
+        target_accel_x_ = accel_x;
+    }
+
+    float getTargetAccelX() const {
+        return target_accel_x_;
     }
 
     // 追従性検証用ログ（target_velocity_x）で参照する
@@ -109,6 +115,7 @@ private:
     // 目標値（PlanProfile::update()から毎tick渡される）
     float target_velocity_x_ = 0.f;   // [mm/s]
     float target_position_x_ = 0.f;   // [mm]
+    float target_accel_x_ = 0.f;      // [mm/s^2] 加速度FFの入力
 
     PIDController pid_velocity_x_;
     PIDController pid_position_x_;

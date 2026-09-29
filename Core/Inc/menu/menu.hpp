@@ -46,6 +46,7 @@ private:
                 MenuNode plan_step_velocity_{"stepVelocity"};
                 MenuNode plan_step_accel_{"stepAccel"};
                 MenuNode plan_vel2vel_{"vel2vel"};
+                MenuNode plan_fast_2000_{"fast 2000 fan0.2"};
             MenuNode plan_rotation_{"Plan rotation"};
                 MenuNode plan_turn_pos430_{"omega2omega +430"};
                 MenuNode plan_turn_neg430_{"omega2omega -430"};

@@ -49,7 +49,7 @@ void PlanProfile::update() {
         advance(rot_, config::control::DT_S);
     }
 
-    motorDriver_.setTargetX(trans_.pos, trans_.vel);
+    motorDriver_.setTargetX(trans_.pos, trans_.vel, trans_.acc);
     motorDriver_.setTargetRotation(rot_.pos, rot_.vel, rot_.acc);
 }
 

@@ -1,6 +1,7 @@
 #include "test/plan_profile_test.hpp"
 #include "test/motor_id.hpp"
 #include "common/etc.hpp"
+#include "common/debug.hpp"
 
 // PlanProfile（stepVelocity / stepAccel / vel2vel）の実機試験の共通環境。
 // IMU校正 → planProfile.init()（目標値0・原点取り直し）→ ログ開始 → profile() → planProfile.stop() で停止
@@ -134,4 +135,81 @@ onenter(plan_turn_step_alpha_pos430,
     plan_profile_tester_head();
     profile_turn_step_alpha(1.f);
     plan_profile_tester_tail();
+)
+
+// ---- 並進の高速試験（吸引ファンON）----
+// ファン20%で吸着させ，0→2000mm/s（180mm）→ 2000mm/sで360mm → 2000→0mm/s（180mm）の計720mm。
+// 加速度は 2000^2/(2*180) ≈ 11,100mm/s^2（約1.13G）。所要約0.54s。停止の遅れも含め1m以上の直線を確保すること。
+// 並進の同定（K_p, T_p1, FF）は約900mm/sまでの実測なので，2000mm/sでの追従は外挿（ログで確認する）。
+namespace {
+constexpr float FAST_FAN_DUTY = 0.20f;
+constexpr uint32_t FAST_FAN_SPINUP_MS = 1000;   // ファンのスピンアップ待ち（吸着力が立ち上がるまで）
+constexpr float FAST_MIN_BATTERY_V = 7.4f;      // [V] これ未満なら走らない（2000mm/sに必要な電圧余裕の確保）
+constexpr float FAST_V_MAX = 2000.f;            // [mm/s]
+constexpr float FAST_ACCEL_DIST = 180.f;        // [mm]
+constexpr float FAST_CRUISE_DIST = 360.f;       // [mm]
+constexpr float FAST_DECEL_DIST = 180.f;        // [mm]
+}
+
+// IMU校正はファンを回す前に行う（ファンの振動がジャイロのオフセット推定に乗らないように）。
+// ファンをスピンアップさせてから原点を取り，ログを始めて走る。停止後にファンを止める
+static void plan_fast_tester(void) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    fan.stop();
+
+    float v0 = battery.voltage();
+    if (v0 < FAST_MIN_BATTERY_V) {
+        LOG("fast test not started: battery %.2f V < %.2f V\r\n", v0, FAST_MIN_BATTERY_V);
+        for (int i = 0; i < 6; ++i) {   // 開始できない合図: LEDバー左右交互点滅 約3s
+            ledBar16.set((i % 2 == 0) ? 0x00FF : 0xFF00);
+            HAL_Delay(500);
+        }
+        ledBar16.set(0x0000);
+        return;
+    }
+
+    imu.calibrate();
+    HAL_Delay(1100);
+
+    fan.setDuty(FAST_FAN_DUTY);
+    HAL_Delay(FAST_FAN_SPINUP_MS);
+
+    planProfile.init();
+
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);   // 静止区間（ファンON）：オフセット推定用
+    planProfile.start();
+
+    planProfile.vel2vel(FAST_V_MAX, FAST_ACCEL_DIST);
+    planProfile.stepVelocity(FAST_V_MAX, FAST_CRUISE_DIST);
+    planProfile.vel2vel(0.f, FAST_DECEL_DIST);
+
+    HAL_Delay(500);   // 停止の整定
+    planProfile.stop();
+    logger.stop();
+    motorDriver.setBreak();
+    fan.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+onenter(plan_fast_2000,
+    id_init_log_velocity();
+    logger.add(
+        "fan_duty",
+        etl::delegate<float()>::create<Fan, &Fan::getDuty>(fan)
+    );
+    logger.add(
+        "target_accel_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetAccelX>(motorDriver)
+    );
+    logger.setDirName("plan_profile_x");
+    logger.setFileName("plan_fast_2000_fan020");
+    logger.setIncludeTimestamp(false);
+    plan_fast_tester();
 )
