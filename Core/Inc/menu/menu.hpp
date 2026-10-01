@@ -46,6 +46,8 @@ private:
                 MenuNode plan_step_velocity_{"stepVelocity"};
                 MenuNode plan_step_accel_{"stepAccel"};
                 MenuNode plan_vel2vel_{"vel2vel"};
+                MenuNode plan_encoder_check_{"encoder check 50"};
+                MenuNode plan_encoder_check_fan_{"encoder check 50 fan0.2"};
                 MenuNode plan_fast_2000_{"fast 2000 fan0.2"};
             MenuNode plan_rotation_{"Plan rotation"};
                 MenuNode plan_turn_pos430_{"omega2omega +430"};

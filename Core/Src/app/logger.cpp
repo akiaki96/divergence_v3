@@ -5,6 +5,7 @@
 void Logger::initLoggedVal(void) {
     fieldCount_ = 0;
     maxSamples_ = MAX_BUFFER_SIZE;
+    decimation_ = 1;
     isRecording_ = false;
     isFull_ = false;
     add("Global_time", &globalTime);
@@ -12,6 +13,10 @@ void Logger::initLoggedVal(void) {
     dirName = ".";
     fileName = nullptr;
     includeTimestamp = true;
+}
+
+void Logger::setDecimation(uint32_t every_n_ticks) {
+    decimation_ = (every_n_ticks == 0) ? 1 : every_n_ticks;
 }
 
 void Logger::setDirName(const char* name) {
@@ -74,6 +79,7 @@ bool Logger::add(const char* name, Getter getter) {
 
 void Logger::start(void) {
     sampleCount_ = 0;
+    tickCount_ = 0;
     isRecording_ = true;
     isFull_ = false;
     state_ = LoggerState::Recording;
@@ -93,6 +99,11 @@ void Logger::clear(void) {
 
 void Logger::sample(void) {
     if (state_ != LoggerState::Recording) {
+        return;
+    }
+
+    // 間引き：decimation_ tickに1回だけ記録する（開始直後のtickは記録する）
+    if (tickCount_++ % decimation_ != 0) {
         return;
     }
 

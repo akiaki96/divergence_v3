@@ -22,7 +22,7 @@ void Menu::buildTree() {
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &motor_omega_, &plan_profile_, &plan_rotation_});
                 motor_r_.setChildren(std::array{&right_050_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_000_});
-                plan_profile_.setChildren(std::array{&plan_step_velocity_, &plan_step_accel_, &plan_vel2vel_, &plan_fast_2000_});
+                plan_profile_.setChildren(std::array{&plan_step_velocity_, &plan_step_accel_, &plan_vel2vel_, &plan_encoder_check_, &plan_encoder_check_fan_, &plan_fast_2000_});
                 plan_rotation_.setChildren(std::array{&plan_turn_pos430_, &plan_turn_neg430_, &plan_turn_step_alpha_pos430_});
                 motor_omega_.setChildren(std::array{&omega_ramp_pos430_, &omega_ramp_neg430_, &omega_ramp_pos250_, &omega_ramp_neg250_, &omega_ramp_pos100_, &omega_ramp_neg100_});
 
@@ -88,6 +88,8 @@ void Menu::setFunction() {
     plan_step_velocity_.setOnEnter(plan_step_velocity_onenter);
     plan_step_accel_.setOnEnter(plan_step_accel_onenter);
     plan_vel2vel_.setOnEnter(plan_vel2vel_onenter);
+    plan_encoder_check_.setOnEnter(plan_encoder_check_onenter);
+    plan_encoder_check_fan_.setOnEnter(plan_encoder_check_fan_onenter);
     plan_fast_2000_.setOnEnter(plan_fast_2000_onenter);
     plan_turn_pos430_.setOnEnter(plan_turn_pos430_onenter);
     plan_turn_neg430_.setOnEnter(plan_turn_neg430_onenter);

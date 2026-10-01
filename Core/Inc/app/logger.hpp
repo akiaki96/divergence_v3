@@ -27,6 +27,9 @@ public:
     void setIncludeTimestamp(bool enable);
     bool add(const char* name, const float* value);
     bool add(const char* name, Getter getter);
+    // n tickに1回だけ記録する（既定1＝毎tick）。長時間の試験でバッファ（MAX_BUFFER_SIZE）に収めるため。
+    // initLoggedVal()で1に戻る
+    void setDecimation(uint32_t every_n_ticks);
 
     void start(void);
     void stop(void);
@@ -58,6 +61,8 @@ private:
     float buffer_[MAX_BUFFER_SIZE];
     uint32_t sampleCount_ = 0;
     uint32_t maxSamples_ = MAX_BUFFER_SIZE;
+    uint32_t decimation_ = 1;
+    uint32_t tickCount_ = 0;
 
     bool isRecording_ = false;
     bool isFull_ = false;

@@ -240,3 +240,119 @@ onenter(plan_fast_2000,
     plan_fast_init_log("plan_fast_2000_fan020");
     plan_fan_tester([] { run_fast_profile(FAST_2000); }, FAST_MIN_BATTERY_V);
 )
+
+// ---- 低速のエンコーダ検証 ----
+// 50mm/sで990mm（90mm×11）まっすぐ走り，エンコーダの距離と実際に進んだ距離（定規・迷路の区画で測る）を比べる。
+// 低速なのでスリップはほぼ起きず，差はエンコーダの換算（車輪径・ギヤ比・分解能）の誤差になる。
+//   実測距離 / 990mm = 真の車輪径 / WHEEL_RADIUS_MM×2 の比。左右の距離の差は左右の車輪径の差（向きはジャイロで保持）。
+// ファンありでも同じ試験をする：吸着でタイヤが押しつぶされると実効半径が小さくなり，同じ回転で進む距離が変わる。
+// 所要約21s。ログは20msごと（50Hz, 1mm/サンプル）に間引いて記録する（12列×約1050サンプル）
+namespace {
+constexpr float ENC_CHECK_VELOCITY = 50.f;        // [mm/s]
+constexpr float ENC_CHECK_DISTANCE = 90.f * 11;   // [mm]
+constexpr uint32_t ENC_CHECK_LOG_DECIMATION = 20; // [tick] 20ms
+}
+
+static void encoder_check_init_log(const char* file_name) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+
+    logger.initLoggedVal();
+    logger.add(
+        "left_distance",
+        etl::delegate<float()>::create<Encoder, &Encoder::distance>(encoderLeft)
+    );
+    logger.add(
+        "right_distance",
+        etl::delegate<float()>::create<Encoder, &Encoder::distance>(encoderRight)
+    );
+    logger.add(
+        "current_distance_x",
+        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentPositionX>(planProfile)
+    );
+    logger.add(
+        "target_distance_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetPositionX>(motorDriver)
+    );
+    logger.add(
+        "encoder_velocity_x",
+        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentVelocityX>(planProfile)
+    );
+    logger.add(
+        "target_velocity_x",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetVelocityX>(motorDriver)
+    );
+    logger.add(
+        "gyro_z",
+        etl::delegate<float()>::create<Imu, &Imu::gyroZ>(imu)
+    );
+    logger.add(
+        "battery",
+        etl::delegate<float()>::create<Battery, &Battery::voltage>(battery)
+    );
+    logger.add(
+        "Left Duty",
+        etl::delegate<float()>::create<Motor, &Motor::getDuty>(motorLeft)
+    );
+    logger.add(
+        "Right Duty",
+        etl::delegate<float()>::create<Motor, &Motor::getDuty>(motorRight)
+    );
+    logger.add(
+        "fan_duty",
+        etl::delegate<float()>::create<Fan, &Fan::getDuty>(fan)
+    );
+    logger.setDecimation(ENC_CHECK_LOG_DECIMATION);
+    logger.setDirName("plan_profile_x");
+    logger.setFileName(file_name);
+    logger.setIncludeTimestamp(false);
+}
+
+// fan_duty>0ならファンを回した状態で走る。IMU校正はファンを回す前に行う（振動がジャイロのオフセット推定に乗らないように）
+static void encoder_check(float fan_duty) {
+    motorDriver.state = MotorDriverState::setDuty;
+    motorDriver.setDuty(0.f, 0.f);
+    fan.stop();
+    imu.calibrate();
+    HAL_Delay(1100);
+
+    if (fan_duty > 0.f) {
+        fan.setDuty(fan_duty);
+        HAL_Delay(FAST_FAN_SPINUP_MS);
+    }
+
+    planProfile.init();
+
+    ledBar16.set(0x0000);
+    logger.start();
+    HAL_Delay(100);   // 静止区間：オフセット推定用
+    planProfile.start();
+
+    planProfile.stepVelocity(ENC_CHECK_VELOCITY, ENC_CHECK_DISTANCE);
+    planProfile.stop();
+    HAL_Delay(1000);   // 停止の整定
+
+    float left = encoderLeft.distance();
+    float right = encoderRight.distance();
+    LOG("encoder check (fan %.2f): target %.1f mm, left %.1f mm, right %.1f mm, average %.1f mm, left-right %.1f mm\r\n",
+        fan_duty, ENC_CHECK_DISTANCE, left, right, (left + right) / 2.f, left - right);
+
+    logger.stop();
+    motorDriver.setBreak();
+    fan.stop();
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+    logger.dump();
+    ledBar16.set(0x0000);
+}
+
+onenter(plan_encoder_check,
+    encoder_check_init_log("encoder_check_50");
+    encoder_check(0.f);
+)
+
+onenter(plan_encoder_check_fan,
+    encoder_check_init_log("encoder_check_50_fan020");
+    encoder_check(FAST_FAN_DUTY);
+)
