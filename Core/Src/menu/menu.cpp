@@ -13,7 +13,7 @@ Menu::Menu() {
 }
 
 void Menu::buildTree() {
-    root_.setChildren(std::array{&run_, &device_, &log_dump_});
+    root_.setChildren(std::array{&run_, &device_, &log_dump_, &slalom_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
             fan_.setChildren(std::array{&fan_run_010_, &fan_run_020_, &fan_run_030_, &fan_run_040_, &fan_bringup_, &fan_hold_010_, &fan_hold_020_, &fan_hold_030_, &fan_hold_040_});
@@ -26,6 +26,12 @@ void Menu::buildTree() {
                 plan_profile_.setChildren(std::array{&plan_step_velocity_, &plan_vel2vel_, &plan_encoder_check_, &plan_encoder_check_fan_, &plan_fast_2000_});
                 plan_rotation_.setChildren(std::array{&plan_turn_pos430_, &plan_turn_neg430_});
                 rotation_.setChildren(std::array{&rot_angle_hold_, &rot_pivot_pos90_, &rot_pivot_neg90_, &rot_pivot_pos180_, &rot_pivot_neg180_});
+
+    // 各パラメータのノードは生成ヘッダから並べる（試験はslalom_test_onenter，menu.hppのslalomNodes()）。
+    // パラメータがconfig::menu::MAX_CHILDRENを超えるとsetChildren()のstatic_assertで止まる
+    slalom_.setChildren(std::array{&slalom_left_, &slalom_right_});
+        slalom_left_.setChildren(pointersOf(slalom_left_items_));
+        slalom_right_.setChildren(pointersOf(slalom_right_items_));
 
     
     root_.setParentRec();

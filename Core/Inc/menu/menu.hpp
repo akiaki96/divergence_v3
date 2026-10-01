@@ -1,7 +1,12 @@
 #pragma once
 
+#include <array>
+#include <cstddef>
+#include <utility>
+
 #include "menu/menuNode.hpp"
 #include "config/node_func_maker.hpp"
+#include "test/slalom_test.hpp"
 
 class Menu {
 public:
@@ -18,6 +23,23 @@ public:
 private:
     void buildTree();
     void setFunction();
+
+    // 生成ヘッダのスラロームのパラメータ（config::slalom::ALL）ごとに，試験を走らせるノードを並べる
+    template <slalom::TurnDir Dir, std::size_t... I>
+    static std::array<MenuNode, sizeof...(I)> slalomNodes(std::index_sequence<I...>) {
+        return {MenuNode(config::slalom::ALL[I].name, nullptr, &slalom_test_onenter<Dir, I>)...};
+    }
+
+    template <std::size_t N>
+    static std::array<MenuNode*, N> pointersOf(std::array<MenuNode, N>& nodes) {
+        std::array<MenuNode*, N> pointers{};
+        for (std::size_t i = 0; i < N; ++i) {
+            pointers[i] = &nodes[i];
+        }
+        return pointers;
+    }
+
+    static constexpr auto SLALOM_INDICES = std::make_index_sequence<config::slalom::ALL.size()>{};
 
 private:
     MenuNode root_{"Root"};
@@ -76,5 +98,11 @@ private:
             MenuNode ir_l_{"IR Left"};
         MenuNode battery_{"Battery"};
         MenuNode led_{"LED"};
+
+    MenuNode slalom_{"Slalom"};
+        MenuNode slalom_left_{"Slalom left"};
+            std::array<MenuNode, config::slalom::ALL.size()> slalom_left_items_ = slalomNodes<slalom::TurnDir::left>(SLALOM_INDICES);
+        MenuNode slalom_right_{"Slalom right"};
+            std::array<MenuNode, config::slalom::ALL.size()> slalom_right_items_ = slalomNodes<slalom::TurnDir::right>(SLALOM_INDICES);
 
 };

@@ -68,14 +68,38 @@ file(GLOB_RECURSE APP_SOURCES
     Core/Src/common/*.cpp
 )
 
+# Slalom parameters: generated from the designer's JSON (design values) plus
+# the hand-tuned deltas, so every build (build.sh, build_flash.sh, IDE) runs
+# exactly what the JSON says. Regenerated whenever either JSON or the
+# generator changes; the generator needs only the Python standard library.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(GENERATED_INC_DIR ${CMAKE_BINARY_DIR}/generated)
+set(SLALOM_PARAMS_HPP ${GENERATED_INC_DIR}/config/slalom_params.hpp)
+add_custom_command(
+    OUTPUT ${SLALOM_PARAMS_HPP}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_slalom_params.py
+            --params ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
+            --tuning ${CMAKE_SOURCE_DIR}/tools/slalom_tuning.json
+            --out ${SLALOM_PARAMS_HPP}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/tools/gen_slalom_params.py
+        ${CMAKE_SOURCE_DIR}/tools/slalom_presets.py
+        ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
+        ${CMAKE_SOURCE_DIR}/tools/slalom_tuning.json
+    COMMENT "Generating config/slalom_params.hpp"
+    VERBATIM
+)
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${APP_SOURCES}
+    ${SLALOM_PARAMS_HPP}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Inc
+    ${GENERATED_INC_DIR}
 )
 
 # Add project symbols (macros)

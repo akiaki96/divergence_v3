@@ -1,0 +1,98 @@
+{
+  "小回り90°": {
+    "500": {
+      "Set_Speed": 500.0,
+      "Set_low_AngVel": 680.0,
+      "Set_Low_AngAcl": 5600.0,
+      "Set_pri_offset": 15.0,
+      "Set_post_offset": 15.0,
+      "Set_K_SP": 0.0,
+      "Set_Width": 86.0,
+      "result": {
+        "acc_dist": 61.0,
+        "const_dist": 5.0,
+        "total_dist": 157.0
+      },
+      "saved_at": "2026-10-02T03:34:10"
+    },
+    "700": {
+      "Set_Speed": 700.0,
+      "Set_low_AngVel": 900.0,
+      "Set_Low_AngAcl": 10750.0,
+      "Set_pri_offset": 15.0,
+      "Set_post_offset": 13.0,
+      "Set_K_SP": 0.0,
+      "Set_Width": 86.0,
+      "result": {
+        "acc_dist": 58.8,
+        "const_dist": 11.2,
+        "total_dist": 156.8
+      },
+      "saved_at": "2026-10-02T03:36:57"
+    }
+  },
+  "大回り90°": {
+    "500": {
+      "Set_Speed": 500.0,
+      "Set_low_AngVel": 240.0,
+      "Set_Low_AngAcl": 1350.0,
+      "Set_pri_offset": 15.0,
+      "Set_post_offset": 15.0,
+      "Set_K_SP": 0.0,
+      "Set_Width": 86.0,
+      "result": {
+        "acc_dist": 89.0,
+        "const_dist": 98.5,
+        "total_dist": 306.5
+      },
+      "saved_at": "2026-10-02T03:34:57"
+    },
+    "700": {
+      "Set_Speed": 700.0,
+      "Set_low_AngVel": 380.0,
+      "Set_Low_AngAcl": 2350.0,
+      "Set_pri_offset": 15.0,
+      "Set_post_offset": 12.0,
+      "Set_K_SP": 0.0,
+      "Set_Width": 86.0,
+      "result": {
+        "acc_dist": 113.4,
+        "const_dist": 52.5,
+        "total_dist": 306.3
+      },
+      "saved_at": "2026-10-02T03:36:33"
+    }
+  },
+  "180°": {
+    "500": {
+      "Set_Speed": 500.0,
+      "Set_low_AngVel": 380.0,
+      "Set_Low_AngAcl": 1150.0,
+      "Set_pri_offset": 15.0,
+      "Set_post_offset": 13.0,
+      "Set_K_SP": 0.0,
+      "Set_Width": 86.0,
+      "result": {
+        "acc_dist": 165.5,
+        "const_dist": 71.5,
+        "total_dist": 430.5
+      },
+      "saved_at": "2026-10-02T03:35:31"
+    },
+    "700": {
+      "Set_Speed": 700.0,
+      "Set_low_AngVel": 560.0,
+      "Set_Low_AngAcl": 2150.0,
+      "Set_pri_offset": 15.0,
+      "Set_post_offset": 15.0,
+      "Set_K_SP": 0.0,
+      "Set_Width": 86.0,
+      "result": {
+        "acc_dist": 182.7,
+        "const_dist": 42.0,
+        "total_dist": 437.4
+      },
+      "saved_at": "2026-10-02T03:36:01"
+    }
+  }
+}

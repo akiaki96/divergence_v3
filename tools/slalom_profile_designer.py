@@ -9,6 +9,8 @@ import json
 import datetime
 import pyperclip
 
+from slalom_presets import PRESET_LIST
+
 pygame.init()
 FONT_PATH = "/Users/inabeshuuyou/Library/Fonts/YujiSyuku-Regular.ttf"
 FONT = pygame.font.Font(FONT_PATH, 15)
@@ -288,19 +290,8 @@ params = [
 ]
 
 # ターンプリセット: key -> (表示名, ini_x, ini_y, ini_angle, fin_angle)
-# 壁は x = -90, 90, 270 / y = 0, 180, 360 の線上（1区画 180mm）。
-#   小回り90°: 区画境界(壁の中央)から入り、1区画内で曲がって隣の境界から出る
-#   大回り90°: 区画中央から曲がり始め、斜め隣の区画中央で曲がり終える
-PRESETS = {
-    "s90":  ("小回り90°", 0.0, 180.0,  0.0,  90.0),
-    "l90":  ("大回り90°", 0.0,  90.0,  0.0,  90.0),
-    "180":  ("180°",      0.0,  90.0,  0.0, 180.0),
-    "in45": ("入45°",     0.0,  90.0,  0.0,  45.0),
-    "out45":("出45°",     0.0, 180.0, 45.0,  90.0),
-    "v90":  ("V90°",      0.0, 180.0, 45.0, 135.0),
-    "in135":("入135°",    0.0,  90.0,  0.0, 135.0),
-    "out135":("出135°",   0.0, 180.0, 45.0, 180.0),
-}
+# 定義は slalom_presets.py（生成スクリプト gen_slalom_params.py と共有）
+PRESETS = {p.key: (p.label, p.ini_x, p.ini_y, p.ini_angle, p.fin_angle) for p in PRESET_LIST}
 
 # 現在選択中のプリセット（保存時のキーに使う）
 current_preset = "s90"
