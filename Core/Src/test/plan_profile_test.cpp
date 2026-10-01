@@ -82,18 +82,9 @@ constexpr float FAST_MIN_BATTERY_V = 7.4f;   // [V] これ未満なら走らな�
 // 高速試験のログ：速度試験の項目に，ファンduty・目標加速度・速度PIの飽和フラグを加える（13列＝約1.8s）
 static void plan_fast_init_log(void) {
     id_init_log_velocity();
-    logger.add(
-        "fan_duty",
-        etl::delegate<float()>::create<Fan, &Fan::getDuty>(fan)
-    );
-    logger.add(
-        "target_accel_x",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetAccelX>(motorDriver)
-    );
-    logger.add(
-        "velocity_saturated",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXSaturated>(motorDriver)
-    );
+    logger.add<&Fan::getDuty>("fan_duty", fan);
+    logger.add<&PlanProfile::getTargetAccelX>("target_accel_x", planProfile);
+    logger.add<&MotorDriver::getVelocityXSaturated>("velocity_saturated", motorDriver);
 }
 
 static void run_fast_profile(const FastProfile& profile) {
@@ -120,54 +111,18 @@ constexpr uint32_t ENC_CHECK_LOG_DECIMATION = 20; // [tick] 20ms
 }
 
 static void encoder_check_init_log(void) {
-    motorDriver.state = MotorDriverState::setDuty;
-    motorDriver.setDuty(0.f, 0.f);
-
     logger.initLoggedVal();
-    logger.add(
-        "left_distance",
-        etl::delegate<float()>::create<Encoder, &Encoder::distance>(encoderLeft)
-    );
-    logger.add(
-        "right_distance",
-        etl::delegate<float()>::create<Encoder, &Encoder::distance>(encoderRight)
-    );
-    logger.add(
-        "current_distance_x",
-        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentPositionX>(planProfile)
-    );
-    logger.add(
-        "target_distance_x",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetPositionX>(motorDriver)
-    );
-    logger.add(
-        "encoder_velocity_x",
-        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentVelocityX>(planProfile)
-    );
-    logger.add(
-        "target_velocity_x",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetVelocityX>(motorDriver)
-    );
-    logger.add(
-        "gyro_z",
-        etl::delegate<float()>::create<Imu, &Imu::gyroZ>(imu)
-    );
-    logger.add(
-        "battery",
-        etl::delegate<float()>::create<Battery, &Battery::voltage>(battery)
-    );
-    logger.add(
-        "Left Duty",
-        etl::delegate<float()>::create<Motor, &Motor::getDuty>(motorLeft)
-    );
-    logger.add(
-        "Right Duty",
-        etl::delegate<float()>::create<Motor, &Motor::getDuty>(motorRight)
-    );
-    logger.add(
-        "fan_duty",
-        etl::delegate<float()>::create<Fan, &Fan::getDuty>(fan)
-    );
+    logger.add<&Encoder::distance>("left_distance", encoderLeft);
+    logger.add<&Encoder::distance>("right_distance", encoderRight);
+    logger.add<&PlanProfile::getCurrentPositionX>("current_distance_x", planProfile);
+    logger.add<&PlanProfile::getTargetPositionX>("target_distance_x", planProfile);
+    logger.add<&PlanProfile::getCurrentVelocityX>("encoder_velocity_x", planProfile);
+    logger.add<&PlanProfile::getTargetVelocityX>("target_velocity_x", planProfile);
+    logger.add<&Imu::gyroZ>("gyro_z", imu);
+    logger.add<&Battery::voltage>("battery", battery);
+    logger.add<&Motor::getDuty>("Left Duty", motorLeft);
+    logger.add<&Motor::getDuty>("Right Duty", motorRight);
+    logger.add<&Fan::getDuty>("fan_duty", fan);
     logger.setDecimation(ENC_CHECK_LOG_DECIMATION);
 }
 

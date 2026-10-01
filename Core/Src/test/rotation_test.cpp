@@ -7,58 +7,19 @@
 // 回転の試験のログ（Global_time込み13列＝1846サンプル）。外側（角度）と内側（角速度）を両方記録し，
 // エンコーダ由来の角速度もジャイロと比べるために記録する
 static void rotation_init_log(void) {
-    motorDriver.state = MotorDriverState::setDuty;
-    motorDriver.setDuty(0.f, 0.f);
-
     logger.initLoggedVal();
-    logger.add(
-        "target_angle",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetAngle>(motorDriver)
-    );
-    logger.add(
-        "current_angle",
-        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentAngle>(planProfile)
-    );
-    logger.add(
-        "target_omega",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetOmega>(motorDriver)
-    );
-    logger.add(
-        "gyro_z",
-        etl::delegate<float()>::create<Imu, &Imu::gyroZ>(imu)
-    );
-    logger.add(
-        "omega_cmd",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getOmegaCommand>(motorDriver)
-    );
-    logger.add(
-        "encoder_omega",
-        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getEncoderOmega>(planProfile)
-    );
-    logger.add(
-        "angle_integral_term",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getAngleIntegralTerm>(motorDriver)
-    );
-    logger.add(
-        "omega_integral_term",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getOmegaIntegralTerm>(motorDriver)
-    );
-    logger.add(
-        "Left Duty",
-        etl::delegate<float()>::create<Motor, &Motor::getDuty>(motorLeft)
-    );
-    logger.add(
-        "Right Duty",
-        etl::delegate<float()>::create<Motor, &Motor::getDuty>(motorRight)
-    );
-    logger.add(
-        "battery",
-        etl::delegate<float()>::create<Battery, &Battery::voltage>(battery)
-    );
-    logger.add(
-        "encoder_velocity_x",
-        etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentVelocityX>(planProfile)
-    );
+    logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
+    logger.add<&PlanProfile::getCurrentAngle>("current_angle", planProfile);
+    logger.add<&PlanProfile::getTargetOmega>("target_omega", planProfile);
+    logger.add<&Imu::gyroZ>("gyro_z", imu);
+    logger.add<&MotorDriver::getOmegaCommand>("omega_cmd", motorDriver);
+    logger.add<&PlanProfile::getEncoderOmega>("encoder_omega", planProfile);
+    logger.add<&MotorDriver::getAngleIntegralTerm>("angle_integral_term", motorDriver);
+    logger.add<&MotorDriver::getOmegaIntegralTerm>("omega_integral_term", motorDriver);
+    logger.add<&Motor::getDuty>("Left Duty", motorLeft);
+    logger.add<&Motor::getDuty>("Right Duty", motorRight);
+    logger.add<&Battery::voltage>("battery", battery);
+    logger.add<&PlanProfile::getCurrentVelocityX>("encoder_velocity_x", planProfile);
 }
 
 // ---- 角度保持 ----

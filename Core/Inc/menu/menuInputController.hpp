@@ -21,6 +21,9 @@ private:
     float encoderDistance_ = 0.0f;
 
     bool lock_ = false;
+    // メニューの操作中（ハンドラの実行が終わってから次のハンドラが始まるまで）。
+    // この間は毎tick右モータのdutyを0にして，選択の合図（こりこり）を止める
+    volatile bool selecting_ = false;
 
     bool isOnSelected_ = false;
     bool isOnEnter_ = false;

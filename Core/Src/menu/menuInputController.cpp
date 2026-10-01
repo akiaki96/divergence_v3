@@ -14,7 +14,7 @@ void MenuInputController::syncUpdate() {
         return;
     }
 
-    if (motorDriver.state == MotorDriverState::modeSelecting) {
+    if (selecting_) {
         motorRight.setDuty(0.f);
     }
     if (lock_) {
@@ -70,12 +70,13 @@ void MenuInputController::asyncUpdate() {
             isOnSelected_ = false;
             nowOnSelected = nullptr;
             lock_ = false;
-            motorDriver.state = MotorDriverState::modeSelecting;
+            selecting_ = true;
         }
         if (isOnEnter_) {
             controller_.currentInfo();
 
             lock_ = true;
+            selecting_ = false;   // onEnterのハンドラ（試験など）がモータを使う間は止めない
             if (nowOnEntered != nullptr) {
                 nowOnEntered();
             } else {
@@ -84,7 +85,7 @@ void MenuInputController::asyncUpdate() {
             isOnEnter_ = false;
             nowOnEntered = nullptr;
             lock_ = false;
-            motorDriver.state = MotorDriverState::modeSelecting;
+            selecting_ = true;
         }
     }
 }

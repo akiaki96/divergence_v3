@@ -27,17 +27,49 @@ public:
     // 並進・回転の目標加速度・目標速度を0にして止める（目標位置・目標角度はその場で保持）。各プロファイルの後に呼ぶ
     void stop(void);
 
+    // 目標値と実測値（update()で毎tick更新）。制御周期の割り込みでMotorDriver::update()へ渡す
+    AxisReference transReference() const {
+        return {trans_.pos, trans_.vel, trans_.acc};
+    }
+    AxisReference rotReference() const {
+        return {rot_.pos, rot_.vel, rot_.acc};
+    }
+    AxisMeasurement transMeasurement() const {
+        return {current_position_x_, current_velocity_x_};
+    }
+    AxisMeasurement rotMeasurement() const {
+        return {current_angle_, current_omega_};
+    }
+
+    // ---- ログ用の目標値 ----
+    float getTargetPositionX() const {
+        return trans_.pos;
+    }
+
+    float getTargetVelocityX() const {
+        return trans_.vel;
+    }
+
+    float getTargetAccelX() const {
+        return trans_.acc;
+    }
+
+    float getTargetAngle() const {
+        return rot_.pos;
+    }
+
+    float getTargetOmega() const {
+        return rot_.vel;
+    }
+
+    // ---- ログ用の実測値 ----
+
     float getCurrentVelocityX() const {
         return current_velocity_x_;
     }
 
     float getCurrentPositionX() const {
         return current_position_x_;
-    }
-
-    // ジャイロの角速度 [dps]（左旋回で正）。回転の制御に使う
-    float getCurrentOmega() const {
-        return current_omega_;
     }
 
     // 左右のエンコーダの速度差から求めた角速度 [dps]（ログ用：ジャイロと比べて滑りを見る）

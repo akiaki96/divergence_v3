@@ -20,13 +20,12 @@ void Menu::buildTree() {
             ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
-            motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &motor_omega_, &plan_profile_, &plan_rotation_, &rotation_});
+            motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &plan_profile_, &plan_rotation_, &rotation_});
                 motor_r_.setChildren(std::array{&right_050_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_000_});
                 plan_profile_.setChildren(std::array{&plan_step_velocity_, &plan_vel2vel_, &plan_encoder_check_, &plan_encoder_check_fan_, &plan_fast_2000_});
                 plan_rotation_.setChildren(std::array{&plan_turn_pos430_, &plan_turn_neg430_});
                 rotation_.setChildren(std::array{&rot_angle_hold_, &rot_pivot_pos90_, &rot_pivot_neg90_, &rot_pivot_pos180_, &rot_pivot_neg180_});
-                motor_omega_.setChildren(std::array{&omega_ramp_pos430_, &omega_ramp_neg430_, &omega_ramp_pos250_, &omega_ramp_neg250_, &omega_ramp_pos100_, &omega_ramp_neg100_});
 
     
     root_.setParentRec();
@@ -99,11 +98,4 @@ void Menu::setFunction() {
     rot_pivot_neg90_.setOnEnter(rot_pivot_neg90_onenter);
     rot_pivot_pos180_.setOnEnter(rot_pivot_pos180_onenter);
     rot_pivot_neg180_.setOnEnter(rot_pivot_neg180_onenter);
-
-    omega_ramp_pos430_.setOnEnter(omega_ramp_pos430_onenter);
-    omega_ramp_neg430_.setOnEnter(omega_ramp_neg430_onenter);
-    omega_ramp_pos250_.setOnEnter(omega_ramp_pos250_onenter);
-    omega_ramp_neg250_.setOnEnter(omega_ramp_neg250_onenter);
-    omega_ramp_pos100_.setOnEnter(omega_ramp_pos100_onenter);
-    omega_ramp_neg100_.setOnEnter(omega_ramp_neg100_onenter);
 }

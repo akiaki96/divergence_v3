@@ -35,7 +35,7 @@ void PlanProfile::resetTargetAngle(void) {
 // 制御周期の割り込みから毎tick呼ぶ（MotorDriver::update()の前）：
 // 1. 実測値（並進速度・位置，角速度・角度）を計算する
 // 2. 閉ループ中は目標軌道を1tick進める（advance()）
-// 3. 目標値をmotorDriverへ渡す（motorDriverは受け取った目標値に追従するだけ）
+// 目標値・実測値はtransReference()などで取り出してmotorDriverへ渡す（motorDriverは受け取った目標値に追従するだけ）
 void PlanProfile::update() {
     current_velocity_x_ = (encoderLeft.velocity() + encoderRight.velocity()) / 2.f;
     current_position_x_ = (encoderLeft.distance() + encoderRight.distance()) / 2.f;
@@ -48,9 +48,6 @@ void PlanProfile::update() {
         advance(trans_, config::control::DT_S);
         advance(rot_, config::control::DT_S);
     }
-
-    motorDriver_.setTargetX(trans_.pos, trans_.vel, trans_.acc);
-    motorDriver_.setTargetRotation(rot_.pos, rot_.vel);
 }
 
 // 目標軌道を1tick進める（割り込み側）。開始要求があれば今の目標位置をx0として区間を始め，

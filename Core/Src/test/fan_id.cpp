@@ -23,14 +23,8 @@ static void fan_init_log(void) {
     fan.stop();
 
     logger.initLoggedVal();
-    logger.add(
-        "battery",
-        etl::delegate<float()>::create<Battery, &Battery::voltage>(battery)
-    );
-    logger.add(
-        "fan_duty",
-        etl::delegate<float()>::create<Fan, &Fan::getDuty>(fan)
-    );
+    logger.add<&Battery::voltage>("battery", battery);
+    logger.add<&Fan::getDuty>("fan_duty", fan);
 
     ledBar16.set(0xFFFF);
 }

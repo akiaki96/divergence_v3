@@ -6,18 +6,30 @@
 #include "common/pid.hpp"
 
 enum class MotorDriverState {
-    modeSelecting,
-    setDuty,
-    setVelocity 
+    setDuty,       // 開ループ：setDuty()で与えたdutyのまま（update()は何もしない）
+    setVelocity    // 閉ループ：update()で目標値に追従する
+};
+
+// 1軸（並進 or 回転）の目標値。PlanProfileが毎tick生成してMotorDriver::update()へ渡す
+struct AxisReference {
+    float pos;   // 目標位置 [mm] / 目標角度 [deg]
+    float vel;   // 目標速度 [mm/s] / 目標角速度 [dps]（各ループの外側のFF）
+    float acc;   // 目標加速度 [mm/s^2] / 目標角加速度 [dps/s]（並進は加速度FFに使う。回転は使わない）
+};
+
+// 1軸の実測値。PlanProfileが毎tick計算してMotorDriver::update()へ渡す
+struct AxisMeasurement {
+    float pos;   // 位置 [mm]（エンコーダ平均） / 角度 [deg]（ジャイロの積分）
+    float vel;   // 速度 [mm/s]（エンコーダ平均） / 角速度 [dps]（ジャイロ）
 };
 
 class MotorDriver {
 public:
     MotorDriver(Motor& left, Motor& right);
 
-    void init();
-    // 実測の並進速度・位置と角速度・角度（状態推定はPlanProfileの責務）を受け取り，制御出力を更新する
-    void update(float current_velocity_x, float current_position_x, float current_omega, float current_angle);
+    // 並進・回転の目標値と実測値（軌道生成・状態推定はPlanProfileの責務）を受け取り，制御出力を更新する
+    void update(const AxisReference& trans_ref, const AxisMeasurement& trans,
+                const AxisReference& rot_ref, const AxisMeasurement& rot);
 
     void enable();
     void disable();
@@ -35,46 +47,9 @@ public:
 
     void switchToVelocityX();
 
-    // 並進の目標値（軌道生成はPlanProfileの責務。毎tick PlanProfile::update()から渡される）。
-    // accel_xは加速度FFの入力としてだけ使う（積分はしない）
-    void setTargetX(float position_x, float velocity_x, float accel_x) {
-        target_position_x_ = position_x;
-        target_velocity_x_ = velocity_x;
-        target_accel_x_ = accel_x;
-    }
-
-    float getTargetAccelX() const {
-        return target_accel_x_;
-    }
-
-    // 追従性検証用ログ（target_velocity_x）で参照する
-    float getTargetVelocityX() const {
-        return target_velocity_x_;
-    }
-
-    float getTargetPositionX() const {
-        return target_position_x_;
-    }
-
     // PI+FF診断用ログ：飽和状態を確認するため
     float getVelocityXSaturated() const {
-        return velocity_pid_saturated_ ? 1.f : 0.f;
-    }
-
-    // ---- 回転（角度）----
-    // 回転の目標値（並進と同じくPlanProfile::update()から毎tick渡される）。
-    // 制御に使うのは目標角度だけ（目標角速度はログ用）
-    void setTargetRotation(float angle, float omega) {
-        target_angle_ = angle;
-        target_omega_ = omega;
-    }
-
-    float getTargetOmega() const {
-        return target_omega_;
-    }
-
-    float getTargetAngle() const {
-        return target_angle_;
+        return (pid_velocity_x_.saturation() != 0.f) ? 1.f : 0.f;
     }
 
     // 角度PIの出力（角速度の指令）[dps]
@@ -97,19 +72,17 @@ private:
 
     float dutyFromVoltage(float voltage) const;
 
-    // 目標値（PlanProfile::update()から毎tick渡される）
-    float target_velocity_x_ = 0.f;   // [mm/s]
-    float target_position_x_ = 0.f;   // [mm]
-    float target_accel_x_ = 0.f;      // [mm/s^2] 加速度FFの入力
+    // 並進：速度PI（出力は左右共通の電圧 [V]）
+    PIController pid_velocity_x_{
+        config::pid_velocity_x::kp, config::pid_velocity_x::ki, config::pid_velocity_x::BACK_CALC_TT
+    };
 
-    PIDController pid_velocity_x_;
-    bool velocity_pid_saturated_ = false;
-
-    float target_omega_ = 0.f;   // [dps]
-    float target_angle_ = 0.f;   // [deg]
-
-    PIDController pid_angle_;   // 角度PI：出力は角速度の指令 [dps]
-    PIDController pid_omega_;   // 角速度PI：出力は左右の電圧差 R − L [V]
+    // 回転：角度PI（出力は角速度の指令 [dps]）→ 角速度PI（出力は左右の電圧差 R − L [V]）
+    PIController pid_angle_{
+        config::pid_rotation::ANGLE_KP, config::pid_rotation::ANGLE_KI, config::pid_rotation::ANGLE_BACK_CALC_TT
+    };
+    PIController pid_omega_{
+        config::pid_rotation::OMEGA_KP, config::pid_rotation::OMEGA_KI, config::pid_rotation::OMEGA_TI
+    };
     float omega_cmd_ = 0.f;     // [dps] 角度PIの出力（ログ用に保持）
-    float rotation_saturation_ = 0.f;   // 前tickの左右の電圧差の飽和（+1:上限, −1:下限, 0:なし）。角度PIの条件付き積分に使う
 };

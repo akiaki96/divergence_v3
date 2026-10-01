@@ -57,13 +57,6 @@ private:
                 MenuNode rot_pivot_neg90_{"pivot -90"};
                 MenuNode rot_pivot_pos180_{"pivot +180"};
                 MenuNode rot_pivot_neg180_{"pivot -180"};
-            MenuNode motor_omega_{"Motor omega"};
-                MenuNode omega_ramp_pos430_{"w ramp +430"};
-                MenuNode omega_ramp_neg430_{"w ramp -430"};
-                MenuNode omega_ramp_pos250_{"w ramp +250"};
-                MenuNode omega_ramp_neg250_{"w ramp -250"};
-                MenuNode omega_ramp_pos100_{"w ramp +100"};
-                MenuNode omega_ramp_neg100_{"w ramp -100"};
 
 
         MenuNode fan_{"Fan"};

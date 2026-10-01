@@ -27,6 +27,11 @@ public:
     void setIncludeTimestamp(bool enable);
     bool add(const char* name, const float* value);
     bool add(const char* name, Getter getter);
+    // objectのconstメンバ関数Methodを値の取得に使う：logger.add<&Imu::gyroZ>("gyro_z", imu);
+    template <auto Method, class T>
+    bool add(const char* name, const T& object) {
+        return add(name, Getter::create<T, Method>(object));
+    }
     // n tickに1回だけ記録する（既定1＝毎tick）。長時間の試験でバッファ（MAX_BUFFER_SIZE）に収めるため。
     // initLoggedVal()で1に戻る
     void setDecimation(uint32_t every_n_ticks);

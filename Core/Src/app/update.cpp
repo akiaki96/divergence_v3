@@ -13,10 +13,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         encoderRight.update();
         imu.update();
 
-        planProfile.update();   // センサ更新後に実測の並進速度・位置と角速度・角度を計算（同じtickの値で制御する）
+        planProfile.update();   // センサ更新後に実測値を計算し，目標軌道を1tick進める（同じtickの値で制御する）
         motorDriver.update(
-            planProfile.getCurrentVelocityX(), planProfile.getCurrentPositionX(),
-            planProfile.getCurrentOmega(), planProfile.getCurrentAngle()
+            planProfile.transReference(), planProfile.transMeasurement(),
+            planProfile.rotReference(), planProfile.rotMeasurement()
         );
 
         logger.sample();
