@@ -72,10 +72,13 @@ inline constexpr float BACK_CALC_TT = T_p1;
 // --- 出力飽和 ---
 inline constexpr float voltage_limit_ratio = 0.95f;
 
-// --- feedforwardのゼロ速度judgement（停止指令時に不感帯補償を入れずビビリを防ぐ）---
+// --- 電圧FFの静的成分（車輪ごと）---
+// u_static(v_wheel) = v_wheel/A_GAIN + U0_DEADZONE·sign(v_wheel)。v_wheelは目標軌道から運動学で求めた車輪の目標速度
+// （v_ref ∓ ω_ref·WHEEL_DIFF_PER_DPS）。モータ1つの性質なので並進・回転で共通に使う（MotorDriver::update()）。
+// |v_wheel|がこれ未満なら不感帯補償を入れない（停止指令時のビビリ防止）
 inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 
-// --- 加速度feedforward（1次遅れモデル T_p1·dv/dt + v = K_p·u の逆モデルの微分項）---
+// --- 電圧FFの慣性成分（並進，1次遅れモデル T_p1·dv/dt + v = K_p·u の逆モデルの微分項）---
 // u_acc = (T_p1/K_p)·a_ref。目標加速度a_refはPlanProfileの軌道から与える（加減速区間だけ非0）。
 // 2000mm/sまで180mmで加速（約11,100mm/s^2）すると約3.3V。0にすると加速度FFなし（静的FFのみ）
 inline constexpr float ACCEL_FF_GAIN = T_p1 / K_p;  // [V/(mm/s^2)] ≈ 2.93e-4
@@ -102,16 +105,17 @@ constexpr bool withinAccelLimit(float v0, float v1, float distance) {
 }
 }
 
+// 位置のP制御（並進の外側ループ）：v_cmd = v_ref + kp(x_ref − x)。積分は持たない（AxisControllerの外側PIをki=0で使う）
 namespace config::pid_position_x {
 inline constexpr float ZETA = 1.0f;
 inline constexpr float kp = 1.f / (4 * config::pid_velocity_x::LAMBDA * ZETA * ZETA);
-// inline constexpr float kp = 0.f;
-
+inline constexpr float VELOCITY_CMD_LIMIT = 10000.f;   // [mm/s] 速度指令の上限（実質制限しない）
 }
 
 // 回転の制御（divergence_v2 8199a2f の構成をもとに，ジャイロで閉じて角速度の単位で書いたもの）：
-//   ω_cmd = ω_ref + 角度PI（ジャイロの積分角度）→ 角速度PI（ジャイロ）→ 左右の電圧差
-// 電圧のFF・Tiスケジュールは持たない。摩擦（その場旋回で約1.7V）による偏差は内側の積分で消す
+//   ω_cmd = ω_ref + 角度PI（ジャイロの積分角度）→ 角速度PI（ジャイロ）＋電圧FF → 左右の電圧差
+// 電圧FFは車輪ごとの静的成分（config::pid_velocity_xのモータモデル）と回転の慣性成分（ALPHA_FF_GAIN）。
+// その場旋回の摩擦（約1.7V）はモデルより大きいので，残りの偏差は内側の積分で消す
 // （rot_angle_pi_gyro/rot_pivot_pos90：内側がPだけだとω_cmdに対してジャイロが約100〜160dps遅れ，最終角度88.7°）。
 // 比例ゲインはv2の値（角度[deg]→車輪の速度差 w [mm/s]，車輪速度[mm/s]→電圧）を w = ω·π/180·TREAD/2 で角速度へ換算したもの
 namespace config::pid_rotation {
@@ -132,6 +136,11 @@ inline constexpr float OMEGA_KP = 2.f * WHEEL_KP * WHEEL_DIFF_PER_DPS;   // [V/d
 // 振動するなら長く，止まる前の残差が大きいなら短くする
 inline constexpr float OMEGA_TI = 0.05f;                    // [s]
 inline constexpr float OMEGA_KI = OMEGA_KP / OMEGA_TI;      // [V/(dps·s)]
+
+// --- 電圧FFの慣性成分（回転）：左右の電圧差 [V] = ALPHA_FF_GAIN·α_ref ---
+// 旧方式（角速度PI+FF，並進700mm/s・|ω|≦430dpsで同定）のA_FF = 3.0e-5 duty/(dps/s) を7.9Vで電圧へ換算した値。
+// 同定表の高速側の値（不足側に弱く過大側に寛容）
+inline constexpr float ALPHA_FF_GAIN = 3.0e-5f * 7.9f;   // [V/(dps/s)] ≈ 2.37e-4
 
 // --- 出力飽和（左右の電圧差 R − L）：並進と同じく電池電圧に比例させる ---
 // 旧来の固定2.6V（片輪1.3V）ではその場旋回の摩擦に足りず，pivot +90で約30dpsしか出なかった（rot_angle_pi/rot_pivot_pos90）。

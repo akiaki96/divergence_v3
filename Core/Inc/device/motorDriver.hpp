@@ -3,7 +3,7 @@
 #include "common/etc.hpp"
 #include "device/motor.hpp"
 #include "config/mouse_config.hpp"
-#include "common/pid.hpp"
+#include "common/axis_controller.hpp"
 #include "common/types.hpp"
 
 enum class MotorDriverState {
@@ -35,22 +35,23 @@ public:
 
     void switchToVelocityX();
 
-    // PI+FF診断用ログ：飽和状態を確認するため
+    // ---- ログ用 ----
+    // 並進の速度PIの飽和（1:飽和, 0:なし）
     float getVelocityXSaturated() const {
-        return (pid_velocity_x_.saturation() != 0.f) ? 1.f : 0.f;
+        return (trans_.saturation() != 0.f) ? 1.f : 0.f;
     }
 
     // 角度PIの出力（角速度の指令）[dps]
     float getOmegaCommand() const {
-        return omega_cmd_;
+        return rot_.command();
     }
 
     float getAngleIntegralTerm() const {
-        return pid_angle_.getIntegralTerm();
+        return rot_.outerIntegralTerm();
     }
 
     float getOmegaIntegralTerm() const {
-        return pid_omega_.getIntegralTerm();
+        return rot_.innerIntegralTerm();
     }
 
     MotorDriverState state = MotorDriverState::setDuty;
@@ -60,17 +61,17 @@ private:
 
     float dutyFromVoltage(float voltage) const;
 
-    // 並進：速度PI（出力は左右共通の電圧 [V]）
-    PIController pid_velocity_x_{
-        config::pid_velocity_x::kp, config::pid_velocity_x::ki, config::pid_velocity_x::BACK_CALC_TT
+    // 並進：位置P（出力は速度指令 [mm/s]）→ 速度PI（出力は左右共通の電圧 [V]）
+    AxisController trans_{
+        PIController{config::pid_position_x::kp, 0.f, 1.f},
+        config::pid_position_x::VELOCITY_CMD_LIMIT,
+        PIController{config::pid_velocity_x::kp, config::pid_velocity_x::ki, config::pid_velocity_x::BACK_CALC_TT}
     };
 
     // 回転：角度PI（出力は角速度の指令 [dps]）→ 角速度PI（出力は左右の電圧差 R − L [V]）
-    PIController pid_angle_{
-        config::pid_rotation::ANGLE_KP, config::pid_rotation::ANGLE_KI, config::pid_rotation::ANGLE_BACK_CALC_TT
+    AxisController rot_{
+        PIController{config::pid_rotation::ANGLE_KP, config::pid_rotation::ANGLE_KI, config::pid_rotation::ANGLE_BACK_CALC_TT},
+        config::pid_rotation::OMEGA_CMD_LIMIT,
+        PIController{config::pid_rotation::OMEGA_KP, config::pid_rotation::OMEGA_KI, config::pid_rotation::OMEGA_TI}
     };
-    PIController pid_omega_{
-        config::pid_rotation::OMEGA_KP, config::pid_rotation::OMEGA_KI, config::pid_rotation::OMEGA_TI
-    };
-    float omega_cmd_ = 0.f;     // [dps] 角度PIの出力（ログ用に保持）
 };

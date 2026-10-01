@@ -5,7 +5,7 @@
 //   I[k] = I[k-1] + (Ki*e[k] + (u_sat[k]-u_unsat[k])/Tt) * Ts
 // feedforwardは呼び出し側が毎回計算してupdate()に渡す（目標値だけでなく目標加速度など
 // 複数の量から作るため。出力 u = kp*e + I + feedforward）。
-// 外側のPループ（位置）は1行で書けるのでこのクラスを使わない（MotorDriver::update()）。
+// カスケードの外側・内側ともにこのクラスを使う（AxisController）。外側の位置P制御はki=0で表す。
 class PIController {
 public:
     // back_calc_tt: アンチワインドアップ back-calculation時定数 [s]

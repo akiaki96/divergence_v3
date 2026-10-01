@@ -9,16 +9,13 @@ MotorDriver::MotorDriver(Motor& left, Motor& right)
     motorRight_(right)
 {}
 
-// 並進速度feedforward [V]（translational_gain_tuning.md §2.2 + 1次遅れの逆モデル）:
-//   u_ff(v, a) = v/A_GAIN + U0_DEADZONE*sign(v) + ACCEL_FF_GAIN*a
-// 静的成分は速度指令v（位置Pの補正を含む）から，加速度成分は軌道の目標加速度aから作る
-static float velocity_x_ff(float velocity_x, float accel_x) {
-    float accel_ff = config::pid_velocity_x::ACCEL_FF_GAIN * accel_x;
-    float abs_v = (velocity_x < 0.f) ? -velocity_x : velocity_x;
-    if (abs_v < config::pid_velocity_x::ZERO_VELOCITY_EPS) return accel_ff;
-
-    float sign = (velocity_x > 0.f) ? 1.f : -1.f;
-    return (velocity_x / config::pid_velocity_x::A_GAIN) + sign * config::pid_velocity_x::U0_DEADZONE + accel_ff;
+// 電圧FFの静的成分 [V]（車輪1つ）：u = v/A_GAIN + U0_DEADZONE·sign(v)。
+// vは目標軌道から求めた車輪の目標速度。|v|がZERO_VELOCITY_EPS未満なら0（停止指令時に不感帯補償を入れない）
+static float wheel_static_ff(float v) {
+    using namespace config::pid_velocity_x;
+    if (v > ZERO_VELOCITY_EPS)  return v / A_GAIN + U0_DEADZONE;
+    if (v < -ZERO_VELOCITY_EPS) return v / A_GAIN - U0_DEADZONE;
+    return 0.f;
 }
 
 void MotorDriver::enable() {
@@ -46,9 +43,8 @@ float MotorDriver::dutyFromVoltage(float voltage) const {
 }
 
 void MotorDriver::switchToVelocityX() {
-    pid_velocity_x_.reset();
-    pid_angle_.reset();
-    pid_omega_.reset();
+    trans_.reset();
+    rot_.reset();
     state = MotorDriverState::setVelocity;
 }
 
@@ -56,22 +52,20 @@ void MotorDriver::update(const AxisReference& trans_ref, const AxisMeasurement& 
                          const AxisReference& rot_ref, const AxisMeasurement& rot) {
     if (state != MotorDriverState::setVelocity) return;
 
-    // 並進：位置P（FF=目標速度）→ 速度PI（FF=静的成分＋加速度成分）
-    float local_target_velocity_x = trans_ref.vel + config::pid_position_x::kp * (trans_ref.pos - trans.pos);
+    // ---- 電圧FF：目標軌道だけから作る（実測値を通さない）----
+    // 静的成分は車輪ごと（目標軌道から運動学で求めた車輪の目標速度にモータモデルを当てる），
+    // 慣性成分は軸ごと（並進は車体の質量，回転はヨーの慣性で係数が違う）。
+    // 車輪ごとの成分は左右の平均（並進）と差 R − L（回転）に直して各軸の内側PIに渡す
+    float wheel_diff_ref = rot_ref.vel * config::mouse::WHEEL_DIFF_PER_DPS;   // (v_R − v_L)/2 [mm/s]
+    float ff_left  = wheel_static_ff(trans_ref.vel - wheel_diff_ref);
+    float ff_right = wheel_static_ff(trans_ref.vel + wheel_diff_ref);
+    float trans_ff = (ff_left + ff_right) / 2.f + config::pid_velocity_x::ACCEL_FF_GAIN * trans_ref.acc;
+    float rot_ff   = (ff_right - ff_left) + config::pid_rotation::ALPHA_FF_GAIN * rot_ref.acc;
 
-    float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
-    float velocity_ff = velocity_x_ff(local_target_velocity_x, trans_ref.acc);
-    float base_batt = pid_velocity_x_.update(local_target_velocity_x, trans.vel, velocity_ff, limit);
-
-    // ---- 回転：角度PI（FF=目標角速度）→ 角速度の指令 → 角速度PI（ジャイロ）----
-    // 電圧差が飽和している向きへさらに誤差が押す間は角度PIの積分を止める（角度誤差が正→ω_cmd増→電圧差増）。
-    // pid_omega_.saturation()はこのtickのupdate()前なので前tickの飽和
-    float angle_error = rot_ref.pos - rot.pos;
-    bool hold_angle_integral = pid_omega_.saturation() * angle_error > 0.f;
-    omega_cmd_ = pid_angle_.update(rot_ref.pos, rot.pos, rot_ref.vel, config::pid_rotation::OMEGA_CMD_LIMIT, hold_angle_integral);
-
-    float diff_limit = config::pid_rotation::VOLTAGE_LIMIT_RATIO * battery.voltage();
-    float diff_batt = pid_omega_.update(omega_cmd_, rot.vel, 0.f, diff_limit);
+    // ---- 追従制御：並進・回転とも 外側（位置/角度）→ 内側（速度/角速度）のカスケード ----
+    float vbatt = battery.voltage();
+    float base_batt = trans_.update(trans_ref, trans, trans_ff, config::pid_velocity_x::voltage_limit_ratio * vbatt);
+    float diff_batt = rot_.update(rot_ref, rot, rot_ff, config::pid_rotation::VOLTAGE_LIMIT_RATIO * vbatt);
 
     // diff = R − L（正でω正）。v_L = v − diff/2, v_R = v + diff/2 のkinematic配分
     float half_diff = diff_batt / 2.f;
