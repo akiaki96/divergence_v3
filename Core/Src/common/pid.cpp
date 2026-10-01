@@ -6,23 +6,12 @@ void PIDController::reset() {
     previous_error_ = 0.f;
 }
 
-float PIDController::update(float target, float current, float feedforward) {
-    float error = target - current;
-    integral_term_ += ki * error * config::control::DT_S;
-    float derivative = (error - previous_error_) / config::control::DT_S;
-    previous_error_ = error;
-    last_ff_ = feedforward;
-
-    return (kp * error) + integral_term_ + (kd * derivative) + last_ff_;
-}
-
 float PIDController::update(float target, float current, float feedforward, float limit, bool& saturated) {
     float error = target - current;
     float derivative = (error - previous_error_) / config::control::DT_S;
     previous_error_ = error;
-    last_ff_ = feedforward;
 
-    float u_unsat = (kp * error) + integral_term_ + (kd * derivative) + last_ff_;
+    float u_unsat = (kp * error) + integral_term_ + (kd * derivative) + feedforward;
 
     float u_sat = u_unsat;
     saturated = false;

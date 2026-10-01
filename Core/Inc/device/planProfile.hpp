@@ -17,13 +17,11 @@ public:
     // 各区間は目標位置がちょうどdistanceだけ進んだところで終わり（区間ごとの差分がちょうどdistance），
     // 次の区間はその位置と速度から連続に始まる
     void stepVelocity(float target_velocity_x, float distance);
-    void stepAccel(float target_accel_x, float distance);
     void vel2vel(float velocity2, float distance);   // 初速は今の目標速度
 
     // 回転。angle[deg]は符号つき（正で左旋回＝ω正）。並進と同じく目標角度がちょうどangleだけ進んだところで終わり，
     // 前の区間の目標値から連続につなぐ。並進の目標速度はそのまま保たれるので，走行中の旋回にも使える
     void stepOmega(float target_omega, float angle);
-    void stepAlpha(float target_alpha, float angle);
     void omega2omega(float omega2, float angle);   // 初速は今の目標角速度
 
     // 並進・回転の目標加速度・目標速度を0にして止める（目標位置・目標角度はその場で保持）。各プロファイルの後に呼ぶ
@@ -73,7 +71,6 @@ private:
     static void setFreeVelocity(Axis& ax, float vel);
     // 区間の種類（並進・回転共通。dは符号つきの距離・角度）
     static void segmentStepVelocity(Axis& ax, float vel, float d);
-    static void segmentStepAccel(Axis& ax, float acc, float d);
     static void segmentVel2Vel(Axis& ax, float vel2, float d);
 
     MotorDriver& motorDriver_;

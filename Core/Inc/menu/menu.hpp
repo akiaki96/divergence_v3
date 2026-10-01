@@ -44,7 +44,6 @@ private:
                 MenuNode velocity_step_000_{"v step 0"};
             MenuNode plan_profile_{"Plan profile"};
                 MenuNode plan_step_velocity_{"stepVelocity"};
-                MenuNode plan_step_accel_{"stepAccel"};
                 MenuNode plan_vel2vel_{"vel2vel"};
                 MenuNode plan_encoder_check_{"encoder check 50"};
                 MenuNode plan_encoder_check_fan_{"encoder check 50 fan0.2"};
@@ -52,7 +51,6 @@ private:
             MenuNode plan_rotation_{"Plan rotation"};
                 MenuNode plan_turn_pos430_{"omega2omega +430"};
                 MenuNode plan_turn_neg430_{"omega2omega -430"};
-                MenuNode plan_turn_step_alpha_pos430_{"stepAlpha +430"};
             MenuNode motor_omega_{"Motor omega"};
                 MenuNode omega_ramp_pos430_{"w ramp +430"};
                 MenuNode omega_ramp_neg430_{"w ramp -430"};

@@ -28,9 +28,9 @@ void Motor::setDuty(float duty)
     duty_ = fmaxf(fminf(duty, config::motor::MAX_DUTY), -config::motor::MAX_DUTY);
     
     /* |pwm| < config::motor::MAX_PWM */
-    uint16_t pwm = static_cast<uint16_t>(std::abs(duty) * config::motor::MAX_PWM);
+    uint16_t pwm = static_cast<uint16_t>(std::abs(duty_) * config::motor::MAX_PWM);
 
-    if ((duty >= 0.f) ^ (direction_ == Direction::Normal)) {
+    if ((duty_ >= 0.f) ^ (direction_ == Direction::Normal)) {
         HAL_GPIO_WritePin(cwPort_, cwPin_, GPIO_PIN_RESET);
         HAL_GPIO_WritePin(ccwPort_, ccwPin_, GPIO_PIN_SET);
     } else {

@@ -6,7 +6,6 @@
 #include "common/pid.hpp"
 
 enum class MotorDriverState {
-    off,
     modeSelecting,
     setDuty,
     setVelocity 
@@ -57,13 +56,7 @@ public:
         return target_position_x_;
     }
 
-    // PI+FF診断用ログ：積分ワインドアップ・feedforward寄与・飽和状態を確認するため
-    float getVelocityXIntegralTerm() const {
-        return pid_velocity_x_.getIntegralTerm();
-    }
-    float getVelocityXFeedforward() const {
-        return pid_velocity_x_.getLastFeedforward();
-    }
+    // PI+FF診断用ログ：飽和状態を確認するため
     float getVelocityXSaturated() const {
         return velocity_pid_saturated_ ? 1.f : 0.f;
     }
@@ -92,23 +85,11 @@ public:
     float getOmegaIntegralTerm() const {
         return pid_omega_.getIntegralTerm();
     }
-    float getOmegaFeedforward() const {
-        return pid_omega_.getLastFeedforward();
-    }
-    float getOmegaSaturated() const {
-        return omega_pid_saturated_ ? 1.f : 0.f;
-    }
-
-
-    float getLeftDuty(void) const;
-    float getRightDuty(void) const;
 
     MotorDriverState state = MotorDriverState::setDuty;
 private:
     Motor& motorLeft_;
     Motor& motorRight_;
-    float target_voltage_L_ = 0.f;
-    float target_voltage_R_ = 0.f;
 
     float dutyFromVoltage(float voltage) const;
 
@@ -118,15 +99,11 @@ private:
     float target_accel_x_ = 0.f;      // [mm/s^2] 加速度FFの入力
 
     PIDController pid_velocity_x_;
-    PIDController pid_position_x_;
     bool velocity_pid_saturated_ = false;
-    bool position_pid_saturated_ = false;
 
     float target_alpha_ = 0.f;   // [dps/s] 角加速度FFの入力
     float target_omega_ = 0.f;   // [dps]
     float target_angle_ = 0.f;   // [deg]
 
     PIDController pid_omega_;
-    PIDController pid_angle_;
-    bool omega_pid_saturated_ = false;
 };

@@ -1,5 +1,4 @@
 #include "device/planProfile.hpp"
-#include <cmath>
 #include "device/device_instance.hpp"
 
 PlanProfile::PlanProfile(MotorDriver& motorDriver)
@@ -117,23 +116,6 @@ void PlanProfile::segmentStepVelocity(Axis& ax, float vel, float d) {
     runSegment(ax, vel, 0.f, d / vel, d, vel);
 }
 
-// 今の目標速度から加速度accでd進む（d = v0·T + acc·T²/2 を解く）。終わったら加速度0で速度はそのまま。
-// d進む前に速度が0になる減速は，その場（速度0）で止めて終える（このときだけ差分はdより短い）
-void PlanProfile::segmentStepAccel(Axis& ax, float acc, float d) {
-    if (d == 0.f) return;
-    float v0 = ax.vel;
-    float s = (d > 0.f) ? 1.f : -1.f;   // 進む向きで正にそろえて解く
-    float v0p = s * v0, ap = s * acc, dp = s * d;
-    float disc = v0p * v0p + 2.f * ap * dp;
-    if (disc >= 0.f && v0p + sqrtf(disc) > 0.f) {
-        float T = 2.f * dp / (v0p + sqrtf(disc));   // 桁落ちしない形の解
-        runSegment(ax, v0, acc, T, d, v0 + acc * T);
-    } else if (ap < 0.f && v0p > 0.f) {
-        float T = -v0p / ap;
-        runSegment(ax, v0, acc, T, s * v0p * v0p / (-2.f * ap), 0.f);
-    }
-}
-
 // 今の目標速度からvel2へ，等加速度でちょうどd進む（T = 2d / (v0 + v2), a = (v2 − v0) / T）。
 // v0・v2がdと同じ向き（または一方が0）であること
 void PlanProfile::segmentVel2Vel(Axis& ax, float vel2, float d) {
@@ -160,10 +142,6 @@ void PlanProfile::stepVelocity(float target_velocity_x, float distance) {
     segmentStepVelocity(trans_, target_velocity_x, distance);
 }
 
-void PlanProfile::stepAccel(float target_accel_x, float distance) {
-    segmentStepAccel(trans_, target_accel_x, distance);
-}
-
 void PlanProfile::vel2vel(float velocity2, float distance) {
     segmentVel2Vel(trans_, velocity2, distance);
 }
@@ -171,10 +149,6 @@ void PlanProfile::vel2vel(float velocity2, float distance) {
 // 回転。angle[deg]は符号つき（正で左旋回）
 void PlanProfile::stepOmega(float target_omega, float angle) {
     segmentStepVelocity(rot_, target_omega, angle);
-}
-
-void PlanProfile::stepAlpha(float target_alpha, float angle) {
-    segmentStepAccel(rot_, target_alpha, angle);
 }
 
 void PlanProfile::omega2omega(float omega2, float angle) {

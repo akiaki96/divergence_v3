@@ -1,4 +1,5 @@
 #include "test/motor_id.hpp"
+#include "test/closed_loop_test.hpp"
 #include "common/etc.hpp"
 #include "config/mouse_config.hpp"
 
@@ -59,19 +60,6 @@ void id_init_log_velocity(void) {
         "target_distance_x",
         etl::delegate<float()>::create<MotorDriver, &MotorDriver::getTargetPositionX>(motorDriver)
     );
-    // // 積分ワインドアップとfeedforward寄与を確認するための診断フィールド
-    // logger.add(
-    //     "pid_integral_term",
-    //     etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXIntegralTerm>(motorDriver)
-    // );
-    // logger.add(
-    //     "pid_feedforward",
-    //     etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXFeedforward>(motorDriver)
-    // );
-    // logger.add(
-    //     "pid_saturated",
-    //     etl::delegate<float()>::create<MotorDriver, &MotorDriver::getVelocityXSaturated>(motorDriver)
-    // );
 }
 
 // 回転角速度PI+FF・角度P制御の追従性検証用：並進のフィールドに加え，回転の目標値と実測を記録する
@@ -97,7 +85,7 @@ void id_init_log_omega(void) {
         "omega_integral_term",
         etl::delegate<float()>::create<MotorDriver, &MotorDriver::getOmegaIntegralTerm>(motorDriver)
     );
-    // omega_feedforward（getOmegaFeedforward）はtarget_omegaとランプの角加速度から後計算できるので記録しない
+    // omega_feedforwardはtarget_omegaとランプの角加速度から後計算できるので記録しない
     // （Global_time込み12列＝2000サンプル＝2.0sに試験全体を収めるため。logger::MAX_BUFFER_SIZE参照）
 }
 
@@ -119,61 +107,31 @@ onenter(right_set050,
 // 並進速度PI+FF制御の追従性検証（velocity_x_ff, config::pid_velocity_x）。
 // target_velocity_xへステップ指令し，実速度(left/right_encoder_velocity平均)の追従を
 // ログから確認する。duration_msは閉ループ時定数λ=0.1s基準で整定後も十分保持できる長さとする。
-void velocity_step_tester(float target_velocity_x, uint32_t duration_ms) {
-    motorDriver.state = MotorDriverState::setDuty;
-    motorDriver.setDuty(0.f, 0.f);
-    imu.calibrate();
-    HAL_Delay(1100);
-
-    planProfile.init();   // 並進・回転の目標値0・原点取り直し（回転は目標角度0を保持＝直進）
-
-    ledBar16.set(0x0000);
-    logger.start();
-    HAL_Delay(100);   // 静止区間：オフセット推定用
-    planProfile.start();
+static void velocity_step(float target_velocity_x, uint32_t duration_ms) {
     planProfile.setTargetVelocityX(target_velocity_x);
     HAL_Delay(duration_ms/2);
     planProfile.setTargetVelocityX(0.f);
     HAL_Delay(duration_ms/2);
-    logger.stop();
-    HAL_Delay(500);
-    ledBar16.set(0xFFFF);
-    motorDriver.setBreak();
-    haltByAccZ();
-    logger.dump();
-    ledBar16.set(0x0000);
 }
 
 onenter(velocity_step_300,
-    id_init_log_velocity();
-    logger.setDirName("velocity_step_x");
-    logger.setFileName("velocity_step_300");
-    logger.setIncludeTimestamp(false);
-    velocity_step_tester(300.f, 2000);
+    runClosedLoopTest({"velocity_step_x", "velocity_step_300", id_init_log_velocity,
+                       [] { velocity_step(300.f, 2000); }, 0.f, 0.f, 0});
 )
 
 onenter(velocity_step_600,
-    id_init_log_velocity();
-    logger.setDirName("velocity_step_x");
-    logger.setFileName("velocity_step_600");
-    logger.setIncludeTimestamp(false);
-    velocity_step_tester(600.f, 2000);
+    runClosedLoopTest({"velocity_step_x", "velocity_step_600", id_init_log_velocity,
+                       [] { velocity_step(600.f, 2000); }, 0.f, 0.f, 0});
 )
 
 onenter(velocity_step_900,
-    id_init_log_velocity();
-    logger.setDirName("velocity_step_x");
-    logger.setFileName("velocity_step_900");
-    logger.setIncludeTimestamp(false);
-    velocity_step_tester(900.f, 2000);
+    runClosedLoopTest({"velocity_step_x", "velocity_step_900", id_init_log_velocity,
+                       [] { velocity_step(900.f, 2000); }, 0.f, 0.f, 0});
 )
 
 onenter(velocity_step_000,
-    id_init_log_velocity();
-    logger.setDirName("velocity_step_x");
-    logger.setFileName("velocity_step_000");
-    logger.setIncludeTimestamp(false);
-    velocity_step_tester(0.f, 2000);
+    runClosedLoopTest({"velocity_step_x", "velocity_step_000", id_init_log_velocity,
+                       [] { velocity_step(0.f, 2000); }, 0.f, 0.f, 0});
 )
 
 // 目標角速度をalpha[dps/s]のランプでomega_targetへ動かす（omega2omegaで，角加速度がalphaになる角度を与える：
@@ -190,22 +148,11 @@ static void omega_ramp_to(float omega_target, float alpha) {
 // hold_ms保持した後にランプで0へ戻す。目標角度は目標角速度の積分（ランプ分を含む）。
 // 走行距離は約1m（直進0.5s＋旋回＋停止）なので，旋回で膨らむ分も含め十分な余白を確保すること。
 // 記録は全体で約1.84s（±430。ログ上限2.0s以内）。
-void omega_ramp_tester(float omega_target, uint32_t hold_ms) {
+static void omega_ramp(float omega_target, uint32_t hold_ms) {
     constexpr float V_X = 700.f;          // [mm/s]
     constexpr float ALPHA = 2500.f;       // [dps/s]
     constexpr uint32_t STRAIGHT_MS = 500; // 並進速度が整定するまで
 
-    motorDriver.state = MotorDriverState::setDuty;
-    motorDriver.setDuty(0.f, 0.f);
-    imu.calibrate();
-    HAL_Delay(1100);
-
-    planProfile.init();
-
-    ledBar16.set(0x0000);
-    logger.start();
-    HAL_Delay(100);   // 静止区間：オフセット推定用
-    planProfile.start();
     planProfile.setTargetVelocityX(V_X);
     HAL_Delay(STRAIGHT_MS);
     omega_ramp_to(omega_target, ALPHA);
@@ -214,59 +161,34 @@ void omega_ramp_tester(float omega_target, uint32_t hold_ms) {
     HAL_Delay(200);
     planProfile.setTargetVelocityX(0.f);
     HAL_Delay(300);
-    logger.stop();
-    motorDriver.setBreak();
-    HAL_Delay(500);
-    ledBar16.set(0xFFFF);
-    haltByAccZ();
-    logger.dump();
-    ledBar16.set(0x0000);
 }
 
 onenter(omega_ramp_pos430,
-    id_init_log_omega();
-    logger.setDirName("omega_2dof_v700_x");
-    logger.setFileName("omega_ramp_pos430");
-    logger.setIncludeTimestamp(false);
-    omega_ramp_tester(430.f, 400);
+    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_pos430", id_init_log_omega,
+                       [] { omega_ramp(430.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_neg430,
-    id_init_log_omega();
-    logger.setDirName("omega_2dof_v700_x");
-    logger.setFileName("omega_ramp_neg430");
-    logger.setIncludeTimestamp(false);
-    omega_ramp_tester(-430.f, 400);
+    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_neg430", id_init_log_omega,
+                       [] { omega_ramp(-430.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_pos250,
-    id_init_log_omega();
-    logger.setDirName("omega_2dof_v700_x");
-    logger.setFileName("omega_ramp_pos250");
-    logger.setIncludeTimestamp(false);
-    omega_ramp_tester(250.f, 400);
+    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_pos250", id_init_log_omega,
+                       [] { omega_ramp(250.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_neg250,
-    id_init_log_omega();
-    logger.setDirName("omega_2dof_v700_x");
-    logger.setFileName("omega_ramp_neg250");
-    logger.setIncludeTimestamp(false);
-    omega_ramp_tester(-250.f, 400);
+    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_neg250", id_init_log_omega,
+                       [] { omega_ramp(-250.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_pos100,
-    id_init_log_omega();
-    logger.setDirName("omega_2dof_v700_x");
-    logger.setFileName("omega_ramp_pos100");
-    logger.setIncludeTimestamp(false);
-    omega_ramp_tester(100.f, 400);
+    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_pos100", id_init_log_omega,
+                       [] { omega_ramp(100.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_neg100,
-    id_init_log_omega();
-    logger.setDirName("omega_2dof_v700_x");
-    logger.setFileName("omega_ramp_neg100");
-    logger.setIncludeTimestamp(false);
-    omega_ramp_tester(-100.f, 400);
+    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_neg100", id_init_log_omega,
+                       [] { omega_ramp(-100.f, 400); }, 0.f, 0.f, 0});
 )

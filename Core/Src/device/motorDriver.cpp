@@ -56,13 +56,6 @@ void MotorDriver::init() {
         config::pid_velocity_x::BACK_CALC_TT
     );
 
-    pid_position_x_.setGains(
-        config::pid_position_x::kp,
-        0.f,
-        0.f,
-        0.f
-    );
-
     // Ki・back-calculation時定数はupdate()で|ω_ref|に応じて毎tick差し替える（初期値はω_ref=0の値）
     float ti0 = omega_ti_schedule(0.f);
     pid_omega_.setGains(
@@ -70,13 +63,6 @@ void MotorDriver::init() {
         config::pid_omega::kp / ti0,
         config::pid_omega::kd,
         ti0
-    );
-
-    pid_angle_.setGains(
-        config::pid_angle::kp,
-        0.f,
-        0.f,
-        0.f
     );
 }
 
@@ -90,13 +76,6 @@ void MotorDriver::disable() {
     HAL_GPIO_WritePin(MOTOR_STBY_GPIO_Port, MOTOR_STBY_Pin, GPIO_PIN_RESET);
     HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_1);
     HAL_TIM_PWM_Stop(&htim2, TIM_CHANNEL_4);
-}
-
-float MotorDriver::getLeftDuty(void) const {
-    return motorLeft_.getDuty();
-}
-float MotorDriver::getRightDuty(void) const {
-    return motorRight_.getDuty();
 }
 
 float MotorDriver::dutyFromVoltage(float voltage) const {
@@ -114,16 +93,11 @@ float MotorDriver::dutyFromVoltage(float voltage) const {
 void MotorDriver::switchToVelocityX() {
     pid_velocity_x_.reset();
     pid_omega_.reset();
-    pid_angle_.reset();
     state = MotorDriverState::setVelocity;
 }
 
 void MotorDriver::update(float current_velocity_x, float current_position_x, float current_omega, float current_angle) {
     switch (state) {
-        case MotorDriverState::off:
-            setDuty(0.f, 0.f);
-        break;
-
         case MotorDriverState::setDuty:
         break;
 
@@ -134,7 +108,7 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
             // 目標値（軌道）はPlanProfile::update()が生成して渡す。ここでは追従制御だけを行う。
             // 各ループのfeedforwardは目標値から計算してupdate()に渡す
             // 並進：位置P（FF=目標速度）→ 速度PI（FF=静的成分＋加速度成分）
-            float local_target_velocity_x = pid_position_x_.update(target_position_x_, current_position_x, target_velocity_x_);
+            float local_target_velocity_x = target_velocity_x_ + config::pid_position_x::kp * (target_position_x_ - current_position_x);
 
             bool saturated = false;
             float limit = config::pid_velocity_x::voltage_limit_ratio * battery.voltage();
@@ -143,7 +117,7 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
             velocity_pid_saturated_ = saturated;
 
             // ---- 回転：角度P（FF=目標角速度）→ 角速度PI（FF=角速度・角加速度から）。並進と同じ2自由度カスケード ----
-            float local_target_omega = pid_angle_.update(target_angle_, current_angle, target_omega_);
+            float local_target_omega = target_omega_ + config::pid_angle::kp * (target_angle_ - current_angle);
 
             // FF・Tiのスケジュール変数は補正を含まない目標角速度ω_ref（既知・無雑音）
             float ti = omega_ti_schedule(target_omega_);
@@ -153,7 +127,6 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
             bool omega_saturated = false;
             float omega_feedforward = omega_ff(target_omega_, target_alpha_);
             float diff_batt = pid_omega_.update(local_target_omega, current_omega, omega_feedforward, config::pid_omega::VOLTAGE_LIMIT, omega_saturated);
-            omega_pid_saturated_ = omega_saturated;
 
             // diff = R − L（正でω正）。v_L = v − diff/2, v_R = v + diff/2 のkinematic配分
             float half_diff = diff_batt / 2.f;
