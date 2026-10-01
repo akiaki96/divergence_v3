@@ -4,30 +4,18 @@
 #include "device/motor.hpp"
 #include "config/mouse_config.hpp"
 #include "common/pid.hpp"
+#include "common/types.hpp"
 
 enum class MotorDriverState {
     setDuty,       // 開ループ：setDuty()で与えたdutyのまま（update()は何もしない）
     setVelocity    // 閉ループ：update()で目標値に追従する
 };
 
-// 1軸（並進 or 回転）の目標値。PlanProfileが毎tick生成してMotorDriver::update()へ渡す
-struct AxisReference {
-    float pos;   // 目標位置 [mm] / 目標角度 [deg]
-    float vel;   // 目標速度 [mm/s] / 目標角速度 [dps]（各ループの外側のFF）
-    float acc;   // 目標加速度 [mm/s^2] / 目標角加速度 [dps/s]（並進は加速度FFに使う。回転は使わない）
-};
-
-// 1軸の実測値。PlanProfileが毎tick計算してMotorDriver::update()へ渡す
-struct AxisMeasurement {
-    float pos;   // 位置 [mm]（エンコーダ平均） / 角度 [deg]（ジャイロの積分）
-    float vel;   // 速度 [mm/s]（エンコーダ平均） / 角速度 [dps]（ジャイロ）
-};
-
 class MotorDriver {
 public:
     MotorDriver(Motor& left, Motor& right);
 
-    // 並進・回転の目標値と実測値（軌道生成・状態推定はPlanProfileの責務）を受け取り，制御出力を更新する
+    // 並進・回転の目標値（PlanProfile）と実測値（Odometry）を受け取り，制御出力を更新する
     void update(const AxisReference& trans_ref, const AxisMeasurement& trans,
                 const AxisReference& rot_ref, const AxisMeasurement& rot);
 

@@ -39,12 +39,14 @@ void runClosedLoopTest(const ClosedLoopTest& test) {
         HAL_Delay(FAN_SPINUP_MS);
     }
 
-    planProfile.init();   // 並進・回転の目標値0・原点取り直し
+    // 原点の取り直し：実測（エンコーダ・角度）と目標値を同時に0にそろえる
+    odometry.reset();
+    planProfile.reset();
 
     ledBar16.set(0x0000);
     logger.start();
     HAL_Delay(100);   // 静止区間：オフセット推定用
-    planProfile.start();
+    motorDriver.switchToVelocityX();   // PIを初期化して閉ループへ切り替える（走行開始時に1回だけ）
 
     test.profile();
 

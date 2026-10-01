@@ -3,22 +3,23 @@
 #include "test/motor_id.hpp"
 #include "common/debug.hpp"
 
-// PlanProfile（stepVelocity / vel2vel / omega2omega）の実機試験。手順はrunClosedLoopTest()を参照。
-// 閉ループへの切替（planProfile.start()）は走行開始時の1回だけで，区間の間ではPIも原点もリセットしない。
-// 各区間は目標値で終わりを判定するので，vel2vel(0, d)で減速して止めることもできる。
+// PlanProfile（straight / turn / setVelocityX）の実機試験。手順はrunClosedLoopTest()を参照。
+// 閉ループへの切替（motorDriver.switchToVelocityX()）は走行開始時の1回だけで，区間の間ではPIも原点もリセットしない。
+// 各区間は目標値で終わりを判定するので，straight(0, d)で減速して止めることもできる。
 
 // 500mm/sへステップして270mm走行
 static void profile_step_velocity(void) {
-    planProfile.stepVelocity(500.f, 270.f);
+    planProfile.setVelocityX(500.f);
+    planProfile.straight(500.f, 270.f);
 }
 
 // 0→600mm/sを90mmで加速 → 600mm/sで180mm等速 → 600→300mm/sを90mmで減速 → 300→0mm/sを90mmで減速して停止
-static void profile_vel2vel(void) {
-    planProfile.vel2vel(600.f, 90.f);
-    planProfile.vel2vel(600.f, 90.f);
-    planProfile.stepVelocity(600.f, 90.f);
-    planProfile.vel2vel(300.f, 90.f);
-    planProfile.vel2vel(0.f, 90.f);
+static void profile_straight(void) {
+    planProfile.straight(600.f, 90.f);
+    planProfile.straight(600.f, 90.f);
+    planProfile.straight(600.f, 90.f);
+    planProfile.straight(300.f, 90.f);
+    planProfile.straight(0.f, 90.f);
 }
 
 onenter(plan_step_velocity,
@@ -26,30 +27,30 @@ onenter(plan_step_velocity,
 )
 
 onenter(plan_vel2vel,
-    runClosedLoopTest({"plan_profile_x", "plan_vel2vel", id_init_log_velocity, profile_vel2vel});
+    runClosedLoopTest({"plan_profile_x", "plan_vel2vel", id_init_log_velocity, profile_straight});
 )
 
-// ---- 回転（stepOmega / omega2omega）----
+// ---- 回転（turn）----
 // 700mm/sまで加速してから旋回し，旋回後に減速して止める（旧方式のω FF・Tiの同定条件に合わせたまま）。
 // 旋回は ω: 0→±430dps（2500dps/s, 37°）→ ±430dpsで90° → 0（37°）の計約164°。記録は約1.7s（ログ上限2.0s）
 
-// omega2omegaで角速度を台形に変化させる。dir=+1で左旋回，-1で右旋回
-static void profile_turn_omega2omega(float dir) {
-    planProfile.vel2vel(700.f, 100.f);
-    planProfile.omega2omega(dir * 430.f, dir * 37.f);
-    planProfile.stepOmega(dir * 430.f, dir * 90.f);
-    planProfile.omega2omega(0.f, dir * 37.f);
-    planProfile.vel2vel(0.f, 100.f);
+// turnで角速度を台形に変化させる。dir=+1で左旋回，-1で右旋回
+static void profile_turn(float dir) {
+    planProfile.straight(700.f, 100.f);
+    planProfile.turn(dir * 430.f, dir * 37.f);
+    planProfile.turn(dir * 430.f, dir * 90.f);
+    planProfile.turn(0.f, dir * 37.f);
+    planProfile.straight(0.f, 100.f);
 }
 
 onenter(plan_turn_pos430,
     runClosedLoopTest({"plan_profile_x", "plan_turn_omega2omega_pos430_angle_pi", id_init_log_omega,
-                       [] { profile_turn_omega2omega(1.f); }});
+                       [] { profile_turn(1.f); }});
 )
 
 onenter(plan_turn_neg430,
     runClosedLoopTest({"plan_profile_x", "plan_turn_omega2omega_neg430_angle_pi", id_init_log_omega,
-                       [] { profile_turn_omega2omega(-1.f); }});
+                       [] { profile_turn(-1.f); }});
 )
 
 // ---- 並進の高速試験（吸引ファンON）----
@@ -88,9 +89,9 @@ static void plan_fast_init_log(void) {
 }
 
 static void run_fast_profile(const FastProfile& profile) {
-    planProfile.vel2vel(profile.v_max, profile.accel_dist);
-    planProfile.stepVelocity(profile.v_max, profile.cruise_dist);
-    planProfile.vel2vel(0.f, profile.decel_dist);
+    planProfile.straight(profile.v_max, profile.accel_dist);
+    planProfile.straight(profile.v_max, profile.cruise_dist);
+    planProfile.straight(0.f, profile.decel_dist);
 }
 
 onenter(plan_fast_2000,
@@ -114,9 +115,9 @@ static void encoder_check_init_log(void) {
     logger.initLoggedVal();
     logger.add<&Encoder::distance>("left_distance", encoderLeft);
     logger.add<&Encoder::distance>("right_distance", encoderRight);
-    logger.add<&PlanProfile::getCurrentPositionX>("current_distance_x", planProfile);
+    logger.add<&Odometry::positionX>("current_distance_x", odometry);
     logger.add<&PlanProfile::getTargetPositionX>("target_distance_x", planProfile);
-    logger.add<&PlanProfile::getCurrentVelocityX>("encoder_velocity_x", planProfile);
+    logger.add<&Odometry::velocityX>("encoder_velocity_x", odometry);
     logger.add<&PlanProfile::getTargetVelocityX>("target_velocity_x", planProfile);
     logger.add<&Imu::gyroZ>("gyro_z", imu);
     logger.add<&Battery::voltage>("battery", battery);
@@ -128,7 +129,8 @@ static void encoder_check_init_log(void) {
 
 // 走り終えたら停止指令を出して1000ms整定させ，ログを止める前にエンコーダの距離を表示する
 static void encoder_check_profile(void) {
-    planProfile.stepVelocity(ENC_CHECK_VELOCITY, ENC_CHECK_DISTANCE);
+    planProfile.setVelocityX(ENC_CHECK_VELOCITY);
+    planProfile.straight(ENC_CHECK_VELOCITY, ENC_CHECK_DISTANCE);
     planProfile.stop();
     HAL_Delay(1000);   // 停止の整定
 

@@ -8,6 +8,9 @@ inline constexpr float ENCODER_RES = 4096.f;
 inline constexpr float GEAR_RATIO = 13.f / 42.f;
 inline constexpr float WHEEL_RADIUS_MM = 23.6f / 2;
 inline constexpr float TREAD_MM = 60.f;
+
+// 車輪の速度差の半分 w = (v_R − v_L)/2 [mm/s] と車体の角速度 ω [dps] の換算（滑りなし）：w = ω·π/180·TREAD/2
+inline constexpr float WHEEL_DIFF_PER_DPS = std::numbers::pi_v<float> / 180.f * TREAD_MM / 2.f;   // [mm/s/dps] ≈ 0.524
 } // namespace config::mouse
 
 namespace config::control {
@@ -112,8 +115,7 @@ inline constexpr float kp = 1.f / (4 * config::pid_velocity_x::LAMBDA * ZETA * Z
 // （rot_angle_pi_gyro/rot_pivot_pos90：内側がPだけだとω_cmdに対してジャイロが約100〜160dps遅れ，最終角度88.7°）。
 // 比例ゲインはv2の値（角度[deg]→車輪の速度差 w [mm/s]，車輪速度[mm/s]→電圧）を w = ω·π/180·TREAD/2 で角速度へ換算したもの
 namespace config::pid_rotation {
-// 車輪の速度差の半分 w = (v_R − v_L)/2 [mm/s] と角速度 ω [dps] の換算
-inline constexpr float WHEEL_DIFF_PER_DPS = std::numbers::pi_v<float> / 180.f * config::mouse::TREAD_MM / 2.f;   // [mm/s/dps] ≈ 0.524
+using config::mouse::WHEEL_DIFF_PER_DPS;
 
 // --- 角度PI：出力は角速度の指令 ω_cmd [dps]（目標角速度ω_refをFFとして足す）---
 inline constexpr float ANGLE_KP = 17.45f / WHEEL_DIFF_PER_DPS;   // [dps/deg] ≈ 33.3（v2 pid_ang.kp=17.45 mm/s/deg）

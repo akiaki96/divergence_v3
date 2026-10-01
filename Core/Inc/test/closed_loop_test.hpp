@@ -3,8 +3,8 @@
 #include <cstdint>
 
 // 閉ループ走行試験（PlanProfileで目標軌道を与える試験）の共通手順。
-// init_log() → ログ保存先の設定 →（電池電圧の確認）→ IMU校正 →（ファンのスピンアップ）→ planProfile.init()
-// → ログ開始 → 静止100ms → planProfile.start() → profile() → settle_ms待ち → planProfile.stop()
+// init_log() → ログ保存先の設定 →（電池電圧の確認）→ IMU校正 →（ファンのスピンアップ）→ odometry/planProfileの原点取り直し
+// → ログ開始 → 静止100ms → 閉ループへ切替 → profile() → settle_ms待ち → planProfile.stop()
 // → ログ停止 → ブレーキ・ファン停止 → 加速度Zで待ち → ログダンプ
 struct ClosedLoopTest {
     const char* dir;

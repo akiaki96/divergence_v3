@@ -9,17 +9,17 @@
 static void rotation_init_log(void) {
     logger.initLoggedVal();
     logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
-    logger.add<&PlanProfile::getCurrentAngle>("current_angle", planProfile);
+    logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&PlanProfile::getTargetOmega>("target_omega", planProfile);
     logger.add<&Imu::gyroZ>("gyro_z", imu);
     logger.add<&MotorDriver::getOmegaCommand>("omega_cmd", motorDriver);
-    logger.add<&PlanProfile::getEncoderOmega>("encoder_omega", planProfile);
+    logger.add<&Odometry::encoderOmega>("encoder_omega", odometry);
     logger.add<&MotorDriver::getAngleIntegralTerm>("angle_integral_term", motorDriver);
     logger.add<&MotorDriver::getOmegaIntegralTerm>("omega_integral_term", motorDriver);
     logger.add<&Motor::getDuty>("Left Duty", motorLeft);
     logger.add<&Motor::getDuty>("Right Duty", motorRight);
     logger.add<&Battery::voltage>("battery", battery);
-    logger.add<&PlanProfile::getCurrentVelocityX>("encoder_velocity_x", planProfile);
+    logger.add<&Odometry::velocityX>("encoder_velocity_x", odometry);
 }
 
 // ---- 角度保持 ----
@@ -54,9 +54,9 @@ static_assert(2.f * PIVOT_RAMP_ANGLE < 90.f, "pivot ramps must fit in a 90 deg t
 // angle[deg]は符号つき（正で左旋回）
 static void pivot(float angle) {
     float dir = (angle > 0.f) ? 1.f : -1.f;
-    planProfile.omega2omega(dir * PIVOT_OMEGA, dir * PIVOT_RAMP_ANGLE);
-    planProfile.stepOmega(dir * PIVOT_OMEGA, angle - dir * 2.f * PIVOT_RAMP_ANGLE);
-    planProfile.omega2omega(0.f, dir * PIVOT_RAMP_ANGLE);
+    planProfile.turn(dir * PIVOT_OMEGA, dir * PIVOT_RAMP_ANGLE);
+    planProfile.turn(dir * PIVOT_OMEGA, angle - dir * 2.f * PIVOT_RAMP_ANGLE);
+    planProfile.turn(0.f, dir * PIVOT_RAMP_ANGLE);
 }
 
 onenter(rot_pivot_pos90,

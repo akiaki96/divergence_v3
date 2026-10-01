@@ -43,14 +43,14 @@ private:
                 MenuNode velocity_step_900_{"v step +900"};
                 MenuNode velocity_step_000_{"v step 0"};
             MenuNode plan_profile_{"Plan profile"};
-                MenuNode plan_step_velocity_{"stepVelocity"};
-                MenuNode plan_vel2vel_{"vel2vel"};
+                MenuNode plan_step_velocity_{"step velocity"};
+                MenuNode plan_vel2vel_{"straight"};
                 MenuNode plan_encoder_check_{"encoder check 50"};
                 MenuNode plan_encoder_check_fan_{"encoder check 50 fan0.2"};
                 MenuNode plan_fast_2000_{"fast 2000 fan0.2"};
             MenuNode plan_rotation_{"Plan rotation"};
-                MenuNode plan_turn_pos430_{"omega2omega +430"};
-                MenuNode plan_turn_neg430_{"omega2omega -430"};
+                MenuNode plan_turn_pos430_{"turn +430"};
+                MenuNode plan_turn_neg430_{"turn -430"};
             MenuNode rotation_{"Rotation"};
                 MenuNode rot_angle_hold_{"angle hold"};
                 MenuNode rot_pivot_pos90_{"pivot +90"};

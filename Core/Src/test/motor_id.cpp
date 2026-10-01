@@ -7,7 +7,7 @@ void id_init_log(void) {
     logger.initLoggedVal();
     // logger.add<&Encoder::velocity>("left_encoder_velocity", encoderLeft);
     // logger.add<&Encoder::velocity>("right_encoder_velocity", encoderRight);
-    logger.add<&PlanProfile::getCurrentVelocityX>("encoder_velocity_x", planProfile);
+    logger.add<&Odometry::velocityX>("encoder_velocity_x", odometry);
     logger.add<&Battery::voltage>("battery", battery);
     logger.add<&Motor::getDuty>("Left Duty", motorLeft);
     logger.add<&Motor::getDuty>("Right Duty", motorRight);
@@ -22,7 +22,7 @@ void id_init_log(void) {
 void id_init_log_velocity(void) {
     id_init_log();
     logger.add<&PlanProfile::getTargetVelocityX>("target_velocity_x", planProfile);
-    logger.add<&PlanProfile::getCurrentPositionX>("current_distance_x", planProfile);
+    logger.add<&Odometry::positionX>("current_distance_x", odometry);
     logger.add<&PlanProfile::getTargetPositionX>("target_distance_x", planProfile);
 }
 
@@ -32,7 +32,7 @@ void id_init_log_omega(void) {
     logger.add<&PlanProfile::getTargetVelocityX>("target_velocity_x", planProfile);
     logger.add<&PlanProfile::getTargetOmega>("target_omega", planProfile);
     logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
-    logger.add<&PlanProfile::getCurrentAngle>("current_angle", planProfile);
+    logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&MotorDriver::getAngleIntegralTerm>("angle_integral_term", motorDriver);
     // （Global_time込み12列＝2000サンプル＝2.0sに試験全体を収めるため。logger::MAX_BUFFER_SIZE参照）
 }
@@ -58,9 +58,9 @@ onenter(right_set050,
 // target_velocity_xへステップ指令し，実速度(left/right_encoder_velocity平均)の追従を
 // ログから確認する。duration_msは閉ループ時定数λ=0.1s基準で整定後も十分保持できる長さとする。
 static void velocity_step(float target_velocity_x, uint32_t duration_ms) {
-    planProfile.setTargetVelocityX(target_velocity_x);
+    planProfile.setVelocityX(target_velocity_x);
     HAL_Delay(duration_ms/2);
-    planProfile.setTargetVelocityX(0.f);
+    planProfile.setVelocityX(0.f);
     HAL_Delay(duration_ms/2);
 }
 

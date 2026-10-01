@@ -13,10 +13,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         encoderRight.update();
         imu.update();
 
-        planProfile.update();   // センサ更新後に実測値を計算し，目標軌道を1tick進める（同じtickの値で制御する）
+        odometry.update();   // センサ更新後に実測値を計算する（同じtickの値で制御する）
+        if (motorDriver.state == MotorDriverState::setVelocity) {
+            planProfile.update();   // 閉ループ中だけ目標軌道を1tick進める
+        }
         motorDriver.update(
-            planProfile.transReference(), planProfile.transMeasurement(),
-            planProfile.rotReference(), planProfile.rotMeasurement()
+            planProfile.transReference(), odometry.translation(),
+            planProfile.rotReference(), odometry.rotation()
         );
 
         logger.sample();

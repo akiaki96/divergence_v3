@@ -22,7 +22,8 @@ AdcValue adcValue;
 Motor motorLeft(&htim2, TIM_CHANNEL_4, MOTOR_L_CW_GPIO_Port, MOTOR_L_CW_Pin, MOTOR_L_CCW_GPIO_Port, MOTOR_L_CCW_Pin, Direction::Normal);
 Motor motorRight(&htim2, TIM_CHANNEL_1, MOTOR_R_CW_GPIO_Port, MOTOR_R_CW_Pin, MOTOR_R_CCW_GPIO_Port, MOTOR_R_CCW_Pin, Direction::Reversed);
 MotorDriver motorDriver(motorLeft, motorRight);
-PlanProfile planProfile(motorDriver);
+Odometry odometry(encoderLeft, encoderRight, imu);
+PlanProfile planProfile;
 
 Fan fan(&htim3, TIM_CHANNEL_1);
 
