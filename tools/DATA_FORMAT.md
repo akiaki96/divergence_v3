@@ -50,15 +50,36 @@
 ]
 ```
 
-この `list[dict]` が `data` として `Saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp)` に渡される。
+この `list[dict]` が `data` として `Saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp, on_conflict)` に渡される。
 
 ## 4. 保存されるCSVファイル（`Saver.save_to_csv()` の出力）
 
 - 保存先: `tools/log/<dirName>/<fileName または"log"><, includeTimestampがTrueなら "_<YYYYMMDD_HHMMSS>"を付与>.csv`
   - 例: `dirName="prbs_trans_t01"`, `fileName=""`, `includeTimestamp=True` → `tools/log/prbs_trans_t01/log_20260918_120000.csv`
-  - 例: `dirName="prbs_trans_t01"`, `fileName="run1"`, `includeTimestamp=False` → `tools/log/prbs_trans_t01/run1.csv`（同名ファイルは上書き）
+  - 例: `dirName="prbs_trans_t01"`, `fileName="run1"`, `includeTimestamp=False` → `tools/log/prbs_trans_t01/run1.csv`
 - 1行目: ヘッダー（`headers` の順）
 - 2行目以降: 各サンプルを `headers` の順で並べた**数値**（辞書ではない）
+
+### 4.1 同名ファイルが既に存在する場合の挙動（`on_conflict`）
+
+`includeTimestamp=False` の場合（あるいはTrueでも同一秒内に複数回保存した場合），保存先パスが
+既存ファイルと衝突することがある。`Saver` はこれを `on_conflict` で制御する：
+
+| `on_conflict` | 挙動 |
+|---|---|
+| `"overwrite"`（デフォルト） | 既存ファイルをそのまま上書きする（従来の挙動） |
+| `"sequence"` | 既存ファイルがあれば，ベース名に `_1`, `_2`, ... と連番を付けた**空いている名前**を探して別ファイルとして保存する（既存ファイルは残る）。例: `run1.csv` が既に存在する場合 → `run1_1.csv`（それも存在すれば `run1_2.csv`, ...） |
+
+指定方法は2通り：
+
+- コンストラクタ: `Saver(on_conflict="sequence")` … 以降そのインスタンスでの `save_to_csv()` 呼び出し全てに適用されるデフォルト
+- 呼び出しごと: `saver.save_to_csv(..., on_conflict="sequence")` … その1回の呼び出しに限りコンストラクタの指定を上書きする
+
+`main.py` では起動時オプション `--on_conflict {overwrite,sequence}`（デフォルト `overwrite`）で指定する：
+
+```
+python main.py --on_conflict sequence
+```
 
 ```csv
 Global_time,left_encoder_velocity,right_encoder_velocity,battery,Left Duty,Right Duty
