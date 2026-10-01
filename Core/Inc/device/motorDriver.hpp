@@ -61,17 +61,12 @@ public:
         return velocity_pid_saturated_ ? 1.f : 0.f;
     }
 
-    // ---- 回転（角速度・角度）----
+    // ---- 回転（角度）----
     // 回転の目標値（並進と同じくPlanProfile::update()から毎tick渡される）。
-    // alphaは角加速度FFの入力としてだけ使う（積分はしない）
-    void setTargetRotation(float angle, float omega, float alpha) {
+    // 制御に使うのは目標角度だけ（目標角速度はログ用）
+    void setTargetRotation(float angle, float omega) {
         target_angle_ = angle;
         target_omega_ = omega;
-        target_alpha_ = alpha;
-    }
-
-    float getTargetAlpha() const {
-        return target_alpha_;
     }
 
     float getTargetOmega() const {
@@ -80,6 +75,15 @@ public:
 
     float getTargetAngle() const {
         return target_angle_;
+    }
+
+    // 角度PIの出力（角速度の指令）[dps]
+    float getOmegaCommand() const {
+        return omega_cmd_;
+    }
+
+    float getAngleIntegralTerm() const {
+        return pid_angle_.getIntegralTerm();
     }
 
     float getOmegaIntegralTerm() const {
@@ -101,9 +105,11 @@ private:
     PIDController pid_velocity_x_;
     bool velocity_pid_saturated_ = false;
 
-    float target_alpha_ = 0.f;   // [dps/s] 角加速度FFの入力
     float target_omega_ = 0.f;   // [dps]
     float target_angle_ = 0.f;   // [deg]
 
-    PIDController pid_omega_;
+    PIDController pid_angle_;   // 角度PI：出力は角速度の指令 [dps]
+    PIDController pid_omega_;   // 角速度PI：出力は左右の電圧差 R − L [V]
+    float omega_cmd_ = 0.f;     // [dps] 角度PIの出力（ログ用に保持）
+    float rotation_saturation_ = 0.f;   // 前tickの左右の電圧差の飽和（+1:上限, −1:下限, 0:なし）。角度PIの条件付き積分に使う
 };

@@ -62,7 +62,7 @@ void id_init_log_velocity(void) {
     );
 }
 
-// 回転角速度PI+FF・角度P制御の追従性検証用：並進のフィールドに加え，回転の目標値と実測を記録する
+// 回転（角度PI → 角速度PI）の追従性検証用：並進のフィールドに加え，回転の目標値と実測・角度PIの積分項を記録する
 void id_init_log_omega(void) {
     id_init_log();
     logger.add(
@@ -82,10 +82,9 @@ void id_init_log_omega(void) {
         etl::delegate<float()>::create<PlanProfile, &PlanProfile::getCurrentAngle>(planProfile)
     );
     logger.add(
-        "omega_integral_term",
-        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getOmegaIntegralTerm>(motorDriver)
+        "angle_integral_term",
+        etl::delegate<float()>::create<MotorDriver, &MotorDriver::getAngleIntegralTerm>(motorDriver)
     );
-    // omega_feedforwardはtarget_omegaとランプの角加速度から後計算できるので記録しない
     // （Global_time込み12列＝2000サンプル＝2.0sに試験全体を収めるため。logger::MAX_BUFFER_SIZE参照）
 }
 
@@ -143,8 +142,8 @@ static void omega_ramp_to(float omega_target, float alpha) {
     planProfile.omega2omega(omega_target, angle);
 }
 
-// 回転角速度PI+FF（omega_ff, config::pid_omega）と角度P（config::pid_angle）の追従性検証。
-// FF・Tiは並進700mm/sで同定した値なので，700mm/sで直進してから角速度をランプ指令（運用仕様2500dps/s）で与え，
+// 回転（config::pid_rotation：角度PI → 角速度PI）の追従性検証。
+// 700mm/sで直進してから角速度をランプ指令（運用仕様2500dps/s）で与え，
 // hold_ms保持した後にランプで0へ戻す。目標角度は目標角速度の積分（ランプ分を含む）。
 // 走行距離は約1m（直進0.5s＋旋回＋停止）なので，旋回で膨らむ分も含め十分な余白を確保すること。
 // 記録は全体で約1.84s（±430。ログ上限2.0s以内）。
@@ -164,31 +163,31 @@ static void omega_ramp(float omega_target, uint32_t hold_ms) {
 }
 
 onenter(omega_ramp_pos430,
-    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_pos430", id_init_log_omega,
+    runClosedLoopTest({"rot_angle_pi_v700_x", "omega_ramp_pos430", id_init_log_omega,
                        [] { omega_ramp(430.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_neg430,
-    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_neg430", id_init_log_omega,
+    runClosedLoopTest({"rot_angle_pi_v700_x", "omega_ramp_neg430", id_init_log_omega,
                        [] { omega_ramp(-430.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_pos250,
-    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_pos250", id_init_log_omega,
+    runClosedLoopTest({"rot_angle_pi_v700_x", "omega_ramp_pos250", id_init_log_omega,
                        [] { omega_ramp(250.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_neg250,
-    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_neg250", id_init_log_omega,
+    runClosedLoopTest({"rot_angle_pi_v700_x", "omega_ramp_neg250", id_init_log_omega,
                        [] { omega_ramp(-250.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_pos100,
-    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_pos100", id_init_log_omega,
+    runClosedLoopTest({"rot_angle_pi_v700_x", "omega_ramp_pos100", id_init_log_omega,
                        [] { omega_ramp(100.f, 400); }, 0.f, 0.f, 0});
 )
 
 onenter(omega_ramp_neg100,
-    runClosedLoopTest({"omega_2dof_v700_x", "omega_ramp_neg100", id_init_log_omega,
+    runClosedLoopTest({"rot_angle_pi_v700_x", "omega_ramp_neg100", id_init_log_omega,
                        [] { omega_ramp(-100.f, 400); }, 0.f, 0.f, 0});
 )

@@ -35,8 +35,14 @@ public:
         return current_position_x_;
     }
 
+    // ジャイロの角速度 [dps]（左旋回で正）。回転の制御に使う
     float getCurrentOmega() const {
         return current_omega_;
+    }
+
+    // 左右のエンコーダの速度差から求めた角速度 [dps]（ログ用：ジャイロと比べて滑りを見る）
+    float getEncoderOmega() const {
+        return encoder_omega_;
     }
 
     float getCurrentAngle() const {
@@ -84,6 +90,7 @@ private:
 
     // 実測の角速度・角度（ジャイロ）。同様にupdate()で更新してMotorDriver::update()へ渡す
     volatile float current_omega_ = 0.f;  // [dps]
+    volatile float encoder_omega_ = 0.f;  // [dps] エンコーダ由来（ログ用）
     volatile float current_angle_ = 0.f;  // [deg] resetTargetAngle()時の姿勢を0とする
     volatile float angle_origin_ = 0.f;   // [deg] resetTargetAngle()時のimu.gyroAngleZ()
 

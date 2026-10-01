@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <numbers>
 
 namespace config::mouse {
 inline constexpr float ENCODER_RES = 4096.f;
@@ -106,40 +107,35 @@ inline constexpr float kp = 1.f / (4 * config::pid_velocity_x::LAMBDA * ZETA * Z
 
 }
 
-// 回転角速度 PI + feedforward 制御（data_analysis2/04_rot_omega_control）
-//
-// 並進と同じく電圧空間で計算する。同定・FF設計はduty空間（実測の中央付近 7.9V）で行ったので，
-// duty値×BATT_V_REFで電圧へ換算する（回転の感度は電圧にほぼ比例：rot_gain_scheduling_plan.md §20.3, §23）。
-// プラントは動作点で T 10→160ms, K 550→3200dps/duty と非線形（並進700mm/s, |ω|≦430dpsで同定）。
-// FFは線形近似 u_ff = ω_ref/K± + A_FF·α_ref。K±は430dpsで実測u_ssの下限付近（保守側：FF過大はOSになる）で，
-// 100〜250dpsで不足する分（約0.05duty）はPIの積分が補う。
-namespace config::pid_omega {
-inline constexpr float BATT_V_REF = 7.9f;  // [V] duty値→電圧の換算基準
+// 回転の制御（divergence_v2 8199a2f の構成をもとに，ジャイロで閉じて角速度の単位で書いたもの）：
+//   ω_cmd = ω_ref + 角度PI（ジャイロの積分角度）→ 角速度PI（ジャイロ）→ 左右の電圧差
+// 電圧のFF・Tiスケジュールは持たない。摩擦（その場旋回で約1.7V）による偏差は内側の積分で消す
+// （rot_angle_pi_gyro/rot_pivot_pos90：内側がPだけだとω_cmdに対してジャイロが約100〜160dps遅れ，最終角度88.7°）。
+// 比例ゲインはv2の値（角度[deg]→車輪の速度差 w [mm/s]，車輪速度[mm/s]→電圧）を w = ω·π/180·TREAD/2 で角速度へ換算したもの
+namespace config::pid_rotation {
+// 車輪の速度差の半分 w = (v_R − v_L)/2 [mm/s] と角速度 ω [dps] の換算
+inline constexpr float WHEEL_DIFF_PER_DPS = std::numbers::pi_v<float> / 180.f * config::mouse::TREAD_MM / 2.f;   // [mm/s/dps] ≈ 0.524
 
-// --- feedforward（線形）---
-inline constexpr float K_FF_POS = 2400.f / BATT_V_REF;   // [dps/V] ω_ref >= 0
-inline constexpr float K_FF_NEG = 1950.f / BATT_V_REF;   // [dps/V] ω_ref < 0（-側は約0.03duty多く要る）
-inline constexpr float A_FF = 3.0e-5f * BATT_V_REF;      // [V/(dps/s)] 加速度FF係数 T/K（F5表の高速側。不足側に弱く過大側に寛容）
+// --- 角度PI：出力は角速度の指令 ω_cmd [dps]（目標角速度ω_refをFFとして足す）---
+inline constexpr float ANGLE_KP = 17.45f / WHEEL_DIFF_PER_DPS;   // [dps/deg] ≈ 33.3（v2 pid_ang.kp=17.45 mm/s/deg）
+inline constexpr float ANGLE_KI = 5.0f / WHEEL_DIFF_PER_DPS;     // [dps/(deg·s)] ≈ 9.55（v2 pid_ang.ki=5.0）
+inline constexpr float ANGLE_BACK_CALC_TT = ANGLE_KP / ANGLE_KI; // [s] アンチワインドアップ（Ti）
+inline constexpr float OMEGA_CMD_LIMIT = 1000.f / WHEEL_DIFF_PER_DPS;   // [dps] ≈ 1910（車輪の速度差1000mm/s相当）
 
-// --- PIフィードバック ---
-// Kc=5e-4duty/dps（実機E3〜E11で使用）。Kcは動作点によらずほぼ一定でよく，Ti(=Kc/Ki)のみ|ω_ref|でスケジュールする
-inline constexpr float kp = 5.0e-4f * BATT_V_REF;        // [V/dps]
-inline constexpr float kd = 0.0f;
-inline constexpr int TI_TABLE_SIZE = 6;
-inline constexpr float TI_OMEGA_BP[TI_TABLE_SIZE] = {0.f, 100.f, 200.f, 250.f, 400.f, 430.f};   // [dps]
-inline constexpr float TI_S_BP[TI_TABLE_SIZE]     = {0.0090f, 0.01725f, 0.0345f, 0.0420f, 0.0615f, 0.06525f};   // [s]
+// --- 角速度PI（ジャイロ）：左右の電圧差 R − L [V] ---
+// v2の車輪速度P（kp=2, duty[‰]=u/ad_batt·4000, ad_batt=Vbatt·4096/3.3·20k/53k）を電圧へ換算すると
+// 片輪 0.0171 V/(mm/s)。左右の差（×2）と角速度への換算（×WHEEL_DIFF_PER_DPS）をかける
+inline constexpr float WHEEL_KP = 2.f * 4000.f / 1000.f / (4096.f / 3.3f * 20000.f / 53000.f);   // [V/(mm/s)] 片輪
+inline constexpr float OMEGA_KP = 2.f * WHEEL_KP * WHEEL_DIFF_PER_DPS;   // [V/dps] ≈ 0.0179
+// [要調整] 積分時間。旧方式のTiスケジュール（360〜430dpsで約0.06s）を目安に固定値とした。
+// 振動するなら長く，止まる前の残差が大きいなら短くする
+inline constexpr float OMEGA_TI = 0.05f;                    // [s]
+inline constexpr float OMEGA_KI = OMEGA_KP / OMEGA_TI;      // [V/(dps·s)]
 
-// --- 出力飽和（duty_diffの電圧換算。7.9Vで約0.33duty。0.28duty超は開ループ未検証：§23.1）---
-inline constexpr float VOLTAGE_LIMIT = 2.6f;   // [V]
-
-// 閉ループ時定数の目安（Kc×接線ゲイン/T ≈ 5〜9万dps/s/duty から λ≈0.02〜0.04s）。角度ループの設計に使う
-inline constexpr float LAMBDA = 0.03f;   // [s]
-}
-
-// 角度のP制御（外側ループ）。位置と同じ設計則：ω_cmd = ω_ref + kp(θ_ref − θ)
-namespace config::pid_angle {
-inline constexpr float ZETA = 1.0f;
-inline constexpr float kp = 1.f / (4 * config::pid_omega::LAMBDA * ZETA * ZETA);   // [dps/deg]
+// --- 出力飽和（左右の電圧差 R − L）：並進と同じく電池電圧に比例させる ---
+// 旧来の固定2.6V（片輪1.3V）ではその場旋回の摩擦に足りず，pivot +90で約30dpsしか出なかった（rot_angle_pi/rot_pivot_pos90）。
+// 並進と合わせた片輪の電圧はMotorDriver::dutyFromVoltage()でMAX_DUTYに収める
+inline constexpr float VOLTAGE_LIMIT_RATIO = 0.95f;   // [V/V]
 }
 
 // PRBS入力設計（並進方向, data_analysis2/prbs_design.m）

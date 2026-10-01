@@ -21,33 +21,6 @@ static float velocity_x_ff(float velocity_x, float accel_x) {
     return (velocity_x / config::pid_velocity_x::A_GAIN) + sign * config::pid_velocity_x::U0_DEADZONE + accel_ff;
 }
 
-static float abs_f(float x) {
-    return (x < 0.f) ? -x : x;
-}
-
-// 回転角速度feedforward [V]（data_analysis2/04_rot_omega_control, 線形近似）:
-//   u_ff(ω_ref, α_ref) = ω_ref/K_FF± + A_FF·α_ref
-// 静的項の傾きはω_refの符号で正/負を選ぶ（-側は同じ角速度でより大きな出力が要る）。0では両側とも0で連続。
-// 並進と違い加速度項を入れる：回転は必要出力の大部分を積分で作るとOSになり，加速度FFで遅れを消すのが本質（§17）
-static float omega_ff(float omega, float alpha) {
-    float k = (omega >= 0.f) ? config::pid_omega::K_FF_POS : config::pid_omega::K_FF_NEG;
-    return (omega / k) + config::pid_omega::A_FF * alpha;
-}
-
-// 指令角速度|ω_ref|に対する積分時間Ti [s]（区分線形。表の範囲外は端の値）
-static float omega_ti_schedule(float omega) {
-    using namespace config::pid_omega;
-    float x = abs_f(omega);
-    if (x <= TI_OMEGA_BP[0]) return TI_S_BP[0];
-    for (int i = 1; i < TI_TABLE_SIZE; i++) {
-        if (x <= TI_OMEGA_BP[i]) {
-            float r = (x - TI_OMEGA_BP[i - 1]) / (TI_OMEGA_BP[i] - TI_OMEGA_BP[i - 1]);
-            return TI_S_BP[i - 1] + r * (TI_S_BP[i] - TI_S_BP[i - 1]);
-        }
-    }
-    return TI_S_BP[TI_TABLE_SIZE - 1];
-}
-
 void MotorDriver::init() {
     pid_velocity_x_.setGains(
         config::pid_velocity_x::kp,
@@ -56,13 +29,18 @@ void MotorDriver::init() {
         config::pid_velocity_x::BACK_CALC_TT
     );
 
-    // Ki・back-calculation時定数はupdate()で|ω_ref|に応じて毎tick差し替える（初期値はω_ref=0の値）
-    float ti0 = omega_ti_schedule(0.f);
+    pid_angle_.setGains(
+        config::pid_rotation::ANGLE_KP,
+        config::pid_rotation::ANGLE_KI,
+        0.f,
+        config::pid_rotation::ANGLE_BACK_CALC_TT
+    );
+
     pid_omega_.setGains(
-        config::pid_omega::kp,
-        config::pid_omega::kp / ti0,
-        config::pid_omega::kd,
-        ti0
+        config::pid_rotation::OMEGA_KP,
+        config::pid_rotation::OMEGA_KI,
+        0.f,
+        config::pid_rotation::OMEGA_TI
     );
 }
 
@@ -92,7 +70,9 @@ float MotorDriver::dutyFromVoltage(float voltage) const {
 
 void MotorDriver::switchToVelocityX() {
     pid_velocity_x_.reset();
+    pid_angle_.reset();
     pid_omega_.reset();
+    rotation_saturation_ = 0.f;
     state = MotorDriverState::setVelocity;
 }
 
@@ -116,17 +96,17 @@ void MotorDriver::update(float current_velocity_x, float current_position_x, flo
             float base_batt = pid_velocity_x_.update(local_target_velocity_x, current_velocity_x, velocity_ff, limit, saturated);
             velocity_pid_saturated_ = saturated;
 
-            // ---- 回転：角度P（FF=目標角速度）→ 角速度PI（FF=角速度・角加速度から）。並進と同じ2自由度カスケード ----
-            float local_target_omega = target_omega_ + config::pid_angle::kp * (target_angle_ - current_angle);
+            // ---- 回転：角度PI（FF=目標角速度）→ 角速度の指令 → 角速度PI（ジャイロ）----
+            // 電圧差が飽和している向きへさらに誤差が押す間は角度PIの積分を止める（角度誤差が正→ω_cmd増→電圧差増）
+            float angle_error = target_angle_ - current_angle;
+            bool hold_angle_integral = rotation_saturation_ * angle_error > 0.f;
+            bool angle_saturated = false;
+            omega_cmd_ = pid_angle_.update(target_angle_, current_angle, target_omega_, config::pid_rotation::OMEGA_CMD_LIMIT, angle_saturated, hold_angle_integral);
 
-            // FF・Tiのスケジュール変数は補正を含まない目標角速度ω_ref（既知・無雑音）
-            float ti = omega_ti_schedule(target_omega_);
-            pid_omega_.ki = config::pid_omega::kp / ti;   // 積分項は出力単位で保持されるのでKiを変えても出力は跳ばない
-            pid_omega_.back_calc_tt = ti;
-
+            float diff_limit = config::pid_rotation::VOLTAGE_LIMIT_RATIO * battery.voltage();
             bool omega_saturated = false;
-            float omega_feedforward = omega_ff(target_omega_, target_alpha_);
-            float diff_batt = pid_omega_.update(local_target_omega, current_omega, omega_feedforward, config::pid_omega::VOLTAGE_LIMIT, omega_saturated);
+            float diff_batt = pid_omega_.update(omega_cmd_, current_omega, 0.f, diff_limit, omega_saturated);
+            rotation_saturation_ = omega_saturated ? ((diff_batt > 0.f) ? 1.f : -1.f) : 0.f;
 
             // diff = R − L（正でω正）。v_L = v − diff/2, v_R = v + diff/2 のkinematic配分
             float half_diff = diff_batt / 2.f;

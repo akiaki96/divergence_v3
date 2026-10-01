@@ -41,6 +41,7 @@ void PlanProfile::update() {
     current_position_x_ = (encoderLeft.distance() + encoderRight.distance()) / 2.f;
 
     current_omega_ = imu.gyroZ();
+    encoder_omega_ = (encoderRight.velocity() - encoderLeft.velocity()) / 2.f / config::pid_rotation::WHEEL_DIFF_PER_DPS;
     current_angle_ = imu.gyroAngleZ() - angle_origin_;
 
     if (motorDriver_.state == MotorDriverState::setVelocity) {
@@ -49,7 +50,7 @@ void PlanProfile::update() {
     }
 
     motorDriver_.setTargetX(trans_.pos, trans_.vel, trans_.acc);
-    motorDriver_.setTargetRotation(rot_.pos, rot_.vel, rot_.acc);
+    motorDriver_.setTargetRotation(rot_.pos, rot_.vel);
 }
 
 // 目標軌道を1tick進める（割り込み側）。開始要求があれば今の目標位置をx0として区間を始め，

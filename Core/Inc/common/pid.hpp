@@ -13,8 +13,9 @@ class PIDController {
 public:
 
     void reset();
-    // 飽和分はback-calculationで積分から引き戻す（feedforwardも飽和判定に含む）
-    float update(float target, float current, float feedforward, float limit, bool& saturated);
+    // 飽和分はback-calculationで積分から引き戻す（feedforwardも飽和判定に含む）。
+    // hold_integral=trueのtickは積分しない（カスケードの下流が飽和しているときの条件付き積分に使う）
+    float update(float target, float current, float feedforward, float limit, bool& saturated, bool hold_integral = false);
 
     void setGains(float kp, float ki, float kd, float back_calc_tt) {
         this->kp = kp;

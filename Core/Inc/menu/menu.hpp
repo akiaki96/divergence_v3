@@ -51,6 +51,12 @@ private:
             MenuNode plan_rotation_{"Plan rotation"};
                 MenuNode plan_turn_pos430_{"omega2omega +430"};
                 MenuNode plan_turn_neg430_{"omega2omega -430"};
+            MenuNode rotation_{"Rotation"};
+                MenuNode rot_angle_hold_{"angle hold"};
+                MenuNode rot_pivot_pos90_{"pivot +90"};
+                MenuNode rot_pivot_neg90_{"pivot -90"};
+                MenuNode rot_pivot_pos180_{"pivot +180"};
+                MenuNode rot_pivot_neg180_{"pivot -180"};
             MenuNode motor_omega_{"Motor omega"};
                 MenuNode omega_ramp_pos430_{"w ramp +430"};
                 MenuNode omega_ramp_neg430_{"w ramp -430"};

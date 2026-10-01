@@ -30,7 +30,7 @@ onenter(plan_vel2vel,
 )
 
 // ---- 回転（stepOmega / omega2omega）----
-// FF・Tiは並進700mm/sで同定した値なので，700mm/sまで加速してから旋回し，旋回後に減速して止める。
+// 700mm/sまで加速してから旋回し，旋回後に減速して止める（旧方式のω FF・Tiの同定条件に合わせたまま）。
 // 旋回は ω: 0→±430dps（2500dps/s, 37°）→ ±430dpsで90° → 0（37°）の計約164°。記録は約1.7s（ログ上限2.0s）
 
 // omega2omegaで角速度を台形に変化させる。dir=+1で左旋回，-1で右旋回
@@ -43,12 +43,12 @@ static void profile_turn_omega2omega(float dir) {
 }
 
 onenter(plan_turn_pos430,
-    runClosedLoopTest({"plan_profile_x", "plan_turn_omega2omega_pos430", id_init_log_omega,
+    runClosedLoopTest({"plan_profile_x", "plan_turn_omega2omega_pos430_angle_pi", id_init_log_omega,
                        [] { profile_turn_omega2omega(1.f); }});
 )
 
 onenter(plan_turn_neg430,
-    runClosedLoopTest({"plan_profile_x", "plan_turn_omega2omega_neg430", id_init_log_omega,
+    runClosedLoopTest({"plan_profile_x", "plan_turn_omega2omega_neg430_angle_pi", id_init_log_omega,
                        [] { profile_turn_omega2omega(-1.f); }});
 )
 

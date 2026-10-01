@@ -6,7 +6,7 @@ void PIDController::reset() {
     previous_error_ = 0.f;
 }
 
-float PIDController::update(float target, float current, float feedforward, float limit, bool& saturated) {
+float PIDController::update(float target, float current, float feedforward, float limit, bool& saturated, bool hold_integral) {
     float error = target - current;
     float derivative = (error - previous_error_) / config::control::DT_S;
     previous_error_ = error;
@@ -24,7 +24,9 @@ float PIDController::update(float target, float current, float feedforward, floa
     }
 
     // back-calculation: 飽和分(u_sat - u_unsat)だけ積分項を引き戻し，ワインドアップを防ぐ
-    integral_term_ += (ki * error + (u_sat - u_unsat) / back_calc_tt) * config::control::DT_S;
+    if (!hold_integral) {
+        integral_term_ += (ki * error + (u_sat - u_unsat) / back_calc_tt) * config::control::DT_S;
+    }
 
     return u_sat;
 }
