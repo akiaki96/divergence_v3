@@ -68,9 +68,11 @@ struct FastProfile {
 };
 
 // 台形の加速・減速がプロファイルの加速度の上限（config::profile_limit）内か。超えていればコンパイルエラーにする
+// （積むときにも同じvalidateSegment()で検査される）
 constexpr bool withinAccelLimit(const FastProfile& p) {
-    return config::profile_limit::withinAccelLimit(0.f, p.v_max, p.accel_dist) &&
-           config::profile_limit::withinAccelLimit(p.v_max, 0.f, p.decel_dist);
+    using namespace config::profile_limit;
+    return validateSegment(0.f, p.v_max, p.accel_dist, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok &&
+           validateSegment(p.v_max, 0.f, p.decel_dist, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok;
 }
 
 // 0→2000mm/s（180mm, 約1.13G）→ 360mm → 0（180mm）。経路720mm，所要約0.54s
@@ -131,6 +133,7 @@ static void encoder_check_init_log(void) {
 static void encoder_check_profile(void) {
     planProfile.setVelocityX(ENC_CHECK_VELOCITY);
     planProfile.straight(ENC_CHECK_VELOCITY, ENC_CHECK_DISTANCE);
+    planProfile.waitUntilIdle();
     planProfile.stop();
     HAL_Delay(1000);   // 停止の整定
 

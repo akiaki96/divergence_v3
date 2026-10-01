@@ -84,7 +84,7 @@ inline constexpr float ZERO_VELOCITY_EPS = 1.0f;  // [mm/s]
 inline constexpr float ACCEL_FF_GAIN = T_p1 / K_p;  // [V/(mm/s^2)] ≈ 2.93e-4
 }
 
-// 並進プロファイルの加速度の上限（コンパイル時にstatic_assertで検査する）。
+// プロファイルの加速度の上限（PlanProfileが区間を積むときにvalidateSegment()で検査する。固定の試験はstatic_assertでも検査する）。
 // 根拠：ファン20%のスリップ試験（plan_slip_limit_fan020, 2026-09-29）で，車輪と車体（IMU）の加速度の比が
 // 較正範囲（0.93〜1.08）を超えたのは加速で約1.9G以上，減速で約2.5G以上。車体が実際に出せた加速度は
 // 加速約1.7G，減速約2.4〜2.6G。電池の電圧降下（加速中7.5→約5.8V）も考え，余裕をとって加速1.5G，減速2.0Gとする
@@ -93,16 +93,10 @@ inline constexpr float G = 9806.65f;                   // [mm/s^2]
 inline constexpr float MAX_ACCEL_X = 1.5f * G;         // [mm/s^2] 加速の上限
 inline constexpr float MAX_DECEL_X = 2.0f * G;         // [mm/s^2] 減速の上限（大きさ）
 
-// v0→v1をdistance[mm]で等加速度に変化させる区間（vel2vel）の加速度 [mm/s^2]（v1^2 = v0^2 + 2·a·d）
-constexpr float segmentAccel(float v0, float v1, float distance) {
-    return (v1 * v1 - v0 * v0) / (2.f * distance);
-}
-
-// その区間の加速度が上限内か（加速はMAX_ACCEL_X，減速はMAX_DECEL_X）
-constexpr bool withinAccelLimit(float v0, float v1, float distance) {
-    float a = segmentAccel(v0, v1, distance);
-    return (a >= 0.f) ? (a <= MAX_ACCEL_X) : (-a <= MAX_DECEL_X);
-}
+// 回転の角加速度の上限（積むときに検査する）。[要調整] 同定していない。桁違いの指定を弾くための上限で，
+// 試験は2500dps/sで走らせている
+inline constexpr float MAX_ALPHA = 10000.f;   // [dps/s] 増速の上限
+inline constexpr float MAX_ALPHA_DECEL = 10000.f;   // [dps/s] 減速の上限（大きさ）
 }
 
 // 位置のP制御（並進の外側ループ）：v_cmd = v_ref + kp(x_ref − x)。積分は持たない（AxisControllerの外側PIをki=0で使う）

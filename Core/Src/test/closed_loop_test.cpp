@@ -48,7 +48,14 @@ void runClosedLoopTest(const ClosedLoopTest& test) {
     HAL_Delay(100);   // 静止区間：オフセット推定用
     motorDriver.switchToVelocityX();   // PIを初期化して閉ループへ切り替える（走行開始時に1回だけ）
 
-    test.profile();
+    test.profile();   // 区間を積むだけで戻る
+    planProfile.waitUntilIdle();   // 積んだ区間がすべて終わるまで待つ
+
+    if (planProfile.rejectedCount() > 0 || planProfile.droppedCount() > 0) {
+        LOG("plan profile: %lu segments rejected, %lu dropped\r\n",
+            static_cast<unsigned long>(planProfile.rejectedCount()),
+            static_cast<unsigned long>(planProfile.droppedCount()));
+    }
 
     HAL_Delay(test.settle_ms);
     planProfile.stop();
