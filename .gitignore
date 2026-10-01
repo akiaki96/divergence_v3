@@ -10,6 +10,8 @@ tools/__pycache__/
 .envrc
 log.csv
 
+.DS_Store
+
 # matlab
 *.sid
 data_analysis/
