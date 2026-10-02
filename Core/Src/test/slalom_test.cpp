@@ -24,7 +24,7 @@ constexpr float START_MM = WALL_HALF_MM + config::mouse::BACK_TO_AXLE_MM;
 constexpr float RUNUP_ACCEL = 0.5f * config::profile_limit::G;   // [mm/s^2] 入口までの加速
 constexpr float STOP_DECEL_LIMIT = config::profile_limit::MAX_DECEL_X;
 constexpr uint32_t SETTLE_MS = 500;            // 止まってから最終位置を読むまで
-constexpr uint32_t LOG_DECIMATION = 2;         // [tick] 16列×1500サンプル＝3.0s
+constexpr uint32_t LOG_COLUMNS = 16;           // Global_time込み（slalom_init_log()）。間引きは走行時間から決める（logDecimation()）
 
 // 置いた位置から入口の基準点まで [mm]
 constexpr float runupDistance(slalom::Anchor entry) {
@@ -40,9 +40,23 @@ constexpr float accelDistance(float speed) {
     return speed * speed / (2.f * RUNUP_ACCEL);
 }
 
+// 走行時間 [ms]：静止100ms・助走（加速＋等速）・入口〜出口・停止・整定。低速ほど長い（200mm/s の L90 で約5s）
+constexpr float runMs(const slalom::Param& p) {
+    float accel = accelDistance(p.speed);
+    float s = (2.f * accel + (runupDistance(p.entry) - accel) + slalom::totalDistance(p) + 2.f * stopDistance(p.exit)) / p.speed;
+    return 100.f + s * 1000.f + SETTLE_MS;
+}
+
+// 走行がまるごとログに収まる間引き [tick]（2割の余裕）。ログが一杯になると記録が止まり，止まった位置が残らない
+uint32_t logDecimation(const slalom::Param& p) {
+    uint32_t samples = Logger::MAX_BUFFER_SIZE / LOG_COLUMNS;
+    return static_cast<uint32_t>(runMs(p) * 1.2f / samples) + 1;
+}
+
 // 試験中のパラメータ（runClosedLoopTest()の関数ポインタは引数を持てないので，ここで受け渡す）
 const slalom::Param* g_param = nullptr;
 slalom::TurnDir g_dir = slalom::TurnDir::left;
+uint32_t g_decimation = 1;
 char g_file_name[32];
 
 struct Result {
@@ -76,7 +90,7 @@ void slalom_init_log() {
     logger.add<&Battery::voltage>("battery", battery);
     logger.add<&Imu::accelX>("accel_x", imu);
     logger.add<&Fan::getDuty>("fan_duty", fan);
-    logger.setDecimation(LOG_DECIMATION);
+    logger.setDecimation(g_decimation);
 }
 
 void slalom_profile() {
@@ -136,6 +150,8 @@ void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
 
     g_param = &p;
     g_dir = dir;
+    g_decimation = logDecimation(p);
+    LOG("  run about %.1f s, log every %lu ms\r\n", runMs(p) / 1000.f, static_cast<unsigned long>(g_decimation));
     g_result = {0.f, 0.f};
     std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s", p.name, dir_name);
 

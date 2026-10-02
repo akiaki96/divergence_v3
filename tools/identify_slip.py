@@ -109,6 +109,9 @@ class Run:
         self.omega = [s * w for w in d["gyro_z"]]                   # [dps] 時計回りが正
         self.v = d["encoder_velocity_x"]                            # [mm/s]
         self.dist = d["current_distance_x"]                         # [mm]
+        # ログの最後でまだ動いていたら，ログが一杯になって止まる前に記録が終わっている（止まった位置が無い）
+        tail = self.v[-10:]
+        self.truncated = sum(abs(v) for v in tail) / len(tail) > 5.0
 
         entry_y = CELL_MM if self.preset.entry == "edge" else 1.5 * CELL_MM
         dx, dy = EXIT_DISPLACEMENT[self.turn]
@@ -242,6 +245,13 @@ def main():
             continue
         print(f"===== ファン{'ON' if fan else 'OFF'}：{len(group)}本 =====")
         print("  走行                 実測 外側/前後   ログだけ(滑りなし)   この走行だけで合わせた c_eff")
+        for r in group:
+            if r.truncated:
+                print(f"  ⚠ {r.name}: ログの最後でまだ動いている（{r.v[-1]:.0f}mm/s）。ログが途中で切れていて，"
+                      "止まった位置を計算できないので使わない")
+        group = [r for r in group if not r.truncated]
+        if not group:
+            continue
         for r in group:
             o0, l0 = r.offsets()
             single = fit([r], use_k=False)
