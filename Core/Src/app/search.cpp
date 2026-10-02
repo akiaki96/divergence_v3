@@ -26,20 +26,21 @@ constexpr float pivotRamp(const PivotParam& p) {
     return p.omega * p.omega / (2.f * p.alpha);
 }
 
-// 集合のターン：使わない（nullptr）か，探索速度で設計されていて積める
-constexpr bool turnUsable(const slalom::Param* t, float v) {
-    return t == nullptr || (t->speed == v && slalom::validate(*t) == SegmentResult::ok);
+// 集合のターン：使わない（nullptr）か，探索速度・同じファンの条件で設計されていて積める
+constexpr bool turnUsable(const slalom::Param* t, float v, bool fan) {
+    return t == nullptr || (t->speed == v && t->fan == fan && slalom::validate(*t) == SegmentResult::ok);
 }
 
 constexpr bool turnsUsable(const SearchPreset& p) {
     const float v = p.speed;
+    const bool f = p.fan;
     const OrthoTurns& o = p.turns;
     bool ok = o.s90 != nullptr && o.s90->entry == slalom::Anchor::edge && o.s90->exit == slalom::Anchor::edge
-           && turnUsable(o.s90, v) && turnUsable(o.l90, v) && turnUsable(o.t180, v);
+           && turnUsable(o.s90, v, f) && turnUsable(o.l90, v, f) && turnUsable(o.t180, v, f);
     if (p.diagonal != nullptr) {
         const DiagonalTurns& d = *p.diagonal;
-        ok = ok && turnUsable(d.in45, v) && turnUsable(d.out45, v) && turnUsable(d.v90, v)
-                && turnUsable(d.in135, v) && turnUsable(d.out135, v);
+        ok = ok && turnUsable(d.in45, v, f) && turnUsable(d.out45, v, f) && turnUsable(d.v90, v, f)
+                && turnUsable(d.in135, v, f) && turnUsable(d.out135, v, f);
     }
     return ok;
 }
@@ -254,8 +255,9 @@ void blinkRefused() {
 void runSearch(const SearchPreset& preset) {
     std::snprintf(g_log_name, sizeof(g_log_name), "%s", preset.name);
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
-    LOG("search %s: %.0f mm/s, turn %s, wall control %s, goal (%u,%u)\r\n", preset.name, preset.speed,
-        preset.turns.s90->name, preset.wall_control ? "on" : "off", config::search::GOAL_X, config::search::GOAL_Y);
+    LOG("search %s: %.0f mm/s, turn %s, fan %s, wall control %s, goal (%u,%u)\r\n", preset.name, preset.speed,
+        preset.turns.s90->name, preset.fan ? "on" : "off", preset.wall_control ? "on" : "off",
+        config::search::GOAL_X, config::search::GOAL_Y);
 
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -266,8 +268,13 @@ void runSearch(const SearchPreset& preset) {
         return;
     }
 
+    // IMU校正はファンを回す前に行う（振動がジャイロのオフセット推定に乗らないように。runClosedLoopTest と同じ）
     imu.calibrate();
     HAL_Delay(1100);
+    if (preset.fan) {
+        fan.setDuty(config::fan::RUN_DUTY);
+        HAL_Delay(config::fan::SPINUP_MS);
+    }
 
     initTraceLog();
     logger.setDirName("search");
@@ -292,6 +299,7 @@ void runSearch(const SearchPreset& preset) {
         HAL_Delay(SETTLE_MS);
     }
     planProfile.stop();
+    fan.stop();
     wallControl.enable(false);
     logger.stop();
     motorDriver.setBreak();

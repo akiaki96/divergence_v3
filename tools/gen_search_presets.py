@@ -8,7 +8,8 @@
   区画に沿ったターン（OrthoTurns）  … S90, L90, T180
   斜めのターン（DiagonalTurns）     … IN45, OUT45, V90, IN135, OUT135（1つでもあれば集合を作る）
 ターンは並進速度を保ったまま曲がるので，どれも探索速度 "speed" のもの（config::slalom::<turn>_<speed>）を
-使う。slalom_params.json にその速度の設計がなければ，生成をエラーで止める（ビルドが止まる）。
+使う。"fan": true ならファンONの設計（slalom_params.json の "500_fan"，config::slalom::<turn>_<speed>_FAN）を
+使う。slalom_params.json にその速度・ファンの条件の設計がなければ，生成をエラーで止める（ビルドが止まる）。
 
 S90（小回り90°）は必須：未知区間は区画境界で壁を読んで1歩ずつ進むので，入口・出口とも区画境界の
 ターンで曲がる。並べていない種類は nullptr になり，使わない。
@@ -24,6 +25,7 @@ search_presets.json の形:
         "turns": ["S90", "L90", "T180"],  … 使うターンの種類
         "pivot": {"omega": 360,           … 超信地旋回（行き止まりの180°）の最大角速度 [dps]
                   "alpha": 2500},         … 超信地旋回の角加速度 [dps/s]
+        "fan": false,                     … 任意（省略で false）。ファンを回して走るか
         "wall_control": true,             … 任意（省略で false）。[実験中] 直進中に横壁で向きを補正するか
         "note": ""                        … 任意。ヘッダのコメントに出す
       }
@@ -40,12 +42,12 @@ import re
 import sys
 
 from gen_slalom_params import GenError, cpp_ident, fmt, load_json
-from slalom_presets import PRESET_LIST
+from slalom_presets import PRESET_LIST, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["speed", "accel", "turns", "pivot"]
-OPTIONAL_KEYS = ["wall_control", "note"]
+OPTIONAL_KEYS = ["fan", "wall_control", "note"]
 PIVOT_KEYS = ["omega", "alpha"]
 
 # SearchPreset のターンの集合と，その並び（app/search_preset.hpp の OrthoTurns / DiagonalTurns と同じ順）
@@ -78,9 +80,12 @@ def build_entries(presets, slalom_params):
             if float(pivot[key]) <= 0.0:
                 raise GenError(f"{where}: pivot.{key} は正の値にしてください")
 
+        fan = preset.get("fan", False)
         wall_control = preset.get("wall_control", False)
-        if not isinstance(wall_control, bool):
-            raise GenError(f"{where}: wall_control は true / false です")
+        for key, value in [("fan", fan), ("wall_control", wall_control)]:
+            if not isinstance(value, bool):
+                raise GenError(f"{where}: {key} は true / false です")
+        condition = f"{speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
 
         turns = preset["turns"]
         if not isinstance(turns, list) or len(set(turns)) != len(turns):
@@ -94,11 +99,10 @@ def build_entries(presets, slalom_params):
                 raise GenError(f"{where}: turns の「{cpp_name}」は slalom_presets.py にありません"
                                f"（使えるのは {', '.join(by_cpp_name)}）")
             designed = slalom_params.get(turn.label, {})
-            speed_key = next((k for k in designed if float(k) == speed), None)
-            if speed_key is None:
-                raise GenError(f"{where}: {turn.label} の {speed:g}mm/s は slalom_params.json に設計されていません"
-                               f"（設計済み: {', '.join(sorted(designed, key=float)) or 'なし'}）")
-            resolved[cpp_name] = (turn.label, cpp_ident(turn.cpp_name, speed_key))
+            if (speed, fan) not in map(parse_speed_key, designed):
+                raise GenError(f"{where}: {turn.label} の {condition} は slalom_params.json に設計されていません"
+                               f"（設計済み: {', '.join(sorted(designed, key=parse_speed_key)) or 'なし'}）")
+            resolved[cpp_name] = (turn.label, cpp_ident(turn.cpp_name, speed, fan))
         s90 = by_cpp_name[REQUIRED_TURN]
         if s90.entry != "edge" or s90.exit != "edge":
             raise GenError(f"{REQUIRED_TURN} は入口・出口とも区画境界のはずです（slalom_presets.py を確認）")
@@ -109,6 +113,7 @@ def build_entries(presets, slalom_params):
             "diag_ident": f"D_{name}" if any(t in resolved for t in DIAGONAL_TURNS) else None,
             "turns": resolved,
             "pivot": pivot,
+            "fan": fan,
             "wall_control": wall_control,
             "values": preset,
         })
@@ -139,7 +144,7 @@ def render(entries):
         v = e["values"]
         note = f"  メモ: {v['note']}" if v.get("note") else ""
         labels = "・".join(label for label, _ in e["turns"].values())
-        wall = "，横壁の補正あり" if e["wall_control"] else ""
+        wall = ("，ファンON" if e["fan"] else "") + ("，横壁の補正あり" if e["wall_control"] else "")
         out.append(f"// {e['name']}: {v['speed']:g}mm/s，ターンは{labels}{wall}{note}")
         if e["diag_ident"]:
             out.append(f"inline constexpr DiagonalTurns {e['diag_ident']} = {turn_list(e, DIAGONAL_TURNS)};")
@@ -147,7 +152,7 @@ def render(entries):
             f"inline constexpr SearchPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['speed'])}, {fmt(v['accel'])}, "
             f"{turn_list(e, ORTHO_TURNS)}, {'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, "
             f"{{{fmt(e['pivot']['omega'])}, {fmt(e['pivot']['alpha'])}}}, "
-            f"{'true' if e['wall_control'] else 'false'}}};")
+            f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}}};")
         out.append("")
     out.append("// メニューに並べる順（search_presets.json に書いた順）")
     out.append(f"inline constexpr std::array<SearchPreset, {len(entries)}> PRESETS = {{")

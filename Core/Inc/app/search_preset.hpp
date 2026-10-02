@@ -35,5 +35,6 @@ struct SearchPreset {
     OrthoTurns turns;                // 区画に沿ったターン
     const DiagonalTurns* diagonal;   // 斜めのターン。nullptr なら斜めに入らない
     PivotParam pivot;
+    bool fan;                        // ファンを config::fan::RUN_DUTY で回して走る（ターンもファンONの設計を使う）
     bool wall_control;               // [実験中] 直進中に横壁で向きを補正するか（JSONで省略すると false）
 };

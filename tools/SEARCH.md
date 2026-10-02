@@ -31,6 +31,8 @@
   並べていない種類は `nullptr` で，使わない
 - `slalom_params.json` にその速度の設計がないとビルドが止まる（設計済みの速度が表示される）
 - `pivot` は超信地旋回（行き止まりの180°）の最大角速度 [dps] と角加速度 [dps/s]
+- `fan` を `true` にするとファンを `config::fan::RUN_DUTY` で回して走り，ターンもファンONの設計（`"500_fan"`，
+  `config::slalom::S90_500_FAN`）を使う。省略すると `false`
 - `wall_control` は**実験中**の横壁による向きの補正。省略すると `false`
 - 壁を読む位置はプリセットによらないので `config::search::READ_LEAD_MM` にある
 - プリセットはメニュー `Run` → `Search` に，JSONに書いた順で並ぶ（`config::menu::MAX_CHILDREN` 個まで）

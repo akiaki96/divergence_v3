@@ -4,7 +4,6 @@
 #include "common/debug.hpp"
 
 namespace {
-constexpr uint32_t FAN_SPINUP_MS = 1000;   // ファンのスピンアップ待ち（吸着力が立ち上がるまで）
 }
 
 void runClosedLoopTest(const ClosedLoopTest& test) {
@@ -36,7 +35,7 @@ void runClosedLoopTest(const ClosedLoopTest& test) {
 
     if (test.fan_duty > 0.f) {
         fan.setDuty(test.fan_duty);
-        HAL_Delay(FAN_SPINUP_MS);
+        HAL_Delay(config::fan::SPINUP_MS);
     }
 
     // 原点の取り直し：実測（エンコーダ・角度）と目標値を同時に0にそろえる
