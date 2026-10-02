@@ -61,6 +61,15 @@ public:
         }
     }
 
+    // children[0]からcount個を子にする（個数がノードごとに違う，生成した表から並べるとき用）。
+    // 上限の検査は呼び出し側でstatic_assertすること（ここではMAX_CHILDRENで切り詰める）
+    void setChildren(MenuNode* const* children, std::size_t count) {
+        childCount_ = (count < config::menu::MAX_CHILDREN) ? count : config::menu::MAX_CHILDREN;
+        for (std::size_t i = 0; i < childCount_; ++i) {
+            children_[i] = children[i];
+        }
+    }
+
 private:
     const char* name_;
     MenuNode* parent_ = nullptr;

@@ -34,7 +34,7 @@ import json
 import os
 import sys
 
-from slalom_presets import PRESET_BY_LABEL
+from slalom_presets import PRESET_BY_LABEL, PRESET_LIST
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -107,6 +107,7 @@ def build_entries(params, tuning):
 
             entries.append({
                 "ident": cpp_ident(preset.cpp_name, speed_key),
+                "speed_name": speed_key,
                 "label": label,
                 "preset": preset,
                 "speed": float(design["Set_Speed"]),
@@ -116,6 +117,10 @@ def build_entries(params, tuning):
                 "saved_at": design.get("saved_at", ""),
                 "sim_total": design.get("result", {}).get("total_dist"),
             })
+
+    # メニューの並びを保存した順によらず一定にする：種類は slalom_presets.py の順，同じ種類の中は速度の昇順
+    order = {p.label: i for i, p in enumerate(PRESET_LIST)}
+    entries.sort(key=lambda e: (order[e["label"]], e["speed"]))
 
     # 表にない調整は書き間違いの可能性が高いので止める
     for label, by_speed in tuning.items():
@@ -152,15 +157,28 @@ def render(entries):
         else:
             out.append("//   調整なし")
         out.append(
-            f"inline constexpr Param {e['ident']} = {{\"{e['ident']}\", {fmt(p.angle)}, "
+            f"inline constexpr Param {e['ident']} = {{\"{e['ident']}\", \"{e['speed_name']}\", {fmt(p.angle)}, "
             f"Anchor::{ANCHOR[p.entry]}, Anchor::{ANCHOR[p.exit]}, {fmt(e['speed'])}, "
             f"{fmt(v['Set_low_AngVel'])}, {fmt(v['Set_Low_AngAcl'])}, "
             f"{fmt(v['Set_pri_offset'])}, {fmt(v['Set_post_offset'])}}};")
         out.append("")
-    out.append("// すべてのパラメータ（試験のメニューに並べる）")
+    out.append("// すべてのパラメータ（種類の順，同じ種類の中は速度の昇順）")
     out.append(f"inline constexpr std::array<Param, {len(entries)}> ALL = {{")
     out += [f"    {e['ident']}," for e in entries]
-    out += ["};", "", "} // namespace config::slalom", ""]
+    out += ["};", ""]
+
+    # ALLの中で同じ種類が並ぶ範囲（並べ替え済みなので連続している）
+    groups = []
+    for i, e in enumerate(entries):
+        name = e["preset"].cpp_name
+        if groups and groups[-1][0] == name:
+            groups[-1][2] += 1
+        else:
+            groups.append([name, i, 1])
+    out.append("// 種類ごとの範囲：ALL[first]からcount個（メニューで種類→速度の順に選ぶ）")
+    out.append(f"inline constexpr std::array<::slalom::TurnGroup, {len(groups)}> TURNS = {{{{")
+    out += [f"    {{\"{name}\", {first}, {count}}}," for name, first, count in groups]
+    out += ["}};", "", "} // namespace config::slalom", ""]
     return "\n".join(out)
 
 

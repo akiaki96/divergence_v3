@@ -27,11 +27,10 @@ void Menu::buildTree() {
                 plan_rotation_.setChildren(std::array{&plan_turn_pos430_, &plan_turn_neg430_});
                 rotation_.setChildren(std::array{&rot_angle_hold_, &rot_pivot_pos90_, &rot_pivot_neg90_, &rot_pivot_pos180_, &rot_pivot_neg180_});
 
-    // 各パラメータのノードは生成ヘッダから並べる（試験はslalom_test_onenter，menu.hppのslalomNodes()）。
-    // パラメータがconfig::menu::MAX_CHILDRENを超えるとsetChildren()のstatic_assertで止まる
+    // 種類・速度のノードは生成ヘッダから並べる（menu.hppのslalomTurnNodes() / slalomSpeedNodes()）
     slalom_.setChildren(std::array{&slalom_left_, &slalom_right_});
-        slalom_left_.setChildren(pointersOf(slalom_left_items_));
-        slalom_right_.setChildren(pointersOf(slalom_right_items_));
+        linkSlalom(slalom_left_, slalom_left_turns_, slalom_left_speeds_);
+        linkSlalom(slalom_right_, slalom_right_turns_, slalom_right_speeds_);
 
     
     root_.setParentRec();

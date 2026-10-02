@@ -17,9 +17,9 @@ namespace {
 constexpr float CELL_MM = 180.f;
 constexpr float WALL_HALF_MM = 6.f;   // 壁の厚さ12mmの半分（境界＝壁の中央から壁の面まで）
 
-// [要測定] 機体の後端から車軸（回転中心＝シミュレータの基準点）までの距離。
-// ずれていると入口の位置がずれ，その分をpre_offsetの調整で吸収してしまうので，調整を始める前に測ること
-constexpr float BACK_TO_AXLE_MM = 30.f;
+// 機体の後端から車軸（回転中心＝シミュレータの基準点）までの距離（実測）。
+// ずれていると入口の位置がずれ，その分をpre_offsetの調整で吸収してしまう
+constexpr float BACK_TO_AXLE_MM = 25.f;
 
 // 区画の後ろの境界から，置いたときの車軸まで
 constexpr float START_MM = WALL_HALF_MM + BACK_TO_AXLE_MM;
