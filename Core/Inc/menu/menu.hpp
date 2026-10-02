@@ -8,6 +8,7 @@
 #include "config/node_func_maker.hpp"
 #include "test/slalom_test.hpp"
 #include "test/axle_check_test.hpp"
+#include "test/ir_sweep_test.hpp"
 
 // スラロームの種類・速度とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
 constexpr bool slalomFitsMenu() {
@@ -123,6 +124,8 @@ private:
             MenuNode ir_fr_{"IR Front Right"};
             MenuNode ir_fl_{"IR Front Left"};
             MenuNode ir_l_{"IR Left"};
+            MenuNode ir_front_sweep_1_{"Front sweep 1 cell", nullptr, &ir_front_sweep_onenter<1>};    // 距離の校正（test/ir_sweep_test.hpp）
+            MenuNode ir_front_sweep_2_{"Front sweep 2 cells", nullptr, &ir_front_sweep_onenter<2>};
         MenuNode battery_{"Battery"};
         MenuNode led_{"LED"};
 

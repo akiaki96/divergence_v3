@@ -17,7 +17,7 @@ void Menu::buildTree() {
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
             fan_.setChildren(std::array{&fan_run_010_, &fan_run_020_, &fan_run_030_, &fan_run_040_, &fan_bringup_, &fan_hold_010_, &fan_hold_020_, &fan_hold_030_, &fan_hold_040_});
-            ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
+            ir_.setChildren(std::array{&ir_r_, &ir_fr_, &ir_fl_, &ir_l_, &ir_front_sweep_1_, &ir_front_sweep_2_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &plan_profile_, &plan_rotation_, &rotation_});
