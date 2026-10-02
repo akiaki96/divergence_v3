@@ -24,7 +24,7 @@ enum class TurnDir : uint8_t { left, right };
 
 struct Param {
     const char* name;         // 例 "S90_500"（生成ヘッダの定数名と同じ）
-    const char* speed_name;   // 例 "500"（メニューで速度を選ぶときの表示）
+    const char* speed_name;   // 例 "500" / "500 fan"（メニューで速度を選ぶときの表示）
     float angle;         // [deg] 旋回角の大きさ
     Anchor entry;
     Anchor exit;
@@ -33,6 +33,7 @@ struct Param {
     float alpha;         // [dps/s] 角加速度（加速・減速とも）
     float pre_offset;    // [mm] 入口の基準点から旋回を始めるまでの直進
     float post_offset;   // [mm] 旋回を終えてから出口の基準点までの直進
+    bool fan;            // ファン（吸引）を回して走る条件で設計したか（config::fan::RUN_DUTYで回す）
 };
 
 // 生成ヘッダのALLの中で，同じ種類のターンのパラメータが並んでいる範囲（ALL[first]からcount個，速度の昇順）。

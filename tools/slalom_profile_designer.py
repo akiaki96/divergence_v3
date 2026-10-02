@@ -9,7 +9,7 @@ import json
 import datetime
 import pyperclip
 
-from slalom_presets import PRESET_LIST
+from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 
 pygame.init()
 FONT_PATH = "/Users/inabeshuuyou/Library/Fonts/YujiSyuku-Regular.ttf"
@@ -330,8 +330,18 @@ def preset_name(key):
     return PRESETS[key][0]
 
 def speed_key(speed):
-    # 500.0 -> "500", 512.5 -> "512.5"
-    return f"{speed:g}"
+    # 500.0 -> "500"（ファンOFF）/ "500_fan"（ファンON）。ファンのON/OFFは別々に保存する
+    return make_speed_key(speed, fan_on)
+
+def speed_label(key):
+    """保存済みの一覧用：500 / 500 fan"""
+    speed, fan = parse_speed_key(key)
+    return f"{speed:g}" + (" fan" if fan else "")
+
+def entry_label(name, key):
+    """メッセージ用：大回り90° / 500mm/s ファンON"""
+    speed, fan = parse_speed_key(key)
+    return f"{name} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
 
 def read_save_file():
     if not os.path.exists(SAVE_PATH):
@@ -357,7 +367,8 @@ def toggle_fan():
     global fan_on
     fan_on = not fan_on
     fan_button.text = fan_label()
-    on_generate()
+    # ファンON/OFFは別々に保存しているので，切り替えた側の保存データがあれば読み込む（無ければ今の値のまま）
+    load_params(silent_if_missing=True)
 
 def fan_label():
     return "ファン: ON" if fan_on else "ファン: OFF"
@@ -377,7 +388,7 @@ def save_params():
     try:
         write_save_file(data)
         saved_data = data
-        status_msg = f"保存: {name} / {spd}mm/s（ファン{'ON' if fan_on else 'OFF'}）"
+        status_msg = f"保存: {entry_label(name, spd)}"
     except OSError as e:
         status_msg = f"保存失敗: {e}"
 
@@ -388,7 +399,7 @@ def load_params(silent_if_missing=False):
     spd = speed_key(inputs["Set_Speed"].get_value())
     entry = saved_data.get(name, {}).get(spd)
     if entry is None:
-        status_msg = "" if silent_if_missing else f"保存データなし: {name} / {spd}mm/s"
+        status_msg = "" if silent_if_missing else f"保存データなし: {entry_label(name, spd)}"
         on_generate()
         return
     for _, _, key in params:
@@ -396,14 +407,14 @@ def load_params(silent_if_missing=False):
             inputs[key].set_value(entry[key])
         elif key in LOAD_DEFAULTS:
             inputs[key].set_value(LOAD_DEFAULTS[key])   # 以前の保存データに無い項目は既定値に戻す
-    fan_on = bool(entry.get("fan", False))
+    fan_on = parse_speed_key(spd)[1]   # キーが決める（"_fan" ならON）
     fan_button.text = fan_label()
-    status_msg = f"読込: {name} / {spd}mm/s（ファン{'ON' if fan_on else 'OFF'}）"
+    status_msg = f"読込: {entry_label(name, spd)}"
     on_generate()
 
 def saved_speeds_for_current():
     entries = saved_data.get(preset_name(current_preset), {})
-    return sorted(entries.keys(), key=float)
+    return [speed_label(k) for k in sorted(entries.keys(), key=parse_speed_key)]
 
 # DrawTrace will be called to render the trace onto a surface
 def parse_float(s, fallback=0.0):

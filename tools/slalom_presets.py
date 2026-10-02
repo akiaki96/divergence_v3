@@ -42,3 +42,19 @@ PRESET_LIST = [
 ]
 
 PRESET_BY_LABEL = {p.label: p for p in PRESET_LIST}
+
+
+# slalom_params.json / slalom_tuning.json の速度のキー。ファン（吸引）を回して走るパラメータは "_fan" を付けて，
+# 同じターン・速度でもファンOFF（"500"）とファンON（"500_fan"）を別々に持つ
+FAN_SUFFIX = "_fan"
+
+
+def make_speed_key(speed: float, fan: bool) -> str:
+    """500.0, False -> "500" / 512.5, True -> "512.5_fan" """
+    return f"{speed:g}" + (FAN_SUFFIX if fan else "")
+
+
+def parse_speed_key(key: str) -> tuple[float, bool]:
+    """"500_fan" -> (500.0, True)"""
+    fan = key.endswith(FAN_SUFFIX)
+    return float(key[:-len(FAN_SUFFIX)] if fan else key), fan

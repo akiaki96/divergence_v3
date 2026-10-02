@@ -38,6 +38,11 @@ namespace config::battery {
 inline constexpr float IIR_ALPHA = 0.1f;
 }
 
+// 吸引ファンを回して走るときのduty（スラロームの試験など。plan_profile_testの高速試験と同じ20%）
+namespace config::fan {
+inline constexpr float RUN_DUTY = 0.20f;
+}
+
 namespace config::motor {
 inline constexpr float MAX_DUTY = 0.95;
 inline constexpr uint16_t MAX_PWM = 1000;

@@ -24,7 +24,7 @@ constexpr float START_MM = WALL_HALF_MM + config::mouse::BACK_TO_AXLE_MM;
 constexpr float RUNUP_ACCEL = 0.5f * config::profile_limit::G;   // [mm/s^2] 入口までの加速
 constexpr float STOP_DECEL_LIMIT = config::profile_limit::MAX_DECEL_X;
 constexpr uint32_t SETTLE_MS = 500;            // 止まってから最終位置を読むまで
-constexpr uint32_t LOG_DECIMATION = 2;         // [tick] 15列×1600サンプル＝3.2s
+constexpr uint32_t LOG_DECIMATION = 2;         // [tick] 16列×1500サンプル＝3.0s
 
 // 置いた位置から入口の基準点まで [mm]
 constexpr float runupDistance(slalom::Anchor entry) {
@@ -75,6 +75,7 @@ void slalom_init_log() {
     logger.add<&Motor::getDuty>("Right Duty", motorRight);
     logger.add<&Battery::voltage>("battery", battery);
     logger.add<&Imu::accelX>("accel_x", imu);
+    logger.add<&Fan::getDuty>("fan_duty", fan);
     logger.setDecimation(LOG_DECIMATION);
 }
 
@@ -123,8 +124,8 @@ bool checkRunnable(const slalom::Param& p) {
 void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
     const char* dir_name = (dir == slalom::TurnDir::left) ? "left" : "right";
     slalom::Shape s = slalom::shapeOf(p);
-    LOG("slalom test %s %s: speed %.0f mm/s, omega %.0f dps, alpha %.0f dps/s, pre %.1f mm, post %.1f mm\r\n",
-        p.name, dir_name, p.speed, p.omega_max, p.alpha, p.pre_offset, p.post_offset);
+    LOG("slalom test %s %s: speed %.0f mm/s, omega %.0f dps, alpha %.0f dps/s, pre %.1f mm, post %.1f mm, fan %s\r\n",
+        p.name, dir_name, p.speed, p.omega_max, p.alpha, p.pre_offset, p.post_offset, p.fan ? "on" : "off");
     LOG("  ramp %.2f deg x2, cruise %.2f deg, turn %.1f mm, pre..post %.1f mm\r\n",
         s.ramp_angle, s.cruise_angle, slalom::turnDistance(p), slalom::totalDistance(p));
 
@@ -138,7 +139,9 @@ void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
     g_result = {0.f, 0.f};
     std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s", p.name, dir_name);
 
-    runClosedLoopTest({"slalom", g_file_name, slalom_init_log, slalom_profile, 0.f, 0.f, 0});
+    // ファンONで設計したパラメータはファンを回して走る（滑りがファンの有無で変わるため，設計と同じ条件にする）
+    float fan_duty = p.fan ? config::fan::RUN_DUTY : 0.f;
+    runClosedLoopTest({"slalom", g_file_name, slalom_init_log, slalom_profile, fan_duty, 0.f, 0});
 
     // 目標：最終角度は±angle，走行距離は 入口まで＋スラローム＋止まるまで
     float target_angle = (dir == slalom::TurnDir::left) ? p.angle : -p.angle;
