@@ -10,7 +10,7 @@ inline constexpr float WHEEL_RADIUS_MM = 23.6f / 2;
 inline constexpr float TREAD_MM = 60.f;
 // 機体の後端から車軸（左右の車輪の中心を結ぶ線＝回転中心，スラロームのシミュレータの基準点）までの距離。
 // 後端を壁に当てて置く試験の開始位置に使う。確かめ方は test/axle_check_test.hpp
-inline constexpr float BACK_TO_AXLE_MM = 43.f;   // [mm] 25から+18mm（2026-10-02）
+inline constexpr float BACK_TO_AXLE_MM = 42.f;   // [mm] 2026-10-02に25から変更
 
 // 車輪の速度差の半分 w = (v_R − v_L)/2 [mm/s] と車体の角速度 ω [dps] の換算（滑りなし）：w = ω·π/180·TREAD/2
 inline constexpr float WHEEL_DIFF_PER_DPS = std::numbers::pi_v<float> / 180.f * TREAD_MM / 2.f;   // [mm/s/dps] ≈ 0.524
