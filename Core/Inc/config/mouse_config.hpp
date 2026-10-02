@@ -143,6 +143,44 @@ inline constexpr float ALPHA_FF_GAIN = 3.0e-5f * 7.9f;   // [V/(dps/s)] ≈ 2.37
 inline constexpr float VOLTAGE_LIMIT_RATIO = 0.95f;   // [V/V]
 }
 
+// 迷路と置き方（クラシック迷路，1区画180mm）。スラロームの試験と探索で共有する
+namespace config::maze {
+inline constexpr float CELL_MM = 180.f;
+inline constexpr float WALL_HALF_MM = 6.f;   // 壁の厚さ12mmの半分（境界＝壁の中央から壁の面まで）
+
+// 機体の後端から車軸（回転中心＝シミュレータの基準点）までの距離（実測）。
+// ずれていると入口の位置がずれ，その分をスラロームのpre_offsetの調整で吸収してしまう
+inline constexpr float BACK_TO_AXLE_MM = 25.f;
+
+// 機体の後端を区画の後壁に当てて置いたとき，区画の後ろの境界から車軸まで
+inline constexpr float START_MM = WALL_HALF_MM + BACK_TO_AXLE_MM;
+}
+
+// 壁の判定と横壁による向きの補正（common/wall_sensor.hpp, common/wall_control.hpp）。
+// [要調整] 仮の値。Device → IR → Wall check で実機の値を見て決める：
+//   THRESH_* … 区画境界の read_lead 手前（探索で壁を読む位置）で，壁があるときとないときの値の中間
+//   REF_*    … 区画の中心線上で両側に壁があるときの左右の値
+namespace config::wall {
+inline constexpr int16_t THRESH_LEFT = 300;
+inline constexpr int16_t THRESH_RIGHT = 300;
+inline constexpr int16_t THRESH_FRONT = 300;    // 前の左右（FL, FR）の平均と比べる
+
+inline constexpr int16_t REF_LEFT = 1000;
+inline constexpr int16_t REF_RIGHT = 1000;
+
+inline constexpr float KP = 0.02f;              // [dps/count] 中心線からのずれ（センサー値の差）→ 補正の角速度
+inline constexpr float MAX_OMEGA = 90.f;        // [dps] 補正の角速度の上限
+inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いとき（停止・超信地旋回）は補正しない
+}
+
+// 探索（app/search.hpp）。速度・使うスラロームはプリセット（tools/search_presets.json）で選ぶ
+namespace config::search {
+inline constexpr uint8_t GOAL_X = 7;
+inline constexpr uint8_t GOAL_Y = 7;
+inline constexpr uint16_t MAX_STEPS = 2048;     // 壁を読む回数の上限（ログの行数。往復でも16×16なら足りる）
+inline constexpr float MIN_BATTERY_V = 7.4f;    // [V] これより低ければ走らない
+}
+
 namespace config::menu {
 inline constexpr uint8_t MAX_CHILDREN = 10;  // 子ノード数の上限（現在の最大はFanの9項目）
 }

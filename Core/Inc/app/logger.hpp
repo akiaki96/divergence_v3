@@ -3,6 +3,15 @@
 #include <cstdint>
 #include <etl/delegate.h>
 
+// PCへ表（float32の行の並び）を送るときの枠（tools/DATA_FORMAT.md の BIN_START 〜 BIN_END）。
+// begin() でヘッダまで送り，呼び出し側が size_bytes ぶんの本体を uart_write() で送ってから end() を呼ぶ。
+// Logger::dump() と探索のログ（app/search.cpp）で共有する
+namespace bin_table {
+void begin(const char* dir, const char* file, bool timestamp, uint32_t size_bytes,
+           const char* const* names, uint32_t count);
+void end();
+}
+
 enum class LoggerState {
     Idle,
     Recording,

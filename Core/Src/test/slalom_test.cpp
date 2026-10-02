@@ -14,15 +14,9 @@
 //
 // 結果はログ（slalom/<name>_<left|right>）と，走行後に表示する最終角度・走行距離の目標との差で見る
 namespace {
-constexpr float CELL_MM = 180.f;
-constexpr float WALL_HALF_MM = 6.f;   // 壁の厚さ12mmの半分（境界＝壁の中央から壁の面まで）
-
-// 機体の後端から車軸（回転中心＝シミュレータの基準点）までの距離（実測）。
-// ずれていると入口の位置がずれ，その分をpre_offsetの調整で吸収してしまう
-constexpr float BACK_TO_AXLE_MM = 25.f;
-
-// 区画の後ろの境界から，置いたときの車軸まで
-constexpr float START_MM = WALL_HALF_MM + BACK_TO_AXLE_MM;
+// 区画の大きさと置いたときの車軸の位置（実測の BACK_TO_AXLE_MM を含む）は探索と共有する
+using config::maze::CELL_MM;
+using config::maze::START_MM;
 
 constexpr float RUNUP_ACCEL = 0.5f * config::profile_limit::G;   // [mm/s^2] 入口までの加速
 constexpr float STOP_DECEL_LIMIT = config::profile_limit::MAX_DECEL_X;

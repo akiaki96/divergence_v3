@@ -1,0 +1,22 @@
+{
+  "500": {
+    "turn": "S90",
+    "speed": 500,
+    "accel": 3000,
+    "read_lead_mm": 10,
+    "pivot_omega": 360,
+    "pivot_alpha": 2500,
+    "wall_control": true,
+    "note": "最初に試す速度"
+  },
+  "700": {
+    "turn": "S90",
+    "speed": 700,
+    "accel": 4000,
+    "read_lead_mm": 15,
+    "pivot_omega": 360,
+    "pivot_alpha": 2500,
+    "wall_control": true,
+    "note": ""
+  }
+}

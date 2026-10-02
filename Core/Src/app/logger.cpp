@@ -135,26 +135,41 @@ void Logger::dump() {
         return;
     }
 
-    printf("BIN_START\r\n");
-    printf("%s\r\n", dirName);
-    printf("%s\r\n", fileName != nullptr ? fileName : "");
-    printf("TIMESTAMP:%d\r\n", includeTimestamp ? 1 : 0);
-    printf("SIZE:%lu\r\n", static_cast<unsigned long>(dataSize()));
+    const char* names[MAX_FIELDS];
     for (uint32_t i = 0; i < fieldCount_; ++i) {
-        if (i > 0) {
-            printf(",");
-        }
-        printf("%s", fields_[i].name);
+        names[i] = fields_[i].name;
     }
-    printf("\r\n");
-
+    bin_table::begin(dirName, fileName, includeTimestamp, dataSize(), names, fieldCount_);
     uart_write(
         reinterpret_cast<const uint8_t*>(buffer_),
         dataSize()
     );
+    bin_table::end();
+}
 
+namespace bin_table {
+
+void begin(const char* dir, const char* file, bool timestamp, uint32_t size_bytes,
+           const char* const* names, uint32_t count) {
+    printf("BIN_START\r\n");
+    printf("%s\r\n", dir);
+    printf("%s\r\n", file != nullptr ? file : "");
+    printf("TIMESTAMP:%d\r\n", timestamp ? 1 : 0);
+    printf("SIZE:%lu\r\n", static_cast<unsigned long>(size_bytes));
+    for (uint32_t i = 0; i < count; ++i) {
+        if (i > 0) {
+            printf(",");
+        }
+        printf("%s", names[i]);
+    }
+    printf("\r\n");
+}
+
+void end() {
     printf("BIN_END\r\n");
 }
+
+} // namespace bin_table
 
 uint32_t Logger::dataSize(void) const {
     return sampleCount_ * fieldCount_ * sizeof(float);

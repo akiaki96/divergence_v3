@@ -7,6 +7,7 @@
 #include "menu/menuNode.hpp"
 #include "config/node_func_maker.hpp"
 #include "test/slalom_test.hpp"
+#include "app/search.hpp"
 
 // スラロームの種類・速度とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
 constexpr bool slalomFitsMenu() {
@@ -16,6 +17,8 @@ constexpr bool slalomFitsMenu() {
     return config::slalom::TURNS.size() <= config::menu::MAX_CHILDREN;
 }
 static_assert(slalomFitsMenu(), "slalom turns or speeds exceed config::menu::MAX_CHILDREN");
+static_assert(config::search::PRESETS.size() <= config::menu::MAX_CHILDREN,
+              "search presets exceed config::menu::MAX_CHILDREN");
 
 class Menu {
 public:
@@ -38,6 +41,12 @@ private:
     template <slalom::TurnDir Dir, std::size_t... I>
     static std::array<MenuNode, sizeof...(I)> slalomSpeedNodes(std::index_sequence<I...>) {
         return {MenuNode(config::slalom::ALL[I].speed_name, nullptr, &slalom_test_onenter<Dir, I>)...};
+    }
+
+    // 探索：Run → Search → プリセット（config::search::PRESETS，tools/search_presets.json の順）
+    template <std::size_t... I>
+    static std::array<MenuNode, sizeof...(I)> searchNodes(std::index_sequence<I...>) {
+        return {MenuNode(config::search::PRESETS[I].name, nullptr, &search_onenter<I>)...};
     }
 
     template <std::size_t... K>
@@ -73,6 +82,9 @@ private:
     MenuNode log_dump_{"LogDump"};
 
     MenuNode run_{"Run"};
+        MenuNode search_{"Search"};
+            std::array<MenuNode, config::search::PRESETS.size()> search_presets_ =
+                searchNodes(std::make_index_sequence<config::search::PRESETS.size()>{});
 
     MenuNode device_{"Device"};
         MenuNode imu_{"IMU"};
@@ -122,6 +134,7 @@ private:
             MenuNode ir_fr_{"IR Front Right"};
             MenuNode ir_fl_{"IR Front Left"};
             MenuNode ir_l_{"IR Left"};
+            MenuNode ir_wall_check_{"Wall check"};
         MenuNode battery_{"Battery"};
         MenuNode led_{"LED"};
 

@@ -8,3 +8,4 @@ void imu_gyro_onenter();
 void encoder_right_onenter();
 void encoder_left_onenter();
 void battery_onenter();
+void wall_check_onenter();

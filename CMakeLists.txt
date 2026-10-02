@@ -90,10 +90,32 @@ add_custom_command(
     VERBATIM
 )
 
+# Search presets: search speed and which slalom to use, chosen from the
+# menu (Run > Search). The generator checks that every preset's slalom is
+# designed in slalom_params.json, so a preset naming a missing turn/speed
+# stops the build instead of failing on the robot.
+set(SEARCH_PRESETS_HPP ${GENERATED_INC_DIR}/config/search_presets.hpp)
+add_custom_command(
+    OUTPUT ${SEARCH_PRESETS_HPP}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_search_presets.py
+            --presets ${CMAKE_SOURCE_DIR}/tools/search_presets.json
+            --slalom-params ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
+            --out ${SEARCH_PRESETS_HPP}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/tools/gen_search_presets.py
+        ${CMAKE_SOURCE_DIR}/tools/gen_slalom_params.py
+        ${CMAKE_SOURCE_DIR}/tools/slalom_presets.py
+        ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
+        ${CMAKE_SOURCE_DIR}/tools/search_presets.json
+    COMMENT "Generating config/search_presets.hpp"
+    VERBATIM
+)
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${APP_SOURCES}
     ${SLALOM_PARAMS_HPP}
+    ${SEARCH_PRESETS_HPP}
 )
 
 # Add include paths

@@ -61,7 +61,7 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
 
 ## 注意
 
-- `Core/Src/test/slalom_test.cpp` の `BACK_TO_AXLE_MM`（機体の後端から車軸まで，実測25mm）がずれていると
+- `Core/Inc/config/mouse_config.hpp` の `config::maze::BACK_TO_AXLE_MM`（機体の後端から車軸まで，実測25mm）がずれていると
   入口の位置がずれ，その分を `pre_offset` の調整で吸収してしまう。機体を変えたら測り直す
 - シミュレータのスリップ角係数 `Set_K_SP` と機体幅 `Set_Width` は軌道の予測だけに使うもので，実機には渡さない
 - メニューに並べられるのは種類・1種類あたりの速度とも `config::menu::MAX_CHILDREN`（10）個まで。超えるとビルドが止まる

@@ -17,9 +17,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         if (motorDriver.state == MotorDriverState::setVelocity) {
             planProfile.update();   // 閉ループ中だけ目標軌道を1tick進める
         }
+        // 横壁の補正を回転の目標に足す（直進中で有効なときだけ。それ以外はそのまま）
+        AxisReference rot_ref = wallControl.apply(
+            planProfile.rotReference(), planProfile.getTargetOmega(), planProfile.getTargetVelocityX()
+        );
         motorDriver.update(
             planProfile.transReference(), odometry.translation(),
-            planProfile.rotReference(), odometry.rotation()
+            rot_ref, odometry.rotation()
         );
 
         logger.sample();

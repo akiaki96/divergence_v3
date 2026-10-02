@@ -10,6 +10,7 @@
 #include "device/planProfile.hpp"
 #include "device/fan.hpp"
 #include "app/logger.hpp"
+#include "common/wall_control.hpp"
 
 extern float globalTime;
 
@@ -38,3 +39,5 @@ extern PlanProfile planProfile;
 extern Fan fan;
 
 extern Logger logger;
+
+extern WallControl wallControl;
