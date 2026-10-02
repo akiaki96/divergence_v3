@@ -116,6 +116,9 @@ def build_entries(params, tuning):
                 "note": note,
                 "saved_at": design.get("saved_at", ""),
                 "sim_total": design.get("result", {}).get("total_dist"),
+                "fan": design.get("fan"),   # Noneは記録なし（ファンの項目を足す前の保存データ）
+                "k_slip": design.get("Set_K_SP", 0.0),
+                "c_slip": design.get("Set_C_SP", 0.0),
             })
 
     # メニューの並びを保存した順によらず一定にする：種類は slalom_presets.py の順，同じ種類の中は速度の昇順
@@ -147,7 +150,9 @@ def render(entries):
     for e in entries:
         p, v = e["preset"], e["values"]
         sim = f", sim total {e['sim_total']:g}mm" if e["sim_total"] is not None else ""
+        fan = "未記録" if e["fan"] is None else ("ON" if e["fan"] else "OFF")
         out.append(f"// {e['label']} {e['speed']:g}mm/s（設計値 saved {e['saved_at']}{sim}）")
+        out.append(f"//   ファン {fan}，滑り係数 K {e['k_slip']:g}，c {e['c_slip']:g}mm")
         if e["applied"]:
             for key, base, d in e["applied"]:
                 member, unit = DELTA_KEYS[key]

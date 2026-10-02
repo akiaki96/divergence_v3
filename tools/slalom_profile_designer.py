@@ -285,9 +285,17 @@ params = [
     ("角加速度", "1000", "Set_Low_AngAcl"),
     ("入口オフセット(mm)", "90", "Set_pri_offset"),
     ("出口オフセット(mm)", "55", "Set_post_offset"),
-    ("スリップアングル係数", "0.002", "Set_K_SP"),
+    ("滑り係数 K", "0.002", "Set_K_SP"),
+    ("滑り係数 c(mm)", "0", "Set_C_SP"),
     ("機体の横幅(mm)", "86", "Set_Width")
 ]
+# スリップ角（速度の向きが機体の向きより外側へ遅れる角）β [rad] のモデル：
+#   β = K·v·ω + c·ω/v   （v [m/s], ω [rad/s], c [m]）
+#   K … 横加速度 v·ω に比例する滑り（タイヤの横方向の弾性）
+#   c … 速度によらない横滑り（車軸の横すべり速度 c·ω。車軸より c 前の点を中心に回るのと同じ）
+# どちらも機体・床・ファンの有無で変わる。片方を0にすればもう片方だけのモデルになる
+# 保存データに無い項目を読み込むときの値（以前の保存データとの互換）
+LOAD_DEFAULTS = {"Set_K_SP": 0.0, "Set_C_SP": 0.0}
 
 # ターンプリセット: key -> (表示名, ini_x, ini_y, ini_angle, fin_angle)
 # 定義は slalom_presets.py（生成スクリプト gen_slalom_params.py と共有）
@@ -342,10 +350,23 @@ def write_save_file(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp_path, SAVE_PATH)
 
+# ファン（吸引）を回して走る条件か。滑り係数 K・c はファンの有無で変わるので，パラメータと一緒に保存する
+fan_on = False
+
+def toggle_fan():
+    global fan_on
+    fan_on = not fan_on
+    fan_button.text = fan_label()
+    on_generate()
+
+def fan_label():
+    return "ファン: ON" if fan_on else "ファン: OFF"
+
 def save_params():
     global status_msg, saved_data
     on_generate()  # 保存する結果を現在の入力値と一致させる
     entry = {key: inputs[key].get_value() for _, _, key in params}
+    entry["fan"] = fan_on
     entry["result"] = dict(last_result)
     entry["saved_at"] = datetime.datetime.now().isoformat(timespec="seconds")
 
@@ -356,12 +377,12 @@ def save_params():
     try:
         write_save_file(data)
         saved_data = data
-        status_msg = f"保存: {name} / {spd}mm/s"
+        status_msg = f"保存: {name} / {spd}mm/s（ファン{'ON' if fan_on else 'OFF'}）"
     except OSError as e:
         status_msg = f"保存失敗: {e}"
 
 def load_params(silent_if_missing=False):
-    global status_msg, saved_data
+    global status_msg, saved_data, fan_on
     saved_data = read_save_file()
     name = preset_name(current_preset)
     spd = speed_key(inputs["Set_Speed"].get_value())
@@ -373,7 +394,11 @@ def load_params(silent_if_missing=False):
     for _, _, key in params:
         if key in entry:
             inputs[key].set_value(entry[key])
-    status_msg = f"読込: {name} / {spd}mm/s"
+        elif key in LOAD_DEFAULTS:
+            inputs[key].set_value(LOAD_DEFAULTS[key])   # 以前の保存データに無い項目は既定値に戻す
+    fan_on = bool(entry.get("fan", False))
+    fan_button.text = fan_label()
+    status_msg = f"読込: {name} / {spd}mm/s（ファン{'ON' if fan_on else 'OFF'}）"
     on_generate()
 
 def saved_speeds_for_current():
@@ -460,6 +485,7 @@ def on_generate(cp = False):
     pri_offset = inputs["Set_pri_offset"].get_value() # [mm]
     post_offset = inputs["Set_post_offset"].get_value()# [mm]
     K_slip_angle = inputs["Set_K_SP"].get_value()     # [coef]
+    c_slip_m = inputs["Set_C_SP"].get_value() / 1000.0  # [m]
     Width = inputs["Set_Width"].get_value()           # [mm]
 
     # 時間ステップ [s]
@@ -472,6 +498,12 @@ def on_generate(cp = False):
     ang_acc = Low_AngAcl            # [deg/s^2]
     ang_vel_max = low_AngVel        # [deg/s]
     v_m_s = speed / 1000.0          # [m/s] for slip calc
+
+    def slip_deg(omega_rad):
+        """スリップ角 β [deg]（モデルは params の下のコメント）"""
+        if v_m_s <= 0.0:
+            return 0.0
+        return np.rad2deg(K_slip_angle * v_m_s * omega_rad + c_slip_m * omega_rad / v_m_s)
 
     # 初期状態
     befor_x, befor_y = 0.0, 0.0
@@ -507,7 +539,7 @@ def on_generate(cp = False):
 
         # スリップ角度補正
         omega_rad = np.deg2rad(now_AngVel)  # rad/s
-        s_now_angle = now_angle - np.rad2deg(K_slip_angle * v_m_s * omega_rad)
+        s_now_angle = now_angle - slip_deg(omega_rad)
 
         fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
         fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
@@ -532,7 +564,7 @@ def on_generate(cp = False):
         now_angle += now_AngVel * dt
 
         omega_rad = np.deg2rad(now_AngVel)
-        s_now_angle = now_angle - np.rad2deg(K_slip_angle * v_m_s * omega_rad)
+        s_now_angle = now_angle - slip_deg(omega_rad)
 
         fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
         fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
@@ -562,7 +594,7 @@ def on_generate(cp = False):
         now_angle += now_AngVel * dt
 
         omega_rad = np.deg2rad(now_AngVel)
-        s_now_angle = now_angle - np.rad2deg(K_slip_angle * v_m_s * omega_rad)
+        s_now_angle = now_angle - slip_deg(omega_rad)
 
         fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
         fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
@@ -609,6 +641,7 @@ def on_generate(cp = False):
         f"const : {const_dist} mm",
         f"total : {cen_grav_len} mm",
         f"time  : {time_ms} ms",
+        f"slip  : β max {slip_deg(np.deg2rad(ang_vel_max)):.2f}°（fan {'ON' if fan_on else 'OFF'}）",
     ]
 
     last_result = {
@@ -650,14 +683,20 @@ inputs = {
     "Set_pri_offset": NumericInput(input_x, base_y + 3*row_h + 18, input_w, input_h, initial_value=22, step=1),
     "Set_post_offset": NumericInput(input_x, base_y + 4*row_h + 18, input_w, input_h, initial_value=0, step=1),
     "Set_K_SP": NumericInput(input_x, base_y + 5*row_h + 18, input_w, input_h, initial_value=0, step=0.001),
-    "Set_Width": NumericInput(input_x, base_y + 6*row_h + 18, input_w, input_h, initial_value=86, step=1),
+    "Set_C_SP": NumericInput(input_x, base_y + 6*row_h + 18, input_w, input_h, initial_value=0, step=0.5),
+    "Set_Width": NumericInput(input_x, base_y + 7*row_h + 18, input_w, input_h, initial_value=86, step=1),
 }
 # スクロール範囲をラベルを含む行全体に広げる（行同士は重ならない）
 for inp in inputs.values():
     inp.scroll_rect = pygame.Rect(label_x - 6, inp.rect.y - 14, inp.plus_rect.right + 6 - (label_x - 6), row_h)
 
+# ファンの有無（入力欄の下の1行）
+fan_y = base_y + len(params) * row_h + 4
+fan_button = Button((label_x, fan_y, 140, 30), fan_label(), toggle_fan)
+buttons.append(fan_button)
+
 # 保存 / 読込ボタン（右パネル、計算結果の下）
-save_y = base_y + len(params) * row_h + 90
+save_y = base_y + (len(params) + 1) * row_h + 108
 save_button = Button((label_x, save_y, 140, 34), "保存 (Ctrl+S)", save_params)
 load_button = Button((label_x + 150, save_y, 140, 34), "読込", load_params)
 buttons.extend([save_button, load_button])
@@ -723,7 +762,7 @@ while running:
 
     # draw info_lines on right panel (below inputs)
     info_x = label_x
-    info_y = base_y + len(params) * row_h + 8  # place below the last input
+    info_y = base_y + (len(params) + 1) * row_h + 4  # place below the fan toggle
     line_h = 18
     for i, line in enumerate(info_lines):
         txt = FONT.render(line, True, TEXT_COLOR)
