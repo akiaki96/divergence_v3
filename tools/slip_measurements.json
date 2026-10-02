@@ -1,0 +1,9 @@
+{
+  "runs": [
+    {"log": "slalom/L90_500_right.csv", "outward": 10, "longitudinal": -8, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
+    {"log": "slalom/S90_500_right.csv", "outward": 10, "longitudinal": -12, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
+    {"log": "slalom/T180_500_right.csv", "outward": 1, "longitudinal": -22, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
+    {"log": "slalom/L90_700_right_1.csv", "outward": 13, "longitudinal": -8, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
+    {"log": "slalom/S90_700_right.csv", "outward": 15, "longitudinal": -10, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"}
+  ]
+}

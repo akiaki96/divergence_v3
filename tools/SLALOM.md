@@ -51,6 +51,26 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
   （古い差分を新しい設計値に足さないため）。差分がまだ有効なら新しい `saved_at` に書き換える
 - `delta` に使えるキーは `Set_low_AngVel` / `Set_Low_AngAcl` / `Set_pri_offset` / `Set_post_offset`（速度は表のキーなので変えられない）
 
+## 横滑りの係数（c, K）の同定
+
+`tools/identify_slip.py` が，走行ログと定規で測った停止位置のずれから c, K を求める（デザイナーでの初期値はいらない）。
+
+1. スラロームを走らせ，止まった位置の区画中央からのずれを測る：出口方向に直交する方向（ターンの外側＝入口と反対側が正）と，
+   出口方向（目標より先が正）
+2. `tools/slip_measurements.json` に1行足す（ログのファイル名から種類・速度・ファン・向きを読む）
+
+   ```json
+   {"log": "slalom/L90_500_right.csv", "outward": 10, "longitudinal": -8, "note": "ファンOFF，BACK_TO_AXLE_MM=42"}
+   ```
+
+   ログは同じ名前で上書きされるので，`tools/main.py --on_conflict sequence` で残し，連番の付いた名前を書く。
+   `BACK_TO_AXLE_MM` を変える前の走行には `"back_to_axle_mm": 25` のように走ったときの値を書く
+3. `python3 tools/identify_slip.py` を実行する。ファンON/OFFごとに，走行ごとの c_eff，c だけ（K=0）の値，
+   2つ以上の速度があれば c と K，各パラメータの pre/post_offset の目安が出る
+4. デザイナーに c, K を入れ，目安を参考に pre/post_offset を設計し直して保存する
+
+1つの速度からは c_eff = c + K·v² しか決まらない。K を求めるには速度を大きく変えた走行（例 300 と 1000mm/s）を足す。
+
 ## 走らない（LEDバーが左右交互に点滅する）とき
 
 シリアルに理由が出る。
