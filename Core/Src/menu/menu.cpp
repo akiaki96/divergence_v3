@@ -28,7 +28,8 @@ void Menu::buildTree() {
                 rotation_.setChildren(std::array{&rot_angle_hold_, &rot_pivot_pos90_, &rot_pivot_neg90_, &rot_pivot_pos180_, &rot_pivot_neg180_});
 
     // 種類・速度のノードは生成ヘッダから並べる（menu.hppのslalomTurnNodes() / slalomSpeedNodes()）
-    slalom_.setChildren(std::array{&slalom_left_, &slalom_right_});
+    slalom_.setChildren(std::array{&slalom_left_, &slalom_right_, &axle_check_});
+        axle_check_.setChildren(std::array{&axle_check_n1_, &axle_check_n2_, &axle_check_n4_, &axle_check_n8_});
         linkSlalom(slalom_left_, slalom_left_turns_, slalom_left_speeds_);
         linkSlalom(slalom_right_, slalom_right_turns_, slalom_right_speeds_);
 

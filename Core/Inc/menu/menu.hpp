@@ -7,6 +7,7 @@
 #include "menu/menuNode.hpp"
 #include "config/node_func_maker.hpp"
 #include "test/slalom_test.hpp"
+#include "test/axle_check_test.hpp"
 
 // スラロームの種類・速度とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
 constexpr bool slalomFitsMenu() {
@@ -132,5 +133,10 @@ private:
         MenuNode slalom_right_{"Slalom right"};
             std::array<MenuNode, config::slalom::TURNS.size()> slalom_right_turns_ = slalomTurnNodes(SLALOM_TURN_INDICES);
                 std::array<MenuNode, config::slalom::ALL.size()> slalom_right_speeds_ = slalomSpeedNodes<slalom::TurnDir::right>(SLALOM_PARAM_INDICES);
+        MenuNode axle_check_{"Axle check"};   // BACK_TO_AXLE_MMの確認（test/axle_check_test.hpp）
+            MenuNode axle_check_n1_{"n=1", nullptr, &axle_check_onenter<1>};
+            MenuNode axle_check_n2_{"n=2", nullptr, &axle_check_onenter<2>};
+            MenuNode axle_check_n4_{"n=4", nullptr, &axle_check_onenter<4>};
+            MenuNode axle_check_n8_{"n=8", nullptr, &axle_check_onenter<8>};
 
 };
