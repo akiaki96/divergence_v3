@@ -33,11 +33,11 @@ private:
     void buildTree();
     void setFunction();
 
-    // スラロームの試験：Slalom → 向き → 種類（config::slalom::TURNS）→ 速度（config::slalom::ALL）。
+    // スラロームの試験：Slalom → 向き（左・右・直進）→ 種類（config::slalom::TURNS）→ 速度（config::slalom::ALL）。
     // 速度のノードは生成ヘッダのパラメータごとに1つ作り，種類のノードの子にはALLの範囲[first, first+count)を割り当てる
-    template <slalom::TurnDir Dir, std::size_t... I>
+    template <SlalomTestMode Mode, std::size_t... I>
     static std::array<MenuNode, sizeof...(I)> slalomSpeedNodes(std::index_sequence<I...>) {
-        return {MenuNode(config::slalom::ALL[I].speed_name, nullptr, &slalom_test_onenter<Dir, I>)...};
+        return {MenuNode(config::slalom::ALL[I].speed_name, nullptr, &slalom_test_onenter<Mode, I>)...};
     }
 
     template <std::size_t... K>
@@ -128,9 +128,12 @@ private:
     MenuNode slalom_{"Slalom"};
         MenuNode slalom_left_{"Slalom left"};
             std::array<MenuNode, config::slalom::TURNS.size()> slalom_left_turns_ = slalomTurnNodes(SLALOM_TURN_INDICES);
-                std::array<MenuNode, config::slalom::ALL.size()> slalom_left_speeds_ = slalomSpeedNodes<slalom::TurnDir::left>(SLALOM_PARAM_INDICES);
+                std::array<MenuNode, config::slalom::ALL.size()> slalom_left_speeds_ = slalomSpeedNodes<SlalomTestMode::left>(SLALOM_PARAM_INDICES);
         MenuNode slalom_right_{"Slalom right"};
             std::array<MenuNode, config::slalom::TURNS.size()> slalom_right_turns_ = slalomTurnNodes(SLALOM_TURN_INDICES);
-                std::array<MenuNode, config::slalom::ALL.size()> slalom_right_speeds_ = slalomSpeedNodes<slalom::TurnDir::right>(SLALOM_PARAM_INDICES);
+                std::array<MenuNode, config::slalom::ALL.size()> slalom_right_speeds_ = slalomSpeedNodes<SlalomTestMode::right>(SLALOM_PARAM_INDICES);
+        MenuNode slalom_straight_{"Straight check"};
+            std::array<MenuNode, config::slalom::TURNS.size()> slalom_straight_turns_ = slalomTurnNodes(SLALOM_TURN_INDICES);
+                std::array<MenuNode, config::slalom::ALL.size()> slalom_straight_speeds_ = slalomSpeedNodes<SlalomTestMode::straight>(SLALOM_PARAM_INDICES);
 
 };
