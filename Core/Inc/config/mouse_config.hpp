@@ -158,7 +158,7 @@ inline constexpr float START_MM = WALL_HALF_MM + BACK_TO_AXLE_MM;
 
 // 壁の判定と横壁による向きの補正（common/wall_sensor.hpp, common/wall_control.hpp）。
 // [要調整] 仮の値。Device → IR → Wall check で実機の値を見て決める：
-//   THRESH_* … 区画境界の read_lead 手前（探索で壁を読む位置）で，壁があるときとないときの値の中間
+//   THRESH_* … 区画境界の config::search::READ_LEAD_MM 手前（探索で壁を読む位置）で，壁があるときとないときの値の中間
 //   REF_*    … 区画の中心線上で両側に壁があるときの左右の値
 namespace config::wall {
 inline constexpr int16_t THRESH_LEFT = 300;
@@ -175,6 +175,9 @@ inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いと�
 
 // 探索（app/search.hpp）。速度・使うスラロームはプリセット（tools/search_presets.json）で選ぶ
 namespace config::search {
+// [mm] 区画境界のこれだけ手前で壁を読み，次の動作を積む。プリセットによらず同じ。
+// 短すぎるとソルバーの計算が間に合わない（500mm/sで10mmなら20ms）
+inline constexpr float READ_LEAD_MM = 10.f;
 inline constexpr uint8_t GOAL_X = 7;
 inline constexpr uint8_t GOAL_Y = 7;
 inline constexpr uint16_t MAX_STEPS = 2048;     // 壁を読む回数の上限（ログの行数。往復でも16×16なら足りる）

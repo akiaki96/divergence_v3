@@ -7,25 +7,32 @@
 
 | ファイル | 役割 | 編集 |
 |---|---|---|
-| `search_presets.json` | 探索のプリセット（速度・使うスラローム・加速度・壁を読む位置・超信地旋回・壁の補正） | 手で |
+| `search_presets.json` | 探索のプリセット（速度・加速度・使うターンの集合・超信地旋回・壁の補正） | 手で |
 | `gen_search_presets.py` | `config/search_presets.hpp` を生成する。スラロームが設計されていなければビルドを止める | — |
 | `Core/Src/app/search.cpp` | 探索のループ（壁を読む → ソルバー → 動作を積む）とログ | — |
 | `Core/Src/common/wall_sensor.cpp` | IRセンサーの位置の対応と壁の判定 | 対応がずれていたら |
 | `Core/Src/common/wall_control.cpp` | 直進中の横壁による向きの補正 | — |
-| `Core/Inc/config/mouse_config.hpp` | `config::wall`（閾値・基準値・ゲイン），`config::search`（ゴール・ログの行数・電池） | 調整で |
+| `Core/Inc/config/mouse_config.hpp` | `config::wall`（閾値・基準値・ゲイン），`config::search`（壁を読む位置・ゴール・ログの行数・電池） | 調整で |
 
 プリセットの例（`search_presets.json`）：
 
 ```json
 {
-  "500": {"turn": "S90", "speed": 500, "accel": 3000, "read_lead_mm": 10,
-          "pivot_omega": 360, "pivot_alpha": 2500, "wall_control": true, "note": ""}
+  "500": {"speed": 500, "accel": 3000, "turns": ["S90", "L90", "T180"],
+          "pivot": {"omega": 360, "alpha": 2500}, "wall_control": true, "note": ""}
 }
 ```
 
-- `turn` + `speed` で使うスラロームが決まる（例 `S90` と 500 → `config::slalom::S90_500`）。
-  探索は区画境界で1歩ずつ進むので，入口・出口とも区画境界の小回り90°だけが使える
+- `turns` に使うターンの種類を並べ，`speed` でそれぞれのスラロームが決まる（例 `S90` と 500 → `config::slalom::S90_500`）。
+  探索中でも既知区間では大回りなどを使うので，複数持てる。種類ごとに `SearchPreset` の集合へ入る：
+  - `OrthoTurns`（区画に沿ったターン）… `S90`, `L90`, `T180`
+  - `DiagonalTurns`（斜めのターン）… `IN45`, `OUT45`, `V90`, `IN135`, `OUT135`。1つでも並べたときだけ作る
+- `S90` は必須（未知区間は区画境界で1歩ずつ進むので，入口・出口とも区画境界の小回り90°で曲がる）。
+  並べていない種類は `nullptr` で，使わない
 - `slalom_params.json` にその速度の設計がないとビルドが止まる（設計済みの速度が表示される）
+- `pivot` は超信地旋回（行き止まりの180°）の最大角速度 [dps] と角加速度 [dps/s]
+- `wall_control` は**実験中**の横壁による向きの補正。省略すると `false`
+- 壁を読む位置はプリセットによらないので `config::search::READ_LEAD_MM` にある
 - プリセットはメニュー `Run` → `Search` に，JSONに書いた順で並ぶ（`config::menu::MAX_CHILDREN` 個まで）
 
 ## 走らせるまで
@@ -34,7 +41,7 @@
    - シリアルに機体の位置ごとの値（`L FL FR R`），壁の判定，元の変数の値が出る。LEDバーは左から左・前・右の壁の判定
    - **各センサーを手でふさいで，位置の対応が合っているか確かめる**。変数名（`irL` など）と読んでいるピンが
      食い違っているので，`wall_sensor.cpp` の `pick()` で対応をとっている（ずれていたらここだけ直す）
-   - 区画境界の `read_lead_mm` 手前（探索で壁を読む位置）に置き，壁があるとき・ないときの値の中間を
+   - 区画境界の `READ_LEAD_MM` 手前（探索で壁を読む位置）に置き，壁があるとき・ないときの値の中間を
      `config::wall::THRESH_*` に，区画の中心線上で両側に壁があるときの左右の値を `REF_*` にする
    - 抜けるときはリセット
 2. **探索**：機体の後端をスタート区画 (0,0) の後壁に当てて北へ向け，`Run` → `Search` → プリセットを選ぶ
@@ -73,6 +80,6 @@ python main.py --replay ../../tools/log/search/500.csv --maze-image maze_image/<
 - **実機では未確認**。閾値・基準値・ゲイン（`config::wall`）は仮の値なので，まず `Wall check` で決める
 - 横壁の補正は直進中（目標の角速度が0で，並進が `MIN_VELOCITY` より速い間）だけ効く。
   補正した角度は旋回の後も残る（旋回は相対角度で積むため）
-- 区画境界の `read_lead_mm` 手前で壁を読み，その間に次の動作を積む。`read_lead_mm` が短すぎると
+- 区画境界の `READ_LEAD_MM` 手前で壁を読み，その間に次の動作を積む。`READ_LEAD_MM` が短すぎると
   ソルバーの計算が間に合わず `profile error` になる（500mm/sで10mmなら20ms）
 - 探索のログは CCMRAM に置いている（スタートアップは CCMRAM を0にしないので，件数だけで有効な範囲を表す）

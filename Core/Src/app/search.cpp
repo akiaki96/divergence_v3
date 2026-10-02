@@ -22,15 +22,32 @@ constexpr float accelDistance(const SearchPreset& p) {
     return p.speed * p.speed / (2.f * p.accel);
 }
 
-constexpr float pivotRamp(const SearchPreset& p) {
-    return p.pivot_omega * p.pivot_omega / (2.f * p.pivot_alpha);
+constexpr float pivotRamp(const PivotParam& p) {
+    return p.omega * p.omega / (2.f * p.alpha);
+}
+
+// 集合のターン：使わない（nullptr）か，探索速度で設計されていて積める
+constexpr bool turnUsable(const slalom::Param* t, float v) {
+    return t == nullptr || (t->speed == v && slalom::validate(*t) == SegmentResult::ok);
+}
+
+constexpr bool turnsUsable(const SearchPreset& p) {
+    const float v = p.speed;
+    const OrthoTurns& o = p.turns;
+    bool ok = o.s90 != nullptr && o.s90->entry == slalom::Anchor::edge && o.s90->exit == slalom::Anchor::edge
+           && turnUsable(o.s90, v) && turnUsable(o.l90, v) && turnUsable(o.t180, v);
+    if (p.diagonal != nullptr) {
+        const DiagonalTurns& d = *p.diagonal;
+        ok = ok && turnUsable(d.in45, v) && turnUsable(d.out45, v) && turnUsable(d.v90, v)
+                && turnUsable(d.in135, v) && turnUsable(d.out135, v);
+    }
+    return ok;
 }
 
 constexpr bool presetRunnable(const SearchPreset& p) {
     using namespace config::profile_limit;
     const float v = p.speed;
-    return p.turn->speed == v
-        && slalom::validate(*p.turn) == SegmentResult::ok
+    return turnsUsable(p)
         // 最初の半区画：accel で加速してから等速
         && p.accel <= MAX_ACCEL_X
         && accelDistance(p) < START_TO_EDGE
@@ -39,9 +56,7 @@ constexpr bool presetRunnable(const SearchPreset& p) {
         && validateSegment(v, 0.f, HALF_MM, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok
         && validateSegment(0.f, v, HALF_MM, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok
         // 超信地旋回の180°に加速・減速が収まる
-        && p.pivot_alpha <= MAX_ALPHA && 2.f * pivotRamp(p) < 180.f
-        // 壁を読む位置が1歩の中にある（最も短い1歩は行き止まりの後半の半区画）
-        && p.read_lead > 0.f && p.read_lead < HALF_MM;
+        && p.pivot.alpha <= MAX_ALPHA && 2.f * pivotRamp(p.pivot) < 180.f;
 }
 
 constexpr bool allPresetsRunnable() {
@@ -52,6 +67,10 @@ constexpr bool allPresetsRunnable() {
 }
 static_assert(allPresetsRunnable(),
               "a search preset cannot run: check tools/search_presets.json against the profile limits");
+
+// 壁を読む位置が1歩の中にある（最も短い1歩は行き止まりの後半の半区画）
+constexpr float READ_LEAD = config::search::READ_LEAD_MM;
+static_assert(READ_LEAD > 0.f && READ_LEAD < HALF_MM, "config::search::READ_LEAD_MM must be inside half a cell");
 
 // ---- 壁を読むたびの記録（シミュレータの replay.py の LOG_COLUMNS と同じ列）----
 struct SearchStep {
@@ -123,11 +142,11 @@ uint8_t firstMotion(const uint8_vector& actions) {
 }
 
 // 超信地旋回（angle は符号つき，正で左）。並進が止まっていること（直前の区間が速度0で終わる）
-bool pivot(const SearchPreset& p, float angle) {
+bool pivot(const PivotParam& p, float angle) {
     float dir = (angle > 0.f) ? 1.f : -1.f;
     float ramp = pivotRamp(p);
-    return planProfile.turn(dir * p.pivot_omega, dir * ramp) == SegmentResult::ok
-        && planProfile.turn(dir * p.pivot_omega, angle - dir * 2.f * ramp) == SegmentResult::ok
+    return planProfile.turn(dir * p.omega, dir * ramp) == SegmentResult::ok
+        && planProfile.turn(dir * p.omega, angle - dir * 2.f * ramp) == SegmentResult::ok
         && planProfile.turn(0.f, dir * ramp) == SegmentResult::ok;
 }
 
@@ -154,8 +173,8 @@ Stop runSteps(const SearchPreset& p) {
     float step_end = START_TO_EDGE;   // 今積んでいる1歩が終わる位置（並進の目標位置，区画境界）
 
     while (true) {
-        // 区画境界の read_lead 手前まで待つ（今の1歩の残りが走っている間に次を積む）
-        while (planProfile.getTargetPositionX() < step_end - p.read_lead) {
+        // 区画境界の READ_LEAD 手前まで待つ（今の1歩の残りが走っている間に次を積む）
+        while (planProfile.getTargetPositionX() < step_end - READ_LEAD) {
             if (profileBroken() || planProfile.isIdle()) return Stop::profileError;
         }
 
@@ -184,13 +203,13 @@ Stop runSteps(const SearchPreset& p) {
             bool to_left = (action == ACT_TURN_LEFT_MOVE);
             if (to_left ? left : right) return Stop::frontWall;
             auto dir = to_left ? slalom::TurnDir::left : slalom::TurnDir::right;
-            if (slalom::push(planProfile, *p.turn, dir) != SegmentResult::ok) return Stop::pushRejected;
-            step_end += slalom::totalDistance(*p.turn);
+            if (slalom::push(planProfile, *p.turns.s90, dir) != SegmentResult::ok) return Stop::pushRejected;
+            step_end += slalom::totalDistance(*p.turns.s90);
             break;
         }
         case ACT_TURN_BACK:
             // 区画中央で止まり，その場で180°回って，来た境界へ戻る
-            if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok || !pivot(p, 180.f) ||
+            if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok || !pivot(p.pivot, 180.f) ||
                 planProfile.straight(v, HALF_MM) != SegmentResult::ok) {
                 return Stop::pushRejected;
             }
@@ -235,8 +254,8 @@ void blinkRefused() {
 void runSearch(const SearchPreset& preset) {
     std::snprintf(g_log_name, sizeof(g_log_name), "%s", preset.name);
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
-    LOG("search %s: %.0f mm/s, turn %s, goal (%u,%u)\r\n", preset.name, preset.speed, preset.turn->name,
-        config::search::GOAL_X, config::search::GOAL_Y);
+    LOG("search %s: %.0f mm/s, turn %s, wall control %s, goal (%u,%u)\r\n", preset.name, preset.speed,
+        preset.turns.s90->name, preset.wall_control ? "on" : "off", config::search::GOAL_X, config::search::GOAL_Y);
 
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);

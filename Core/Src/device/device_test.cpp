@@ -31,7 +31,7 @@ onenter(encoder_left,
 )
 
 // 壁センサーの確認：機体の位置ごとの値と壁の判定を出す。各センサーを手でふさいで位置の対応を確かめ，
-// 探索で壁を読む位置（区画境界の read_lead 手前）での値から config::wall の閾値を決める。
+// 探索で壁を読む位置（区画境界の config::search::READ_LEAD_MM 手前）での値から config::wall の閾値を決める。
 // LEDバーは左から 左・前・右 の壁の判定（壁ありで点灯）
 void wall_check_onenter() {
     while (true) {
