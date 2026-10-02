@@ -4,17 +4,14 @@
 
 // IRセンサーの値を機体の位置（左・前左・前右・右）で読み，壁の有無を判定する。
 //
-// device_instance.hpp の irL / irFL / irFR / irR の名前は機体の位置と一致しない。メニューの操作
-// （menuInputController）がその名前のまま使っているので変数名は変えず，位置との対応はこのクラスの中
-// （wall_sensor.cpp の pick()）だけで持つ。
-//
-// AdcValue::update() の読み順（受光ピンの CubeMX の名前，そのとき点けている LED）：
-//   irFL ← PA3 SENSOR_L  （IR_L + IR_FL）   irR ← PA2 SENSOR_FL （IR_L + IR_FL）
-//   irL  ← PA0 SENSOR_FR （IR_FR + IR_R）   irFR ← PA1 SENSOR_R （IR_FR + IR_R）
-// 2026-10-02 の前壁スイープ（feature/wall-distance，tools/WALL_DISTANCE.md）で，前の壁に反応するのは
-// irFL と irFR，irL と irR は横と分かった。受光ピンの名前は位置と合わないが，LED の名前は合うとすると
-// （irR は左の LED を点けて横の壁を読めている），左 = irR，前左 = irFL，前右 = irFR，右 = irL になる。
-// [要確認] 前・横の区別は実測済み。左右は実機で Device → IR → Wall check を開き，手でふさいで確かめる
+// device_instance.hpp の irL / irFL / irFR / irR は，名前どおりの位置のセンサー（左・前左・前右・右）。
+// 位置との対応はこのクラスの中（wall_sensor.cpp の pick()）で持つ。
+//   - 前・横：2026-10-02 の前壁スイープ（feature/wall-distance，tools/WALL_DISTANCE.md）で，前の壁に
+//     反応するのは irFL と irFR，横は irL と irR と分かった
+//   - 横の左右：irL が左，irR が右（2026-10-03 ユーザー確認）
+//   - [要確認] 前の左右（irFL が前左，irFR が前右）は名前からの推定。Device → IR → Wall check で確かめる
+// AdcValue::update() が読む受光ピンの CubeMX の名前（irFL ← PA3 SENSOR_L, irR ← PA2 SENSOR_FL,
+// irL ← PA0 SENSOR_FR, irFR ← PA1 SENSOR_R）と LED の名前は，位置と合わないので当てにしない
 namespace wall {
 
 enum Position : uint8_t { left, front_left, front_right, right, POSITION_COUNT };

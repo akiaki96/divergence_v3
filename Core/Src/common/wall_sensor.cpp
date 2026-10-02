@@ -5,13 +5,13 @@
 namespace wall {
 
 namespace {
-// 機体の位置 → 実際にそのピンの値が入っている変数（wall_sensor.hpp の説明を参照）
+// 機体の位置 → その位置のセンサーの変数（wall_sensor.hpp の説明を参照）
 const IrSensor& pick(Position p) {
     switch (p) {
-    case left:        return irR;    // PA2 SENSOR_FL，IR_L + IR_FL を点けて読む
-    case front_left:  return irFL;   // PA3 SENSOR_L， IR_L + IR_FL を点けて読む
-    case front_right: return irFR;   // PA1 SENSOR_R， IR_FR + IR_R を点けて読む
-    default:          return irL;    // PA0 SENSOR_FR，IR_FR + IR_R を点けて読む
+    case left:        return irL;
+    case front_left:  return irFL;
+    case front_right: return irFR;
+    default:          return irR;
     }
 }
 } // namespace
