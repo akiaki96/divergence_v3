@@ -59,7 +59,9 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     _printf_float
 )
 
-file(GLOB_RECURSE APP_SOURCES
+# CONFIGURE_DEPENDS: re-glob on every build, so a .cpp added by a branch
+# switch or merge is compiled without re-running the configure step.
+file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
     Core/Src/app/*.cpp
     Core/Src/device/*.cpp
     Core/Src/algorithm/*.cpp
