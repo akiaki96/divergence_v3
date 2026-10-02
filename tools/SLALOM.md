@@ -61,7 +61,7 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
 
 ## 注意
 
-- `config::mouse::BACK_TO_AXLE_MM`（`Core/Inc/config/mouse_config.hpp`，機体の後端から車軸まで）がずれていると
+- `config::mouse::BACK_TO_AXLE_MM`（`Core/Inc/config/mouse_config.hpp`，機体の後端から車軸まで，43mm）がずれていると
   入口の位置がずれ，その分を `pre_offset` の調整で吸収してしまう。メニュー `Slalom` → `Axle check` → `n=1/2/4/8` で確かめる：
   車軸（車輪の中心）を床の線の真上に置くと，`BACK_TO_AXLE_MM + 90·n` 走って後端が90·n先の線の上で止まるはず。
   線より先に止まった量をδとすると，本当の値は `BACK_TO_AXLE_MM − δ`（δがnに比例して増えるならエンコーダの距離の誤差）
