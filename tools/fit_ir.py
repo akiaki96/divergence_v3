@@ -13,10 +13,12 @@
      ずれで値が下がり，同じ値が2つの距離に対応するので，ピークより遠い側だけを使う
   3. ピークより遠い側の中央値に「距離に対して単調に減る」制約をかけて換算表（値 → 距離）を作る（PAVA）。
      近い側は受光が飽和に近く値の変化が小さいので，分解能（1サンプルのノイズ ÷ 傾き）が MAX_RES_MM より
-     悪い所は有効範囲から外す
+     悪い所は有効範囲から外す。ノイズは走行ごとのばらつき（走行をまたいだ違いは 5 で別に見る）
   4. 精度は，近づくときのデータで作った表を離れるときのデータで確かめる（逆も）。自分のデータに合わせすぎていないかを見る
-  5. 比較のため，モデル d = A·v^p（power），d = a/√(v − b) + c（inv_sqrt）も当てはめて帯ごとの残差を出す
-  6. 横のセンサー：遠い所の値と，前の壁の影響が出始める距離を出す（区画中央で止まると前の壁は84mm）
+  5. ログが2本以上あれば，1本を除いた残りで作った表で除いた1本を距離に直す（走行をまたいだ本当の精度）。
+     走行ごとの値の倍率（置き方・壁などで値全体が大きく・小さくなる）と，倍率を直したあとの誤差も出す
+  6. 比較のため，モデル d = A·v^p（power），d = a/√(v − b) + c（inv_sqrt）も当てはめて帯ごとの残差を出す
+  7. 横のセンサー：遠い所の値と，前の壁の影響が出始める距離を出す（区画中央で止まると前の壁は84mm）
 
 結果は tools/ir_calibration.json に保存する（換算をファームウェアに入れるときの元データ）。標準ライブラリだけで動く。
 
@@ -161,6 +163,13 @@ class Lut:
         self.vs = [-v for _, v in self.points]            # bisect 用に値を負にして昇順にする
         self.ds = [d for d, _ in self.points]
 
+    def value_at(self, d):
+        """距離 → 値（表を逆に引く。範囲の外は NaN）"""
+        for (d0, v0), (d1, v1) in zip(self.points, self.points[1:]):
+            if d0 <= d <= d1:
+                return v0 + (v1 - v0) * (d - d0) / (d1 - d0)
+        return float("nan")
+
     def __call__(self, v):
         i = bisect.bisect_left(self.vs, -v)
         if i <= 0:
@@ -242,8 +251,43 @@ def analyse_side(sensor, allb):
             "value_at_84mm": statistics.median(at84) if at84 else None}
 
 
-def analyse(sensor, samples):
-    allb = bins_of(samples, sensor)
+def cross_run(sensor, logs, d_lo, d_hi):
+    """1本を除いた残りのログで作った表で，除いた1本を距離に直したときの帯ごとの偏り（と倍率を直したあとの偏り）"""
+    out = []
+    for k, test in enumerate(logs):
+        train = [s for j, lg in enumerate(logs) if j != k for s in lg["samples"]]
+        lut = build_lut(bins_of(train, sensor), d_lo, d_hi)
+        tb = [(d, m) for d, m, _, _ in bins_of(test["samples"], sensor) if d_lo <= d <= d_hi]
+        if lut is None or not tb:
+            continue
+        ratios = [m / lut.value_at(d) for d, m in tb if not math.isnan(lut.value_at(d))]
+        if not ratios:
+            continue
+        gain = statistics.median(ratios)
+        bands = []
+        for lo, hi in BANDS:
+            e = [lut(m) - d for d, m in tb if lo <= d < hi]
+            eg = [lut(m / gain) - d for d, m in tb if lo <= d < hi]
+            if e:
+                bands.append({"d_lo": lo, "d_hi": hi, "bias_mm": statistics.mean(e), "bias_after_gain_mm": statistics.mean(eg)})
+        out.append({"log": os.path.basename(test["path"]), "gain": gain, "bands": bands})
+    return out
+
+
+def within_run_bins(sensor, logs):
+    """全部のログをまとめた1mmごとの中央値に，ばらつきは走行ごとのばらつきの中央値を付けたもの。
+    まとめたビンのばらつきには走行ごとの値の倍率の違いが入るので，分解能（センサーのノイズ）には使わない"""
+    pooled = bins_of([s for lg in logs for s in lg["samples"]], sensor)
+    per_run = [{round(d, 3): sd for d, _, _, sd in bins_of(lg["samples"], sensor)} for lg in logs]
+    out = []
+    for d, m, n, sd in pooled:
+        sds = [pr[round(d, 3)] for pr in per_run if round(d, 3) in pr]
+        out.append((d, m, n, statistics.median(sds) if sds else sd))
+    return out
+
+
+def analyse(sensor, samples, logs):
+    allb = within_run_bins(sensor, logs)
     if len(allb) < 20:
         raise FitError(f"{sensor}: データが少なすぎます")
     d_min = allb[0][0]
@@ -322,7 +366,11 @@ def main():
         b = args.back_to_axle if args.back_to_axle is not None else read_back_to_axle()
         logs = [load(p, b) for p in paths]
         samples = [s for lg in logs for s in lg["samples"]]
-        result = {s: analyse(s, samples) for s in SENSORS}
+        result = {s: analyse(s, samples, logs) for s in SENSORS}
+        if len(logs) >= 2:
+            for s, info in result.items():
+                if info["role"] == "front":
+                    info["cross_run"] = cross_run(s, logs, info["valid"]["d_min"], info["valid"]["d_max"])
     except (OSError, FitError) as e:
         print(f"fit_ir: エラー: {e}", file=sys.stderr)
         return 1
@@ -355,6 +403,14 @@ def main():
             print(f"              {lo:3d}〜{bd['d_hi']:3d}mm   RMS {bd['rms_mm']:5.2f}mm（偏り {bd['bias_mm']:+.2f}）"
                   f"        {reso.get(lo, float('nan')):5.2f}mm   {models['power'].get(lo, float('nan')):6.2f} / "
                   f"{models['inv_sqrt'].get(lo, float('nan')):6.2f}mm")
+        if info.get("cross_run"):
+            print("              走行をまたいだ確かめ（1本を除いた残りの表で除いた1本を換算）：偏り [mm]，括弧内は倍率を直したあと")
+            for cr in info["cross_run"]:
+                bands = "，".join(f"{bd['d_lo']}〜{bd['d_hi']} {bd['bias_mm']:+.1f}（{bd['bias_after_gain_mm']:+.1f}）" for bd in cr["bands"])
+                print(f"                {cr['log'][:-4]:14s} 倍率 {cr['gain']:.3f}  {bands}")
+            worst = max(abs(bd["bias_mm"]) for cr in info["cross_run"] for bd in cr["bands"])
+            gains = [cr["gain"] for cr in info["cross_run"]]
+            print(f"              → 走行をまたぐと最大 {worst:.1f}mm ずれる。倍率は {min(gains):.3f}〜{max(gains):.3f}")
         if args.table:
             print("              距離[mm]  値（中央値）")
             for d, m, _, _ in info["bins"]:
