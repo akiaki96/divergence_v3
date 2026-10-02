@@ -63,7 +63,7 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
    {"log": "slalom/L90_500_right.csv", "outward": 10, "longitudinal": -8, "note": "ファンOFF，BACK_TO_AXLE_MM=42"}
    ```
 
-   ログは同じ名前で上書きされるので，`tools/main.py --on_conflict sequence` で残し，連番の付いた名前を書く。
+   `tools/main.py` は同じ名前のログがあると `_1`, `_2`, ... と連番を付けて残す（既定）ので，保存された名前を書く。
    `BACK_TO_AXLE_MM` を変える前の走行には `"back_to_axle_mm": 25` のように走ったときの値を書く
 3. `python3 tools/identify_slip.py` を実行する。ファンON/OFFごとに，走行ごとの c_eff，c だけ（K=0）の値，
    2つ以上の速度があれば c と K，各パラメータの pre/post_offset の目安が出る

@@ -67,18 +67,19 @@
 
 | `on_conflict` | 挙動 |
 |---|---|
-| `"overwrite"`（デフォルト） | 既存ファイルをそのまま上書きする（従来の挙動） |
-| `"sequence"` | 既存ファイルがあれば，ベース名に `_1`, `_2`, ... と連番を付けた**空いている名前**を探して別ファイルとして保存する（既存ファイルは残る）。例: `run1.csv` が既に存在する場合 → `run1_1.csv`（それも存在すれば `run1_2.csv`, ...） |
+| `"sequence"`（デフォルト） | 既存ファイルがあれば，ベース名に `_1`, `_2`, ... と連番を付けた**空いている名前**を探して別ファイルとして保存する（既存ファイルは残る）。例: `run1.csv` が既に存在する場合 → `run1_1.csv`（それも存在すれば `run1_2.csv`, ...） |
+| `"overwrite"` | 既存ファイルをそのまま上書きする |
 
 指定方法は2通り：
 
-- コンストラクタ: `Saver(on_conflict="sequence")` … 以降そのインスタンスでの `save_to_csv()` 呼び出し全てに適用されるデフォルト
-- 呼び出しごと: `saver.save_to_csv(..., on_conflict="sequence")` … その1回の呼び出しに限りコンストラクタの指定を上書きする
+- コンストラクタ: `Saver(on_conflict="overwrite")` … 以降そのインスタンスでの `save_to_csv()` 呼び出し全てに適用されるデフォルト
+- 呼び出しごと: `saver.save_to_csv(..., on_conflict="overwrite")` … その1回の呼び出しに限りコンストラクタの指定を上書きする
 
-`main.py` では起動時オプション `--on_conflict {overwrite,sequence}`（デフォルト `overwrite`）で指定する：
+`main.py` では起動時オプション `--on_conflict {overwrite,sequence}`（デフォルト `sequence`）で指定する。
+同じ試験を何度も走らせても前のログが消えないよう，既定では連番を付けて残す。上書きしたいときだけ指定する：
 
 ```
-python main.py --on_conflict sequence
+python main.py --on_conflict overwrite
 ```
 
 ```csv

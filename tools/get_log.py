@@ -94,10 +94,10 @@ from plot_log import plot_csv
 class Saver:
     # in: on_conflict(str, 同名CSVが既に存在する場合の挙動のデフォルト。
     #                 save_to_csv()側で個別に上書き指定しない限りこれが使われる。
-    #                 "overwrite": 上書きする（従来の挙動，デフォルト）
     #                 "sequence" : "_1", "_2", ... と連番を付けた別ファイルとして保存し，
-    #                              既存ファイルを残す。詳細はtools/DATA_FORMAT.md §4参照
-    def __init__(self, on_conflict="overwrite"):
+    #                              既存ファイルを残す（デフォルト。同じ試験を繰り返してもログが消えない）
+    #                 "overwrite": 上書きする。詳細はtools/DATA_FORMAT.md §4参照
+    def __init__(self, on_conflict="sequence"):
         if on_conflict not in ("overwrite", "sequence"):
             raise ValueError(f"on_conflict must be 'overwrite' or 'sequence' (got {on_conflict!r})")
         self.on_conflict = on_conflict

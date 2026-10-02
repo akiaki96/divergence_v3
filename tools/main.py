@@ -18,9 +18,9 @@ arg_parser.add_argument("--no_save", action="store_true", help="Do not save rece
 arg_parser.add_argument(
     "--on_conflict",
     choices=["overwrite", "sequence"],
-    default="overwrite",
-    help="同名CSVが既に存在する場合の挙動。overwrite: 上書き（デフォルト）, "
-         "sequence: '_1','_2',...の連番を付けて別ファイルとして両方保存する",
+    default="sequence",
+    help="同名CSVが既に存在する場合の挙動。sequence: '_1','_2',...の連番を付けて別ファイルとして両方保存する（デフォルト）, "
+         "overwrite: 上書き",
 )
 
 # オプションの解釈
