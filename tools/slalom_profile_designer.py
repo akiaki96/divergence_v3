@@ -11,6 +11,8 @@ import pyperclip
 
 from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 
+PRESET_BY_KEY = {p.key: p for p in PRESET_LIST}
+
 pygame.init()
 FONT_PATH = "/Users/inabeshuuyou/Library/Fonts/YujiSyuku-Regular.ttf"
 FONT = pygame.font.Font(FONT_PATH, 15)
@@ -24,7 +26,7 @@ WORLD_MAX_Y = 370.0
 
 # --- screen layout ---
 SCREEN_W = 1100
-SCREEN_H = 700
+SCREEN_H = 760
 CANVAS_SIZE = 540  # square drawing area
 CANVAS_LEFT = 200
 CANVAS_TOP = 40
@@ -485,6 +487,27 @@ def draw_trace(surface):
         else:
             pygame.draw.line(surface, color, p1, p2, 2)
 
+def exit_error_lines(end_x, end_y, end_angle, pre, post):
+    """出口のずれ：出口オフセットの終点と出口の基準点（action の折れ線の出口）の差を，出口の向きに対して
+    外側（入口と反対側が正）と前後（先が正）に分けて出す。実機の試験で止まった位置を測るときと同じ向き。
+    S90/L90 は入口オフセットが外側だけ・出口オフセットが前後だけを動かすので，そのまま打ち消す値も出す"""
+    p = PRESET_BY_KEY[current_preset]
+    if p.exit_offset is None:
+        return ["出口  : 基準点なし（斜めのターン）"]
+    ex, ey = ini_x + p.exit_offset[0], ini_y + p.exit_offset[1]
+    h = np.deg2rad(fin_angle)
+    u = (np.sin(h), np.cos(h))          # 出口の向き
+    n = (-u[1], u[0])                   # 出口の外側（右旋回の左手）
+    dx, dy = end_x - ex, end_y - ey
+    outward = dx * n[0] + dy * n[1]
+    longitudinal = dx * u[0] + dy * u[1]
+    lines = [f"出口のずれ: 外側 {outward:+.1f} / 前後 {longitudinal:+.1f} mm，向き {end_angle - fin_angle:+.2f}°"]
+    if p.angle == 180:
+        lines.append(f"→ 出口オフセット {post - longitudinal:.1f}（横は直せない）")
+    else:
+        lines.append(f"→ 入口 {pre - outward:.1f} / 出口 {post - longitudinal:.1f} で 0")
+    return lines
+
 # --- on_generate uses inputs dict for all parameters ---
 def on_generate(cp = False):
     global lines, info_lines, trace_segments, last_result
@@ -647,13 +670,15 @@ def on_generate(cp = False):
     # 所要時間: 並進速度一定なので 経路長 / 速度
     time_ms = round(cen_grav_len / speed * 1000.0, 1) if speed > 0 else 0.0
 
+    exit_lines = exit_error_lines(fin_x, fin_y, now_angle, pri_offset, post_offset)
+
     info_lines = [
         f"acc   : {acc_dist} mm",
         f"const : {const_dist} mm",
         f"total : {cen_grav_len} mm",
         f"time  : {time_ms} ms",
         f"slip  : β max {slip_deg(np.deg2rad(ang_vel_max)):.2f}°（fan {'ON' if fan_on else 'OFF'}）",
-    ]
+    ] + exit_lines
 
     last_result = {
         "acc_dist": acc_dist,
@@ -707,7 +732,7 @@ fan_button = Button((label_x, fan_y, 140, 30), fan_label(), toggle_fan)
 buttons.append(fan_button)
 
 # 保存 / 読込ボタン（右パネル、計算結果の下）
-save_y = base_y + (len(params) + 1) * row_h + 108
+save_y = base_y + (len(params) + 1) * row_h + 144   # 計算結果の7行の下
 save_button = Button((label_x, save_y, 140, 34), "保存 (Ctrl+S)", save_params)
 load_button = Button((label_x + 150, save_y, 140, 34), "読込", load_params)
 buttons.extend([save_button, load_button])

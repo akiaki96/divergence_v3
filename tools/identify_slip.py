@@ -51,8 +51,8 @@ WALL_HALF_MM = 6.0
 V_FLOOR = 50.0   # [mm/s] これより遅いときは横すべりを足さない（c·ω/v が発散しないように）
 
 # 試験（Core/Src/test/slalom_test.cpp）の幾何。右旋回，x右・y前，区画の後ろの境界が y=0，機体の中心線が x=0。
-# ターンごとの入口の基準点の y と，入口から出口の基準点までの変位（action の折れ線）と出口の向き [deg]（時計回り）
-EXIT_DISPLACEMENT = {"S90": (90.0, 90.0), "L90": (180.0, 180.0), "T180": (180.0, 0.0)}
+# 入口から出口の基準点までの変位（action の折れ線）は slalom_presets.py の exit_offset
+EXIT_DISPLACEMENT = {p.cpp_name: p.exit_offset for p in PRESET_LIST if p.exit_offset is not None}
 
 LOG_NAME = re.compile(r"^(?P<turn>[A-Z0-9]+)_(?P<speed>\d+(?:p\d+)?)(?P<fan>_FAN)?_(?P<dir>left|right)(?:_\d+)?\.csv$")
 
