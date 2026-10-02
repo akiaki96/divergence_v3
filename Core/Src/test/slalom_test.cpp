@@ -12,8 +12,7 @@
 // 出口の基準点からは，edgeなら半区画，centerなら1区画進んで（次の区画中央で）止まる。
 // 斜め（diagonal）の入口・出口は未対応。
 //
-// 結果はログ（slalom/<name>_<left|right|straight>）と，走行後に表示する最終角度・走行距離の目標との差で見る。
-// straightでは同じ距離を直進し，止まる位置（区画の後ろの境界から）も表示する
+// 結果はログ（slalom/<name>_<left|right>）と，走行後に表示する最終角度・走行距離の目標との差で見る
 namespace {
 constexpr float CELL_MM = 180.f;
 constexpr float WALL_HALF_MM = 6.f;   // 壁の厚さ12mmの半分（境界＝壁の中央から壁の面まで）
@@ -46,7 +45,7 @@ constexpr float accelDistance(float speed) {
 
 // 試験中のパラメータ（runClosedLoopTest()の関数ポインタは引数を持てないので，ここで受け渡す）
 const slalom::Param* g_param = nullptr;
-SlalomTestMode g_mode = SlalomTestMode::left;
+slalom::TurnDir g_dir = slalom::TurnDir::left;
 char g_file_name[32];
 
 struct Result {
@@ -87,12 +86,7 @@ void slalom_profile() {
     float accel = accelDistance(p.speed);
     planProfile.straight(p.speed, accel);
     planProfile.straight(p.speed, runupDistance(p.entry) - accel);
-    if (g_mode == SlalomTestMode::straight) {
-        planProfile.straight(p.speed, slalom::totalDistance(p));   // 入口〜出口と同じ距離を等速で
-    } else {
-        auto dir = (g_mode == SlalomTestMode::left) ? slalom::TurnDir::left : slalom::TurnDir::right;
-        slalom::push(planProfile, p, dir);
-    }
+    slalom::push(planProfile, p, g_dir);
     planProfile.straight(0.f, stopDistance(p.exit));
 
     // 止まって整定してから最終位置を読む（runClosedLoopTestのsettleは0にしてある）
@@ -101,8 +95,8 @@ void slalom_profile() {
     g_result = {odometry.angle(), odometry.positionX()};
 }
 
-// 走らせる前の検査。だめなら理由を表示してfalse（直進では旋回の検査をしない）
-bool checkRunnable(const slalom::Param& p, SlalomTestMode mode) {
+// 走らせる前の検査。だめなら理由を表示してfalse
+bool checkRunnable(const slalom::Param& p) {
     using namespace config::profile_limit;
     if (p.entry == slalom::Anchor::diagonal || p.exit == slalom::Anchor::diagonal) {
         LOG("slalom test: %s has a diagonal entry/exit (not supported)\r\n", p.name);
@@ -114,7 +108,7 @@ bool checkRunnable(const slalom::Param& p, SlalomTestMode mode) {
         LOG("slalom test: run-up %.1f mm is shorter than the acceleration %.1f mm\r\n", runup, accel);
         return false;
     }
-    SegmentResult r = (mode == SlalomTestMode::straight) ? SegmentResult::ok : slalom::validate(p);
+    SegmentResult r = slalom::validate(p);
     if (r != SegmentResult::ok) {
         slalom::Shape s = slalom::shapeOf(p);
         LOG("slalom test: %s rejected (%s): ramp %.1f deg, cruise %.1f deg, alpha %.0f dps/s (limit %.0f)\r\n",
@@ -129,36 +123,30 @@ bool checkRunnable(const slalom::Param& p, SlalomTestMode mode) {
 }
 } // namespace
 
-void runSlalomTest(const slalom::Param& p, SlalomTestMode mode) {
-    const char* dir_name = (mode == SlalomTestMode::left) ? "left" : (mode == SlalomTestMode::right) ? "right" : "straight";
+void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
+    const char* dir_name = (dir == slalom::TurnDir::left) ? "left" : "right";
     slalom::Shape s = slalom::shapeOf(p);
     LOG("slalom test %s %s: speed %.0f mm/s, omega %.0f dps, alpha %.0f dps/s, pre %.1f mm, post %.1f mm\r\n",
         p.name, dir_name, p.speed, p.omega_max, p.alpha, p.pre_offset, p.post_offset);
     LOG("  ramp %.2f deg x2, cruise %.2f deg, turn %.1f mm, pre..post %.1f mm\r\n",
         s.ramp_angle, s.cruise_angle, slalom::turnDistance(p), slalom::totalDistance(p));
 
-    if (!checkRunnable(p, mode)) {
+    if (!checkRunnable(p)) {
         blinkRefused();
         return;
     }
 
     g_param = &p;
-    g_mode = mode;
+    g_dir = dir;
     g_result = {0.f, 0.f};
     std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s", p.name, dir_name);
 
     runClosedLoopTest({"slalom", g_file_name, slalom_init_log, slalom_profile, 0.f, 0.f, 0});
 
-    // 目標：最終角度は±angle（直進は0），走行距離は 入口まで＋スラローム＋止まるまで
-    float target_angle = (mode == SlalomTestMode::left) ? p.angle : (mode == SlalomTestMode::right) ? -p.angle : 0.f;
+    // 目標：最終角度は±angle，走行距離は 入口まで＋スラローム＋止まるまで
+    float target_angle = (dir == slalom::TurnDir::left) ? p.angle : -p.angle;
     float target_distance = runupDistance(p.entry) + slalom::totalDistance(p) + stopDistance(p.exit);
     LOG("slalom result %s %s: angle %.2f deg (target %.1f, error %+.2f), distance %.1f mm (target %.1f, error %+.1f)\r\n",
         p.name, dir_name, g_result.angle, target_angle, g_result.angle - target_angle,
         g_result.distance, target_distance, g_result.distance - target_distance);
-    if (mode == SlalomTestMode::straight) {
-        // 定規で測る目標：車軸が区画の後ろの境界（壁の中央）からSTART_MM＋走行距離の位置で止まる
-        float stop_from_edge = START_MM + target_distance;
-        LOG("  straight target stop: axle %.1f mm from the back edge (wall center), %.1f mm from the back wall face\r\n",
-            stop_from_edge, stop_from_edge - WALL_HALF_MM);
-    }
 }

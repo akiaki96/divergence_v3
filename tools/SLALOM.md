@@ -34,18 +34,6 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
    ログは `tools/log/slalom/<name>_<left|right>.csv`
 5. `slalom_tuning.json` に差分を書き，2へ戻る
 
-### 直進だけの試験（`Slalom` → `Straight check` → 種類 → 速度）
-
-同じ置き方・速度・距離（助走＋入口〜出口＋停止）を旋回せずに直進する。旋回を除いて，置き方（`BACK_TO_AXLE_MM`）と
-エンコーダの距離だけを確かめる。スラロームで止まる位置がずれたとき，ずれが旋回のせいかどうかを切り分ける。
-走行後に止まる目標の位置が出るので，車軸の位置を区画の後ろの壁から測って比べる。
-
-```
-  straight target stop: axle 756.4 mm from the back edge (wall center), 750.4 mm from the back wall face
-```
-
-目安（車軸，後壁の面から）：S90 420.9mm，L90 750.4mm（約4.2区画），T180 874.1mm（約4.9区画）。まっすぐな走路が要る。
-
 ```json
 {
   "小回り90°": {
