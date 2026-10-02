@@ -9,7 +9,9 @@ import json
 import datetime
 import pyperclip
 
-from slalom_presets import PRESET_LIST
+from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
+
+PRESET_BY_KEY = {p.key: p for p in PRESET_LIST}
 
 pygame.init()
 FONT_PATH = "/Users/inabeshuuyou/Library/Fonts/YujiSyuku-Regular.ttf"
@@ -24,7 +26,7 @@ WORLD_MAX_Y = 370.0
 
 # --- screen layout ---
 SCREEN_W = 1100
-SCREEN_H = 700
+SCREEN_H = 760
 CANVAS_SIZE = 540  # square drawing area
 CANVAS_LEFT = 200
 CANVAS_TOP = 40
@@ -285,9 +287,17 @@ params = [
     ("角加速度", "1000", "Set_Low_AngAcl"),
     ("入口オフセット(mm)", "90", "Set_pri_offset"),
     ("出口オフセット(mm)", "55", "Set_post_offset"),
-    ("スリップアングル係数", "0.002", "Set_K_SP"),
+    ("滑り係数 K", "0.002", "Set_K_SP"),
+    ("滑り係数 c(mm)", "0", "Set_C_SP"),
     ("機体の横幅(mm)", "86", "Set_Width")
 ]
+# スリップ角（速度の向きが機体の向きより外側へ遅れる角）β [rad] のモデル：
+#   β = K·v·ω + c·ω/v   （v [m/s], ω [rad/s], c [m]）
+#   K … 横加速度 v·ω に比例する滑り（タイヤの横方向の弾性）
+#   c … 速度によらない横滑り（車軸の横すべり速度 c·ω。車軸より c 前の点を中心に回るのと同じ）
+# どちらも機体・床・ファンの有無で変わる。片方を0にすればもう片方だけのモデルになる
+# 保存データに無い項目を読み込むときの値（以前の保存データとの互換）
+LOAD_DEFAULTS = {"Set_K_SP": 0.0, "Set_C_SP": 0.0}
 
 # ターンプリセット: key -> (表示名, ini_x, ini_y, ini_angle, fin_angle)
 # 定義は slalom_presets.py（生成スクリプト gen_slalom_params.py と共有）
@@ -322,8 +332,18 @@ def preset_name(key):
     return PRESETS[key][0]
 
 def speed_key(speed):
-    # 500.0 -> "500", 512.5 -> "512.5"
-    return f"{speed:g}"
+    # 500.0 -> "500"（ファンOFF）/ "500_fan"（ファンON）。ファンのON/OFFは別々に保存する
+    return make_speed_key(speed, fan_on)
+
+def speed_label(key):
+    """保存済みの一覧用：500 / 500 fan"""
+    speed, fan = parse_speed_key(key)
+    return f"{speed:g}" + (" fan" if fan else "")
+
+def entry_label(name, key):
+    """メッセージ用：大回り90° / 500mm/s ファンON"""
+    speed, fan = parse_speed_key(key)
+    return f"{name} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
 
 def read_save_file():
     if not os.path.exists(SAVE_PATH):
@@ -342,10 +362,24 @@ def write_save_file(data):
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp_path, SAVE_PATH)
 
+# ファン（吸引）を回して走る条件か。滑り係数 K・c はファンの有無で変わるので，パラメータと一緒に保存する
+fan_on = False
+
+def toggle_fan():
+    global fan_on
+    fan_on = not fan_on
+    fan_button.text = fan_label()
+    # ファンON/OFFは別々に保存しているので，切り替えた側の保存データがあれば読み込む（無ければ今の値のまま）
+    load_params(silent_if_missing=True)
+
+def fan_label():
+    return "ファン: ON" if fan_on else "ファン: OFF"
+
 def save_params():
     global status_msg, saved_data
     on_generate()  # 保存する結果を現在の入力値と一致させる
     entry = {key: inputs[key].get_value() for _, _, key in params}
+    entry["fan"] = fan_on
     entry["result"] = dict(last_result)
     entry["saved_at"] = datetime.datetime.now().isoformat(timespec="seconds")
 
@@ -356,29 +390,33 @@ def save_params():
     try:
         write_save_file(data)
         saved_data = data
-        status_msg = f"保存: {name} / {spd}mm/s"
+        status_msg = f"保存: {entry_label(name, spd)}"
     except OSError as e:
         status_msg = f"保存失敗: {e}"
 
 def load_params(silent_if_missing=False):
-    global status_msg, saved_data
+    global status_msg, saved_data, fan_on
     saved_data = read_save_file()
     name = preset_name(current_preset)
     spd = speed_key(inputs["Set_Speed"].get_value())
     entry = saved_data.get(name, {}).get(spd)
     if entry is None:
-        status_msg = "" if silent_if_missing else f"保存データなし: {name} / {spd}mm/s"
+        status_msg = "" if silent_if_missing else f"保存データなし: {entry_label(name, spd)}"
         on_generate()
         return
     for _, _, key in params:
         if key in entry:
             inputs[key].set_value(entry[key])
-    status_msg = f"読込: {name} / {spd}mm/s"
+        elif key in LOAD_DEFAULTS:
+            inputs[key].set_value(LOAD_DEFAULTS[key])   # 以前の保存データに無い項目は既定値に戻す
+    fan_on = parse_speed_key(spd)[1]   # キーが決める（"_fan" ならON）
+    fan_button.text = fan_label()
+    status_msg = f"読込: {entry_label(name, spd)}"
     on_generate()
 
 def saved_speeds_for_current():
     entries = saved_data.get(preset_name(current_preset), {})
-    return sorted(entries.keys(), key=float)
+    return [speed_label(k) for k in sorted(entries.keys(), key=parse_speed_key)]
 
 # DrawTrace will be called to render the trace onto a surface
 def parse_float(s, fallback=0.0):
@@ -449,6 +487,27 @@ def draw_trace(surface):
         else:
             pygame.draw.line(surface, color, p1, p2, 2)
 
+def exit_error_lines(end_x, end_y, end_angle, pre, post):
+    """出口のずれ：出口オフセットの終点と出口の基準点（action の折れ線の出口）の差を，出口の向きに対して
+    外側（入口と反対側が正）と前後（先が正）に分けて出す。実機の試験で止まった位置を測るときと同じ向き。
+    S90/L90 は入口オフセットが外側だけ・出口オフセットが前後だけを動かすので，そのまま打ち消す値も出す"""
+    p = PRESET_BY_KEY[current_preset]
+    if p.exit_offset is None:
+        return ["出口  : 基準点なし（斜めのターン）"]
+    ex, ey = ini_x + p.exit_offset[0], ini_y + p.exit_offset[1]
+    h = np.deg2rad(fin_angle)
+    u = (np.sin(h), np.cos(h))          # 出口の向き
+    n = (-u[1], u[0])                   # 出口の外側（右旋回の左手）
+    dx, dy = end_x - ex, end_y - ey
+    outward = dx * n[0] + dy * n[1]
+    longitudinal = dx * u[0] + dy * u[1]
+    lines = [f"出口のずれ: 外側 {outward:+.1f} / 前後 {longitudinal:+.1f} mm，向き {end_angle - fin_angle:+.2f}°"]
+    if p.angle == 180:
+        lines.append(f"→ 出口オフセット {post - longitudinal:.1f}（横は直せない）")
+    else:
+        lines.append(f"→ 入口 {pre - outward:.1f} / 出口 {post - longitudinal:.1f} で 0")
+    return lines
+
 # --- on_generate uses inputs dict for all parameters ---
 def on_generate(cp = False):
     global lines, info_lines, trace_segments, last_result
@@ -460,6 +519,7 @@ def on_generate(cp = False):
     pri_offset = inputs["Set_pri_offset"].get_value() # [mm]
     post_offset = inputs["Set_post_offset"].get_value()# [mm]
     K_slip_angle = inputs["Set_K_SP"].get_value()     # [coef]
+    c_slip_m = inputs["Set_C_SP"].get_value() / 1000.0  # [m]
     Width = inputs["Set_Width"].get_value()           # [mm]
 
     # 時間ステップ [s]
@@ -472,6 +532,12 @@ def on_generate(cp = False):
     ang_acc = Low_AngAcl            # [deg/s^2]
     ang_vel_max = low_AngVel        # [deg/s]
     v_m_s = speed / 1000.0          # [m/s] for slip calc
+
+    def slip_deg(omega_rad):
+        """スリップ角 β [deg]（モデルは params の下のコメント）"""
+        if v_m_s <= 0.0:
+            return 0.0
+        return np.rad2deg(K_slip_angle * v_m_s * omega_rad + c_slip_m * omega_rad / v_m_s)
 
     # 初期状態
     befor_x, befor_y = 0.0, 0.0
@@ -507,7 +573,7 @@ def on_generate(cp = False):
 
         # スリップ角度補正
         omega_rad = np.deg2rad(now_AngVel)  # rad/s
-        s_now_angle = now_angle - np.rad2deg(K_slip_angle * v_m_s * omega_rad)
+        s_now_angle = now_angle - slip_deg(omega_rad)
 
         fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
         fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
@@ -532,7 +598,7 @@ def on_generate(cp = False):
         now_angle += now_AngVel * dt
 
         omega_rad = np.deg2rad(now_AngVel)
-        s_now_angle = now_angle - np.rad2deg(K_slip_angle * v_m_s * omega_rad)
+        s_now_angle = now_angle - slip_deg(omega_rad)
 
         fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
         fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
@@ -562,7 +628,7 @@ def on_generate(cp = False):
         now_angle += now_AngVel * dt
 
         omega_rad = np.deg2rad(now_AngVel)
-        s_now_angle = now_angle - np.rad2deg(K_slip_angle * v_m_s * omega_rad)
+        s_now_angle = now_angle - slip_deg(omega_rad)
 
         fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
         fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
@@ -604,12 +670,15 @@ def on_generate(cp = False):
     # 所要時間: 並進速度一定なので 経路長 / 速度
     time_ms = round(cen_grav_len / speed * 1000.0, 1) if speed > 0 else 0.0
 
+    exit_lines = exit_error_lines(fin_x, fin_y, now_angle, pri_offset, post_offset)
+
     info_lines = [
         f"acc   : {acc_dist} mm",
         f"const : {const_dist} mm",
         f"total : {cen_grav_len} mm",
         f"time  : {time_ms} ms",
-    ]
+        f"slip  : β max {slip_deg(np.deg2rad(ang_vel_max)):.2f}°（fan {'ON' if fan_on else 'OFF'}）",
+    ] + exit_lines
 
     last_result = {
         "acc_dist": acc_dist,
@@ -650,14 +719,20 @@ inputs = {
     "Set_pri_offset": NumericInput(input_x, base_y + 3*row_h + 18, input_w, input_h, initial_value=22, step=1),
     "Set_post_offset": NumericInput(input_x, base_y + 4*row_h + 18, input_w, input_h, initial_value=0, step=1),
     "Set_K_SP": NumericInput(input_x, base_y + 5*row_h + 18, input_w, input_h, initial_value=0, step=0.001),
-    "Set_Width": NumericInput(input_x, base_y + 6*row_h + 18, input_w, input_h, initial_value=86, step=1),
+    "Set_C_SP": NumericInput(input_x, base_y + 6*row_h + 18, input_w, input_h, initial_value=0, step=0.5),
+    "Set_Width": NumericInput(input_x, base_y + 7*row_h + 18, input_w, input_h, initial_value=86, step=1),
 }
 # スクロール範囲をラベルを含む行全体に広げる（行同士は重ならない）
 for inp in inputs.values():
     inp.scroll_rect = pygame.Rect(label_x - 6, inp.rect.y - 14, inp.plus_rect.right + 6 - (label_x - 6), row_h)
 
+# ファンの有無（入力欄の下の1行）
+fan_y = base_y + len(params) * row_h + 4
+fan_button = Button((label_x, fan_y, 140, 30), fan_label(), toggle_fan)
+buttons.append(fan_button)
+
 # 保存 / 読込ボタン（右パネル、計算結果の下）
-save_y = base_y + len(params) * row_h + 90
+save_y = base_y + (len(params) + 1) * row_h + 144   # 計算結果の7行の下
 save_button = Button((label_x, save_y, 140, 34), "保存 (Ctrl+S)", save_params)
 load_button = Button((label_x + 150, save_y, 140, 34), "読込", load_params)
 buttons.extend([save_button, load_button])
@@ -723,7 +798,7 @@ while running:
 
     # draw info_lines on right panel (below inputs)
     info_x = label_x
-    info_y = base_y + len(params) * row_h + 8  # place below the last input
+    info_y = base_y + (len(params) + 1) * row_h + 4  # place below the fan toggle
     line_h = 18
     for i, line in enumerate(info_lines):
         txt = FONT.render(line, True, TEXT_COLOR)

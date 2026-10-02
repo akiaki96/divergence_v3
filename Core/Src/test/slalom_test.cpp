@@ -14,14 +14,15 @@
 //
 // 結果はログ（slalom/<name>_<left|right>）と，走行後に表示する最終角度・走行距離の目標との差で見る
 namespace {
-// 区画の大きさと置いたときの車軸の位置（実測の BACK_TO_AXLE_MM を含む）は探索と共有する
+// 区画の大きさと置いたときの車軸の位置は探索と共有する（config::maze）。config::mouse::BACK_TO_AXLE_MMが
+// ずれていると入口の位置がずれ，その分をpre_offsetの調整で吸収してしまう（確かめ方は test/axle_check_test.hpp）
 using config::maze::CELL_MM;
 using config::maze::START_MM;
 
 constexpr float RUNUP_ACCEL = 0.5f * config::profile_limit::G;   // [mm/s^2] 入口までの加速
 constexpr float STOP_DECEL_LIMIT = config::profile_limit::MAX_DECEL_X;
 constexpr uint32_t SETTLE_MS = 500;            // 止まってから最終位置を読むまで
-constexpr uint32_t LOG_DECIMATION = 2;         // [tick] 15列×1600サンプル＝3.2s
+constexpr uint32_t LOG_COLUMNS = 16;           // Global_time込み（slalom_init_log()）。間引きは走行時間から決める（logDecimation()）
 
 // 置いた位置から入口の基準点まで [mm]
 constexpr float runupDistance(slalom::Anchor entry) {
@@ -37,9 +38,23 @@ constexpr float accelDistance(float speed) {
     return speed * speed / (2.f * RUNUP_ACCEL);
 }
 
+// 走行時間 [ms]：静止100ms・助走（加速＋等速）・入口〜出口・停止・整定。低速ほど長い（200mm/s の L90 で約5s）
+constexpr float runMs(const slalom::Param& p) {
+    float accel = accelDistance(p.speed);
+    float s = (2.f * accel + (runupDistance(p.entry) - accel) + slalom::totalDistance(p) + 2.f * stopDistance(p.exit)) / p.speed;
+    return 100.f + s * 1000.f + SETTLE_MS;
+}
+
+// 走行がまるごとログに収まる間引き [tick]（2割の余裕）。ログが一杯になると記録が止まり，止まった位置が残らない
+uint32_t logDecimation(const slalom::Param& p) {
+    uint32_t samples = Logger::MAX_BUFFER_SIZE / LOG_COLUMNS;
+    return static_cast<uint32_t>(runMs(p) * 1.2f / samples) + 1;
+}
+
 // 試験中のパラメータ（runClosedLoopTest()の関数ポインタは引数を持てないので，ここで受け渡す）
 const slalom::Param* g_param = nullptr;
 slalom::TurnDir g_dir = slalom::TurnDir::left;
+uint32_t g_decimation = 1;
 char g_file_name[32];
 
 struct Result {
@@ -72,7 +87,8 @@ void slalom_init_log() {
     logger.add<&Motor::getDuty>("Right Duty", motorRight);
     logger.add<&Battery::voltage>("battery", battery);
     logger.add<&Imu::accelX>("accel_x", imu);
-    logger.setDecimation(LOG_DECIMATION);
+    logger.add<&Fan::getDuty>("fan_duty", fan);
+    logger.setDecimation(g_decimation);
 }
 
 void slalom_profile() {
@@ -120,8 +136,8 @@ bool checkRunnable(const slalom::Param& p) {
 void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
     const char* dir_name = (dir == slalom::TurnDir::left) ? "left" : "right";
     slalom::Shape s = slalom::shapeOf(p);
-    LOG("slalom test %s %s: speed %.0f mm/s, omega %.0f dps, alpha %.0f dps/s, pre %.1f mm, post %.1f mm\r\n",
-        p.name, dir_name, p.speed, p.omega_max, p.alpha, p.pre_offset, p.post_offset);
+    LOG("slalom test %s %s: speed %.0f mm/s, omega %.0f dps, alpha %.0f dps/s, pre %.1f mm, post %.1f mm, fan %s\r\n",
+        p.name, dir_name, p.speed, p.omega_max, p.alpha, p.pre_offset, p.post_offset, p.fan ? "on" : "off");
     LOG("  ramp %.2f deg x2, cruise %.2f deg, turn %.1f mm, pre..post %.1f mm\r\n",
         s.ramp_angle, s.cruise_angle, slalom::turnDistance(p), slalom::totalDistance(p));
 
@@ -132,10 +148,14 @@ void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
 
     g_param = &p;
     g_dir = dir;
+    g_decimation = logDecimation(p);
+    LOG("  run about %.1f s, log every %lu ms\r\n", runMs(p) / 1000.f, static_cast<unsigned long>(g_decimation));
     g_result = {0.f, 0.f};
     std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s", p.name, dir_name);
 
-    runClosedLoopTest({"slalom", g_file_name, slalom_init_log, slalom_profile, 0.f, 0.f, 0});
+    // ファンONで設計したパラメータはファンを回して走る（滑りがファンの有無で変わるため，設計と同じ条件にする）
+    float fan_duty = p.fan ? config::fan::RUN_DUTY : 0.f;
+    runClosedLoopTest({"slalom", g_file_name, slalom_init_log, slalom_profile, fan_duty, 0.f, 0});
 
     // 目標：最終角度は±angle，走行距離は 入口まで＋スラローム＋止まるまで
     float target_angle = (dir == slalom::TurnDir::left) ? p.angle : -p.angle;

@@ -7,7 +7,7 @@
 CMake（CMakeLists.txt）がビルドのたびに，どちらかのJSONかこのスクリプトが変わっていれば再生成する。
 標準ライブラリだけで動く（仮想環境は不要）。
 
-slalom_tuning.json の形（キーは slalom_params.json と同じ「表示名」→「速度」）:
+slalom_tuning.json の形（キーは slalom_params.json と同じ「表示名」→「速度」。ファンONは "500_fan" のように "_fan" が付く）:
 
     {
       "小回り90°": {
@@ -34,7 +34,7 @@ import json
 import os
 import sys
 
-from slalom_presets import PRESET_BY_LABEL, PRESET_LIST
+from slalom_presets import PRESET_BY_LABEL, PRESET_LIST, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -69,8 +69,9 @@ def fmt(x):
     return (s + ".f") if ("." not in s and "e" not in s) else (s + "f")
 
 
-def cpp_ident(cpp_name, speed_key):
-    return f"{cpp_name}_{speed_key.replace('.', 'p')}"
+def cpp_ident(cpp_name, speed, fan):
+    """S90, 500.0, False -> S90_500 / S90, 512.5, True -> S90_512p5_FAN"""
+    return f"{cpp_name}_{speed:g}".replace(".", "p") + ("_FAN" if fan else "")
 
 
 def build_entries(params, tuning):
@@ -79,8 +80,11 @@ def build_entries(params, tuning):
         preset = PRESET_BY_LABEL.get(label)
         if preset is None:
             raise GenError(f"slalom_params.json の「{label}」は slalom_presets.py にないターンです")
-        for speed_key, design in sorted(by_speed.items(), key=lambda kv: float(kv[0])):
-            where = f"{label} / {speed_key}mm/s"
+        for speed_key, design in sorted(by_speed.items(), key=lambda kv: parse_speed_key(kv[0])):
+            speed, fan = parse_speed_key(speed_key)
+            where = f"{label} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
+            if "fan" in design and bool(design["fan"]) != fan:
+                raise GenError(f"{where}: キーのファン（{'ON' if fan else 'OFF'}）と保存データの fan（{design['fan']}）が一致しません")
             values = {key: float(design[key]) for key in DELTA_KEYS}
             tune = tuning.get(label, {}).get(speed_key)
             applied = []
@@ -106,8 +110,8 @@ def build_entries(params, tuning):
                     f"シミュレータもこの形（三角形）は正しく扱えないので，角速度を下げるか角加速度を上げてください")
 
             entries.append({
-                "ident": cpp_ident(preset.cpp_name, speed_key),
-                "speed_name": speed_key,
+                "ident": cpp_ident(preset.cpp_name, speed, fan),
+                "speed_name": f"{speed:g}" + (" fan" if fan else ""),
                 "label": label,
                 "preset": preset,
                 "speed": float(design["Set_Speed"]),
@@ -116,17 +120,20 @@ def build_entries(params, tuning):
                 "note": note,
                 "saved_at": design.get("saved_at", ""),
                 "sim_total": design.get("result", {}).get("total_dist"),
+                "fan": fan,   # キーが決める（"_fan" ならON）
+                "k_slip": design.get("Set_K_SP", 0.0),
+                "c_slip": design.get("Set_C_SP", 0.0),
             })
 
     # メニューの並びを保存した順によらず一定にする：種類は slalom_presets.py の順，同じ種類の中は速度の昇順
     order = {p.label: i for i, p in enumerate(PRESET_LIST)}
-    entries.sort(key=lambda e: (order[e["label"]], e["speed"]))
+    entries.sort(key=lambda e: (order[e["label"]], e["speed"], e["fan"]))
 
     # 表にない調整は書き間違いの可能性が高いので止める
     for label, by_speed in tuning.items():
         for speed_key in by_speed:
             if speed_key not in params.get(label, {}):
-                raise GenError(f"slalom_tuning.json の「{label} / {speed_key}mm/s」に対応する設計値がありません")
+                raise GenError(f"slalom_tuning.json の「{label} / {speed_key}」に対応する設計値がありません")
     return entries
 
 
@@ -147,7 +154,9 @@ def render(entries):
     for e in entries:
         p, v = e["preset"], e["values"]
         sim = f", sim total {e['sim_total']:g}mm" if e["sim_total"] is not None else ""
+        fan = "ON" if e["fan"] else "OFF"
         out.append(f"// {e['label']} {e['speed']:g}mm/s（設計値 saved {e['saved_at']}{sim}）")
+        out.append(f"//   ファン {fan}，滑り係数 K {e['k_slip']:g}，c {e['c_slip']:g}mm")
         if e["applied"]:
             for key, base, d in e["applied"]:
                 member, unit = DELTA_KEYS[key]
@@ -160,7 +169,7 @@ def render(entries):
             f"inline constexpr Param {e['ident']} = {{\"{e['ident']}\", \"{e['speed_name']}\", {fmt(p.angle)}, "
             f"Anchor::{ANCHOR[p.entry]}, Anchor::{ANCHOR[p.exit]}, {fmt(e['speed'])}, "
             f"{fmt(v['Set_low_AngVel'])}, {fmt(v['Set_Low_AngAcl'])}, "
-            f"{fmt(v['Set_pri_offset'])}, {fmt(v['Set_post_offset'])}}};")
+            f"{fmt(v['Set_pri_offset'])}, {fmt(v['Set_post_offset'])}, {'true' if e['fan'] else 'false'}}};")
         out.append("")
     out.append("// すべてのパラメータ（種類の順，同じ種類の中は速度の昇順）")
     out.append(f"inline constexpr std::array<Param, {len(entries)}> ALL = {{")
