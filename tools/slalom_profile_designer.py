@@ -601,16 +601,21 @@ def on_generate(cp = False):
     # --- prepare info lines (these replace previous prints) ---
     cen_grav_len = round(cen_grav_len, 3)
 
+    # 所要時間: 並進速度一定なので 経路長 / 速度
+    time_ms = round(cen_grav_len / speed * 1000.0, 1) if speed > 0 else 0.0
+
     info_lines = [
         f"acc   : {acc_dist} mm",
         f"const : {const_dist} mm",
         f"total : {cen_grav_len} mm",
+        f"time  : {time_ms} ms",
     ]
 
     last_result = {
         "acc_dist": acc_dist,
         "const_dist": const_dist,
-        "total_dist": cen_grav_len,
+        "total_dist": cen_grav_len,  # 経路長（入口オフセット〜出口オフセットまでの重心軌跡）
+        "time_ms": time_ms,
     }
 
     if cp:
@@ -652,7 +657,7 @@ for inp in inputs.values():
     inp.scroll_rect = pygame.Rect(label_x - 6, inp.rect.y - 14, inp.plus_rect.right + 6 - (label_x - 6), row_h)
 
 # 保存 / 読込ボタン（右パネル、計算結果の下）
-save_y = base_y + len(params) * row_h + 70
+save_y = base_y + len(params) * row_h + 90
 save_button = Button((label_x, save_y, 140, 34), "保存 (Ctrl+S)", save_params)
 load_button = Button((label_x + 150, save_y, 140, 34), "読込", load_params)
 buttons.extend([save_button, load_button])
