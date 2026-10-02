@@ -15,6 +15,9 @@ constexpr float RAMP_MM = VELOCITY * VELOCITY / (2.f * ACCEL);      // [mm] 加�
 constexpr uint32_t HOLD_MS = 1000;      // 一番近い所で止まる時間（静止時のノイズを見る）
 constexpr uint32_t SETTLE_MS = 500;     // 戻った後
 constexpr uint32_t LOG_COLUMNS = 10;    // Global_time込み（ir_sweep_init_log()）
+// メニューで決定してから走り出すまでの待ち。前の壁が近いと前のセンサーの値が大きく，前のセンサーを手でふさぐ
+// メニューの決定ができないので，壁から離して決定し，この間に置く（LEDバーが端から消えていく）
+constexpr uint32_t START_COUNTDOWN_MS = 3000;
 
 // 置いたときの車軸から前の壁の面まで [mm]
 constexpr float startAxleToWall(uint32_t cells) {
@@ -56,6 +59,15 @@ void ir_sweep_init_log() {
     logger.setDecimation(g_decimation);
 }
 
+void countdown() {
+    constexpr int STEPS = 8;
+    for (int i = STEPS; i > 0; --i) {
+        ledBar16.set(static_cast<uint16_t>((1u << (2 * i)) - 1));   // 点いているLEDが減っていく
+        HAL_Delay(START_COUNTDOWN_MS / STEPS);
+    }
+    ledBar16.set(0x0000);
+}
+
 void ir_sweep_profile() {
     float d = g_travel;
     planProfile.straight(VELOCITY, RAMP_MM);
@@ -80,6 +92,8 @@ void runIrFrontSweep(uint32_t cells) {
     LOG("  place the back end against the back wall (BACK_TO_AXLE_MM %.1f, FRONT_TO_AXLE_MM %.1f)\r\n",
         config::mouse::BACK_TO_AXLE_MM, config::mouse::FRONT_TO_AXLE_MM);
 
+    LOG("  starting in %.0f s: place the robot now\r\n", START_COUNTDOWN_MS / 1000.f);
+    countdown();
     runClosedLoopTest({"ir_sweep", g_file_name, ir_sweep_init_log, ir_sweep_profile, 0.f, 0.f, SETTLE_MS});
 
     LOG("IR front sweep done: encoder %.1f mm at the end (should be about 0), angle %+.2f deg\r\n",
