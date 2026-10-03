@@ -56,7 +56,7 @@
      - `too many steps` … ログの行数（`MAX_STEPS`）を超えた
 3. **ログの受け取り**：止まったら機体を持ち上げて置く（`haltByAccZ`）と，`tools/main.py` が2つ保存する
    - `tools/log/search/<preset>.csv` … 壁を読むたびに1行（位置・壁・ソルバーの動作・帰り探索中か・IRの値）
-   - `tools/log/search/<preset>_trace.csv` … 走行中の目標・実測の位置と角度，壁の補正（50Hz）
+   - `tools/log/search/<preset>_trace.csv` … 走行中の目標・実測の位置と角度，壁の補正（68s分を間引いて記録，約22Hz）
 
 ## シミュレータで再現する
 

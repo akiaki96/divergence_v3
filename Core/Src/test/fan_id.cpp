@@ -25,6 +25,7 @@ static void fan_init_log(void) {
     logger.initLoggedVal();
     logger.add<&Battery::voltage>("battery", battery);
     logger.add<&Fan::getDuty>("fan_duty", fan);
+    logger.setDuration(FAN_PRE_OFF_MS + FAN_ON_MS + FAN_POST_OFF_MS + 500);
 
     ledBar16.set(0xFFFF);
 }

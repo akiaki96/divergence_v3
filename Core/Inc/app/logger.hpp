@@ -28,7 +28,8 @@ public:
         Getter getter;
     };
     static constexpr uint32_t MAX_FIELDS = 16;
-    static constexpr uint32_t MAX_BUFFER_SIZE = 8 * 3000;
+    // 8列なら1500サンプル（1kHzで1.5s）。長い試験は setDuration() で間引いて収める（48KB）
+    static constexpr uint32_t MAX_BUFFER_SIZE = 8 * 1500;
 
     void initLoggedVal(void);
     void setDirName(const char* name);
@@ -42,8 +43,13 @@ public:
         return add(name, Getter::create<T, Method>(object));
     }
     // n tickに1回だけ記録する（既定1＝毎tick）。長時間の試験でバッファ（MAX_BUFFER_SIZE）に収めるため。
-    // initLoggedVal()で1に戻る
+    // initLoggedVal()で1に戻る。setDuration()を取り消す
     void setDecimation(uint32_t every_n_ticks);
+    // 少なくとも duration_ms [ms] 記録できるように，start() のときの列数から間引きを決める（毎tickで収まれば1）。
+    // 列を足す前に呼んでよい。initLoggedVal()で取り消される。setDecimation()を取り消す
+    void setDuration(uint32_t duration_ms);
+    // 今の列数・間引きで記録できる長さ [ms]（start()の後に，setDuration()の結果を確かめるのに使う）
+    uint32_t recordableMs(void) const;
 
     void start(void);
     void stop(void);
@@ -76,6 +82,7 @@ private:
     uint32_t sampleCount_ = 0;
     uint32_t maxSamples_ = MAX_BUFFER_SIZE;
     uint32_t decimation_ = 1;
+    uint32_t durationMs_ = 0;   // 0なら decimation_ をそのまま使う
     uint32_t tickCount_ = 0;
 
     bool isRecording_ = false;

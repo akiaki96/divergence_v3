@@ -1,11 +1,19 @@
 #include "app/logger.hpp"
 #include "device/device_instance.hpp"
 #include "common/debug.hpp"
+#include "config/mouse_config.hpp"
+
+namespace {
+// 1回の sample()（制御の1tick）の長さ [ms]
+constexpr uint32_t TICK_MS = static_cast<uint32_t>(config::control::DT_S * 1000.f + 0.5f);
+static_assert(TICK_MS >= 1, "the logger assumes a control tick of at least 1 ms");
+}
 
 void Logger::initLoggedVal(void) {
     fieldCount_ = 0;
     maxSamples_ = MAX_BUFFER_SIZE;
     decimation_ = 1;
+    durationMs_ = 0;
     isRecording_ = false;
     isFull_ = false;
     add("Global_time", &globalTime);
@@ -17,6 +25,15 @@ void Logger::initLoggedVal(void) {
 
 void Logger::setDecimation(uint32_t every_n_ticks) {
     decimation_ = (every_n_ticks == 0) ? 1 : every_n_ticks;
+    durationMs_ = 0;
+}
+
+void Logger::setDuration(uint32_t duration_ms) {
+    durationMs_ = duration_ms;
+}
+
+uint32_t Logger::recordableMs(void) const {
+    return maxSamples_ * decimation_ * TICK_MS;
 }
 
 void Logger::setDirName(const char* name) {
@@ -78,6 +95,11 @@ bool Logger::add(const char* name, Getter getter) {
 }
 
 void Logger::start(void) {
+    if (durationMs_ > 0) {
+        const uint32_t ticks = (durationMs_ + TICK_MS - 1) / TICK_MS;
+        decimation_ = (ticks + maxSamples_ - 1) / maxSamples_;   // 切り上げ
+        if (decimation_ == 0) decimation_ = 1;
+    }
     sampleCount_ = 0;
     tickCount_ = 0;
     isRecording_ = true;

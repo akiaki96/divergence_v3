@@ -82,7 +82,7 @@ static_assert(withinAccelLimit(FAST_2000), "FAST_2000 exceeds config::profile_li
 constexpr float FAST_MIN_BATTERY_V = 7.4f;   // [V] これ未満なら走らない（高速に必要な電圧余裕の確保）
 }
 
-// 高速試験のログ：速度試験の項目に，ファンduty・目標加速度・速度PIの飽和フラグを加える（13列＝約1.8s）
+// 高速試験のログ：速度試験の項目に，ファンduty・目標加速度・速度PIの飽和フラグを加える（記録時間は id_init_log() の2.5s）
 static void plan_fast_init_log(void) {
     id_init_log_velocity();
     logger.add<&Fan::getDuty>("fan_duty", fan);
@@ -110,7 +110,7 @@ onenter(plan_fast_2000,
 namespace {
 constexpr float ENC_CHECK_VELOCITY = 50.f;        // [mm/s]
 constexpr float ENC_CHECK_DISTANCE = 90.f * 11;   // [mm]
-constexpr uint32_t ENC_CHECK_LOG_DECIMATION = 20; // [tick] 20ms
+constexpr uint32_t ENC_CHECK_LOG_MS = 24000;      // [ms] 静止100ms＋990mm/50mm/s（19.8s）＋整定1.5s
 }
 
 static void encoder_check_init_log(void) {
@@ -126,7 +126,7 @@ static void encoder_check_init_log(void) {
     logger.add<&Motor::getDuty>("Left Duty", motorLeft);
     logger.add<&Motor::getDuty>("Right Duty", motorRight);
     logger.add<&Fan::getDuty>("fan_duty", fan);
-    logger.setDecimation(ENC_CHECK_LOG_DECIMATION);
+    logger.setDuration(ENC_CHECK_LOG_MS);
 }
 
 // 走り終えたら停止指令を出して1000ms整定させ，ログを止める前にエンコーダの距離を表示する

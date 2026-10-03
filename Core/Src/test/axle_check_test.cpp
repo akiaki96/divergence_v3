@@ -11,12 +11,17 @@ constexpr float VELOCITY = 200.f;                                  // [mm/s] 滑
 constexpr float ACCEL = 0.25f * config::profile_limit::G;          // [mm/s^2] 加速・減速
 constexpr float RAMP_MM = VELOCITY * VELOCITY / (2.f * ACCEL);     // [mm] 加速・減速それぞれ（約8mm）
 constexpr uint32_t SETTLE_MS = 500;
-constexpr uint32_t LOG_DECIMATION = 4;   // [tick] 10列×2400サンプル＝9.6s（n=8でも収まる）
 
 constexpr float checkDistance(uint32_t n) {
     return config::mouse::BACK_TO_AXLE_MM + HALF_CELL_MM * n;
 }
 static_assert(checkDistance(1) > 2.f * RAMP_MM, "axle check is shorter than its ramps");
+
+// 記録する長さ [ms]：静止100ms＋走行（加速・減速の分を足す）＋整定，2割の余裕
+constexpr uint32_t logMs(uint32_t n) {
+    float run_ms = (checkDistance(n) + 2.f * RAMP_MM) / VELOCITY * 1000.f;
+    return static_cast<uint32_t>((100.f + run_ms + SETTLE_MS) * 1.2f);
+}
 
 uint32_t g_n = 1;
 char g_file_name[16];
@@ -37,7 +42,7 @@ void axle_check_init_log() {
     logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&Battery::voltage>("battery", battery);
     logger.add<&Motor::getDuty>("Left Duty", motorLeft);
-    logger.setDecimation(LOG_DECIMATION);
+    logger.setDuration(logMs(g_n));
 }
 
 void axle_check_profile() {

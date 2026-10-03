@@ -13,6 +13,8 @@ void id_init_log(void) {
     logger.add<&Motor::getDuty>("Right Duty", motorRight);
     logger.add<&Imu::gyroZ>("gyro_z", imu);
     logger.add<&Imu::accelX>("accel_x", imu);
+    // この記録を使う試験（duty・速度ステップ・plan_profileの並進／回転／高速）はどれも静止100msを含めて2.2s以内
+    logger.setDuration(2500);
 
     ledBar16.set(0xFFFF);
 }
@@ -34,7 +36,6 @@ void id_init_log_omega(void) {
     logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
     logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&MotorDriver::getAngleIntegralTerm>("angle_integral_term", motorDriver);
-    // （Global_time込み12列＝2000サンプル＝2.0sに試験全体を収めるため。logger::MAX_BUFFER_SIZE参照）
 }
 
 onenter(right_set050, 

@@ -20,20 +20,21 @@ static void rotation_init_log(void) {
     logger.add<&Motor::getDuty>("Right Duty", motorRight);
     logger.add<&Battery::voltage>("battery", battery);
     logger.add<&Odometry::velocityX>("encoder_velocity_x", odometry);
+    logger.setDuration(1500);   // その場旋回（180°でも静止100ms＋0.64s＋整定0.5s）
 }
 
 // ---- 角度保持 ----
 // 静止したまま目標角度0を3.5s保持する。走行中に手で車体を回し，元の向きへ戻るか（符号・PIの効き）を見る。
 // 新しい制御を最初に動かすときの確認用（車体が勝手に回り続けるなら符号が逆）。
-// ログは2msごとに間引いて記録する（約3.7s）
+// ログは静止100msを含めて3.8s記録する（間引きは列数から決まる）
 namespace {
 constexpr uint32_t ANGLE_HOLD_MS = 3500;
-constexpr uint32_t ANGLE_HOLD_LOG_DECIMATION = 2;   // [tick]
+constexpr uint32_t ANGLE_HOLD_LOG_MS = 3800;
 }
 
 static void angle_hold_init_log(void) {
     rotation_init_log();
-    logger.setDecimation(ANGLE_HOLD_LOG_DECIMATION);
+    logger.setDuration(ANGLE_HOLD_LOG_MS);
 }
 
 onenter(rot_angle_hold,
@@ -43,7 +44,7 @@ onenter(rot_angle_hold,
 
 // ---- その場旋回 ----
 // 目標角速度を台形にする：0 →（PIVOT_ALPHAで加速）→ PIVOT_OMEGA → 等角速度 →（減速）→ 0。
-// 360dpsで車輪は約190mm/s。180°で所要約0.64s，整定0.5sを含めて記録は約1.3s（ログ上限1.85s）
+// 360dpsで車輪は約190mm/s。180°で所要約0.64s，整定0.5sを含めて記録は約1.3s（rotation_init_log() で1.5s）
 namespace {
 constexpr float PIVOT_OMEGA = 360.f;    // [dps]
 constexpr float PIVOT_ALPHA = 2500.f;   // [dps/s]

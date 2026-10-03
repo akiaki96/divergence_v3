@@ -14,7 +14,7 @@ constexpr float HALF_MM = CELL_MM / 2.f;
 // 置いた位置（車軸）からスタート区画の前の境界まで。ソルバーの ACT_MOVE_FIRST_HALF_CELL にあたる
 constexpr float START_TO_EDGE = CELL_MM - config::maze::START_MM;
 
-constexpr uint32_t TRACE_DECIMATION = 20;   // [tick] 時系列のログ。7列×3400サンプル＝68s（往復の探索が入る）
+constexpr uint32_t TRACE_MS = 68000;   // [ms] 時系列のログの長さ（往復の探索が入る。8列なら46msごと）
 constexpr uint32_t SETTLE_MS = 500;
 
 // ---- プリセットの検査（ビルド時）----
@@ -123,7 +123,7 @@ void initTraceLog() {
     logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&WallControl::omega>("wall_omega", wallControl);
     logger.add<&WallControl::offset>("wall_offset", wallControl);
-    logger.setDecimation(TRACE_DECIMATION);
+    logger.setDuration(TRACE_MS);
 }
 
 // ソルバーが返した列のうち最初の動作（SET_* とその引数，READ_WALL を飛ばす）。
