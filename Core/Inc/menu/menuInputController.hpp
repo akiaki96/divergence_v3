@@ -15,7 +15,7 @@ public:
 private:
     void lock(uint32_t delay);
 
-    MenuController controller_;
+    MenuController& controller_;   // menuInstance.cpp の menuController（コピーするとメニュー全体が2つになる）
 
     uint32_t lockUntil_ = 0; // ms
     float encoderDistance_ = 0.0f;
