@@ -80,6 +80,8 @@ struct SearchStep {
     uint8_t action;      // ソルバーが返した動作（solver/core/action.h）
     uint8_t returning;   // 帰り探索中か
     int16_t ir[wall::POSITION_COUNT];
+    float pos_target;     // [mm] 壁を読んだときの並進の目標位置（区画境界の READ_LEAD 手前に来たときの値）
+    float pos_measured;   // [mm] そのときの実測（エンコーダ）。待つのはこちらで，差が追従遅れ
 };
 
 // CCMRAM（64KB，ほかに使っていない）に置く。スタートアップは CCMRAM を0にしないので，
@@ -87,8 +89,10 @@ struct SearchStep {
 __attribute__((section(".ccmram"))) SearchStep g_steps[config::search::MAX_STEPS];
 uint16_t g_step_count = 0;
 
+// 位置の2列は末尾に足している（replay.py は列を名前で読むので，知らない列は無視される）
 constexpr const char* STEP_COLUMNS[] = {"step", "x", "y", "dir", "left", "front", "right", "action",
-                                        "returning", "ir_l", "ir_fl", "ir_fr", "ir_r"};
+                                        "returning", "ir_l", "ir_fl", "ir_fr", "ir_r",
+                                        "pos_target", "pos_measured"};
 constexpr uint32_t STEP_COLUMN_COUNT = sizeof(STEP_COLUMNS) / sizeof(STEP_COLUMNS[0]);
 
 enum class Stop : uint8_t {
@@ -174,10 +178,14 @@ Stop runSteps(const SearchPreset& p) {
     float step_end = START_TO_EDGE;   // 今積んでいる1歩が終わる位置（並進の目標位置，区画境界）
 
     while (true) {
-        // 区画境界の READ_LEAD 手前まで待つ（今の1歩の残りが走っている間に次を積む）
-        while (planProfile.getTargetPositionX() < step_end - READ_LEAD) {
+        // 機体（実測）が区画境界の READ_LEAD 手前に来るまで待つ（今の1歩の残りが走っている間に次を積む）。
+        // 目標位置で待つと，追従遅れのぶん実際の機体より先で壁を読んだことになる。
+        // 実測も目標も経路に沿った距離（超信地旋回では変わらない）で，step_end と同じ座標
+        while (odometry.positionX() < step_end - READ_LEAD) {
             if (profileBroken() || planProfile.isIdle()) return Stop::profileError;
         }
+        float pos_target = planProfile.getTargetPositionX();
+        float pos_measured = odometry.positionX();
 
         wall::Snapshot s = wall::read();
         bool left = wall::hasLeft(s);
@@ -190,7 +198,7 @@ Stop runSteps(const SearchPreset& p) {
         SearchStep& rec = g_steps[g_step_count++];
         rec = {at.x, at.y, at.dir,
                static_cast<uint8_t>((left ? 1 : 0) | (front ? 2 : 0) | (right ? 4 : 0)),
-               action, static_cast<uint8_t>(adachi::is_returning() ? 1 : 0), {}};
+               action, static_cast<uint8_t>(adachi::is_returning() ? 1 : 0), {}, pos_target, pos_measured};
         for (uint8_t i = 0; i < wall::POSITION_COUNT; ++i) rec.ir[i] = s.value[i];
 
         switch (action) {
@@ -237,6 +245,7 @@ void dumpSteps(const char* file) {
             static_cast<float>((r.walls >> 2) & 1), static_cast<float>(r.action), static_cast<float>(r.returning),
             static_cast<float>(r.ir[wall::left]), static_cast<float>(r.ir[wall::front_left]),
             static_cast<float>(r.ir[wall::front_right]), static_cast<float>(r.ir[wall::right]),
+            r.pos_target, r.pos_measured,
         };
         uart_write(reinterpret_cast<const uint8_t*>(row), sizeof(row));
     }

@@ -55,7 +55,8 @@
      - `profile error` … PlanProfileが区間を落とした，または壁を読む前に止まった
      - `too many steps` … ログの行数（`MAX_STEPS`）を超えた
 3. **ログの受け取り**：止まったら機体を持ち上げて置く（`haltByAccZ`）と，`tools/main.py` が2つ保存する
-   - `tools/log/search/<preset>.csv` … 壁を読むたびに1行（位置・壁・ソルバーの動作・帰り探索中か・IRの値）
+   - `tools/log/search/<preset>.csv` … 壁を読むたびに1行（位置・壁・ソルバーの動作・帰り探索中か・IRの値，
+     読んだときの並進の目標位置 `pos_target` と実測 `pos_measured` [mm]。差が追従遅れ）
    - `tools/log/search/<preset>_trace.csv` … 走行中の目標・実測の位置と角度，壁の補正（68s分を間引いて記録，約22Hz）
 
 ## シミュレータで再現する
@@ -83,6 +84,7 @@ python main.py --replay ../../tools/log/search/500.csv --maze-image maze_image/<
 - **実機では未確認**。閾値・基準値・ゲイン（`config::wall`）は仮の値なので，まず `Wall check` で決める
 - 横壁の補正は直進中（目標の角速度が0で，並進が `MIN_VELOCITY` より速い間）だけ効く。
   補正した角度は旋回の後も残る（旋回は相対角度で積むため）
-- 区画境界の `READ_LEAD_MM` 手前で壁を読み，その間に次の動作を積む。`READ_LEAD_MM` が短すぎると
+- 機体の実測の位置（エンコーダ）が区画境界の `READ_LEAD_MM` 手前に来たら壁を読み，その間に次の動作を積む
+  （目標位置で待つと，追従遅れのぶん実際より先で読んだことになる）。`READ_LEAD_MM` が短すぎると
   ソルバーの計算が間に合わず `profile error` になる（500mm/sで10mmなら20ms）
 - 探索のログは CCMRAM に置いている（スタートアップは CCMRAM を0にしないので，件数だけで有効な範囲を表す）
