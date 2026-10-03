@@ -8,6 +8,7 @@
 #include "config/node_func_maker.hpp"
 #include "test/slalom_test.hpp"
 #include "app/search.hpp"
+#include "app/maze_menu.hpp"
 #include "test/axle_check_test.hpp"
 
 // スラロームの種類・速度とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
@@ -86,6 +87,9 @@ private:
         MenuNode search_{"Search"};
             std::array<MenuNode, config::search::PRESETS.size()> search_presets_ =
                 searchNodes(std::make_index_sequence<config::search::PRESETS.size()>{});
+        MenuNode maze_{"Maze"};   // 保存した迷路（app/maze_store.hpp）
+            MenuNode maze_show_{"Show"};
+            MenuNode maze_clear_{"Clear"};
 
     MenuNode device_{"Device"};
         MenuNode imu_{"IMU"};

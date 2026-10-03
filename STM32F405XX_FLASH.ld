@@ -57,7 +57,9 @@ MEMORY
 {
 RAM (xrw)      : ORIGIN = 0x20000000, LENGTH = 128K
 CCMRAM (xrw)      : ORIGIN = 0x10000000, LENGTH = 64K
-FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 1024K
+/* The last two 128 KB sectors (10: 0x080C0000, 11: 0x080E0000) hold the saved
+   maze (device/flash_bank.hpp), so the program may use only the first 768 KB. */
+FLASH (rx)      : ORIGIN = 0x8000000, LENGTH = 768K
 }
 
 /* Highest address of the user mode stack */

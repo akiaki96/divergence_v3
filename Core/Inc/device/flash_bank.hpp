@@ -1,0 +1,24 @@
+#pragma once
+
+#include <cstdint>
+
+// 迷路の保存に使うフラッシュの2面（A面 = セクタ10，B面 = セクタ11，各128KB）。
+// STM32F405XX_FLASH.ld の FLASH 領域はこの手前（768KB）までにしてあるので，プログラムとは重ならない。
+//
+// 消去・書き込みの間はフラッシュから命令を読めないので CPU（割り込みも）が止まる。
+// 消去は1面で1〜2s かかるので，モーターを止めてから呼ぶ
+namespace flash_bank {
+
+inline constexpr uint8_t COUNT = 2;
+inline constexpr uint32_t SIZE = 128 * 1024;   // [byte] 1面
+
+// 面の先頭（メモリにマップされているので，そのまま読める）。消した直後は 0xFF
+const uint8_t* address(uint8_t bank);
+
+// 面全体を消す（0xFF にする）
+bool erase(uint8_t bank);
+
+// offset [byte]（4の倍数）から 32bit ずつ count 語書く。消した後の 0xFF にしか書けない
+bool program(uint8_t bank, uint32_t offset, const uint32_t* words, uint32_t count);
+
+} // namespace flash_bank

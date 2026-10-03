@@ -1,6 +1,7 @@
 #include "app/search.hpp"
 #include <cstdio>
 #include "adachi.hpp"
+#include "app/maze_store.hpp"
 #include "common/debug.hpp"
 #include "common/etc.hpp"
 #include "common/wall_sensor.hpp"
@@ -318,6 +319,18 @@ void runSearch(const SearchPreset& preset) {
         static_cast<unsigned long>(planProfile.droppedCount()));
     if (stop != Stop::finished) {
         blinkRefused();
+    } else {
+        // スタートまで戻った迷路だけ保存する（途中で止まったときは壁の誤読があり得るので残さない）。
+        // 消去・書き込みで1〜2s CPU が止まるので，モーターを止めた後に行う
+        ledBar16.set(0xFFFF);
+        maze_store::Result saved = maze_store::save(
+            maze_store::capture(config::search::GOAL_X, config::search::GOAL_Y, true));
+        ledBar16.set(0x0000);
+        uint8_t bank = 0;
+        const maze_store::Record* r = maze_store::latest(&bank);
+        LOG("maze save: %s (bank %c, sequence %lu)\r\n", maze_store::resultName(saved), 'A' + bank,
+            static_cast<unsigned long>(r != nullptr ? r->sequence : 0));
+        if (saved != maze_store::Result::ok) blinkRefused();
     }
 
     HAL_Delay(500);

@@ -15,8 +15,9 @@ Menu::Menu() {
 void Menu::buildTree() {
     root_.setChildren(std::array{&run_, &device_, &log_dump_, &slalom_});
 
-        run_.setChildren(std::array{&search_});
+        run_.setChildren(std::array{&search_, &maze_});
             search_.setChildren(pointersOf(search_presets_));
+            maze_.setChildren(std::array{&maze_show_, &maze_clear_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
             fan_.setChildren(std::array{&fan_run_010_, &fan_run_020_, &fan_run_030_, &fan_run_040_, &fan_bringup_, &fan_hold_010_, &fan_hold_020_, &fan_hold_030_, &fan_hold_040_});
@@ -65,6 +66,8 @@ void Menu::setFunction() {
     log_dump_.setOnEnter(log_dump_onenter);
 
     run_.setOnSelected(run_onselect);
+    maze_show_.setOnEnter(maze_show_onenter);
+    maze_clear_.setOnEnter(maze_clear_onenter);
     device_.setOnSelected(device_onselect);
 
     imu_.setOnSelected(imu_onselect);
