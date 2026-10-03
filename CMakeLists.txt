@@ -59,6 +59,13 @@ target_link_options(${CMAKE_PROJECT_NAME} PRIVATE
     _printf_float
 )
 
+# The linker script is passed with -T in the toolchain file, which does not
+# make it a dependency: without this an edit to it (e.g. a section layout)
+# would not relink until some source changed.
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+    LINK_DEPENDS ${CMAKE_SOURCE_DIR}/STM32F405XX_FLASH.ld
+)
+
 # CONFIGURE_DEPENDS: re-glob on every build, so a .cpp added by a branch
 # switch or merge is compiled without re-running the configure step.
 file(GLOB_RECURSE APP_SOURCES CONFIGURE_DEPENDS
