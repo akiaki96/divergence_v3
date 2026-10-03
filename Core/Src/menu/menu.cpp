@@ -14,10 +14,11 @@ Menu::Menu() {
 }
 
 void Menu::buildTree() {
-    root_.setChildren(std::array{&run_, &device_, &log_dump_, &slalom_});
+    root_.setChildren(std::array{&run_, &device_, &log_dump_, &slalom_, &test_});
 
-        run_.setChildren(std::array{&search_, &maze_});
+        run_.setChildren(std::array{&search_, &fast_, &maze_});
             search_.setChildren(pointersOf(search_presets_));
+            fast_.setChildren(pointersOf(fast_presets_));
             maze_.setChildren(std::array{&maze_show_, &maze_clear_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
@@ -38,6 +39,10 @@ void Menu::buildTree() {
         axle_check_.setChildren(std::array{&axle_check_n1_, &axle_check_n2_, &axle_check_n4_, &axle_check_n8_});
         linkSlalom(slalom_left_, slalom_left_turns_, slalom_left_speeds_);
         linkSlalom(slalom_right_, slalom_right_turns_, slalom_right_speeds_);
+
+    // 試験用の探索のプリセットは生成ヘッダから並べる（menu.hppのtestSearchNodes()）
+    test_.setChildren(std::array{&test_search_});
+        test_search_.setChildren(pointersOf(test_search_presets_));
 
     
     root_.setParentRec();

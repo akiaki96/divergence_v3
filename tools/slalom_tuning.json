@@ -1,1 +1,16 @@
-{}
+{
+  "小回り90°": {
+    "700": {
+      "base_saved_at": "2026-10-03T03:41:51",
+      "delta_left": { "Set_post_offset": 3.2 },
+      "note": "左旋回で post が3.2mm短い。ファンOFF"
+    }
+  },
+  "大回り90°": {
+    "500": {
+      "base_saved_at": "2026-10-03T03:34:06",
+      "delta": { "Set_post_offset": -1.8 },
+      "note": "右旋回で post が1.8mm長い。ファンOFF"
+    }
+  }
+}

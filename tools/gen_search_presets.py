@@ -27,6 +27,11 @@ search_presets.json の形:
                   "alpha": 2500},         … 超信地旋回の角加速度 [dps/s]
         "fan": false,                     … 任意（省略で false）。ファンを回して走るか
         "wall_control": true,             … 任意（省略で false）。[実験中] 直進中に横壁で向きを補正するか
+        "goal": [7, 7],                   … 任意（省略で config::search::GOAL_X/Y）。ゴール区画 [x, y]。
+                                            試験用に近いゴール（例 [1, 0]）で往復させるときに書く
+        "menu": "search",                 … 任意（省略で "search"）。並べるメニュー。
+                                            "search" … Run → Search（config::search::PRESETS）
+                                            "test"   … Test → Search（config::search::TEST_PRESETS）
         "note": ""                        … 任意。ヘッダのコメントに出す
       }
     }
@@ -47,7 +52,10 @@ from slalom_presets import PRESET_LIST, parse_speed_key
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["speed", "accel", "turns", "pivot"]
-OPTIONAL_KEYS = ["fan", "wall_control", "note"]
+OPTIONAL_KEYS = ["fan", "wall_control", "goal", "menu", "note"]
+# "menu" の値 → 生成する配列の名前（menu/menu.hpp がそれぞれのメニューに並べる）
+MENU_ARRAYS = {"search": "PRESETS", "test": "TEST_PRESETS"}
+MAZE_SIZE = 16
 PIVOT_KEYS = ["omega", "alpha"]
 
 # SearchPreset のターンの集合と，その並び（app/search_preset.hpp の OrthoTurns / DiagonalTurns と同じ順）
@@ -87,6 +95,20 @@ def build_entries(presets, slalom_params):
                 raise GenError(f"{where}: {key} は true / false です")
         condition = f"{speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
 
+        goal = preset.get("goal")  # None なら config::search::GOAL_X/Y
+        if goal is not None:
+            if (not isinstance(goal, list) or len(goal) != 2
+                    or not all(isinstance(g, int) and not isinstance(g, bool) for g in goal)):
+                raise GenError(f"{where}: goal は区画の [x, y] です（例 [1, 0]）")
+            if not all(0 <= g < MAZE_SIZE for g in goal):
+                raise GenError(f"{where}: goal {goal} は迷路（{MAZE_SIZE}x{MAZE_SIZE}）の外です")
+            if goal == [0, 0]:
+                raise GenError(f"{where}: goal をスタート区画 (0, 0) にはできません")
+
+        menu = preset.get("menu", "search")
+        if menu not in MENU_ARRAYS:
+            raise GenError(f"{where}: menu は {' / '.join(MENU_ARRAYS)} のどれかです")
+
         turns = preset["turns"]
         if not isinstance(turns, list) or len(set(turns)) != len(turns):
             raise GenError(f"{where}: turns は重複のないターンの種類の配列です（例 [\"S90\", \"L90\"]）")
@@ -115,6 +137,8 @@ def build_entries(presets, slalom_params):
             "pivot": pivot,
             "fan": fan,
             "wall_control": wall_control,
+            "goal": goal,
+            "menu": menu,
             "values": preset,
         })
     if not entries:
@@ -135,6 +159,7 @@ def render(entries):
         "",
         "#include <array>",
         '#include "app/search_preset.hpp"',
+        '#include "config/mouse_config.hpp"',
         '#include "config/slalom_params.hpp"',
         "",
         "namespace config::search {",
@@ -145,19 +170,24 @@ def render(entries):
         note = f"  メモ: {v['note']}" if v.get("note") else ""
         labels = "・".join(label for label, _ in e["turns"].values())
         wall = ("，ファンON" if e["fan"] else "") + ("，横壁の補正あり" if e["wall_control"] else "")
-        out.append(f"// {e['name']}: {v['speed']:g}mm/s，ターンは{labels}{wall}{note}")
+        goal_note = f"，ゴール ({e['goal'][0]}, {e['goal'][1]})" if e["goal"] else ""
+        goal = f"{e['goal'][0]}, {e['goal'][1]}" if e["goal"] else "GOAL_X, GOAL_Y"
+        out.append(f"// {e['name']}: {v['speed']:g}mm/s，ターンは{labels}{wall}{goal_note}{note}")
         if e["diag_ident"]:
             out.append(f"inline constexpr DiagonalTurns {e['diag_ident']} = {turn_list(e, DIAGONAL_TURNS)};")
         out.append(
             f"inline constexpr SearchPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['speed'])}, {fmt(v['accel'])}, "
             f"{turn_list(e, ORTHO_TURNS)}, {'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, "
             f"{{{fmt(e['pivot']['omega'])}, {fmt(e['pivot']['alpha'])}}}, "
-            f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}}};")
+            f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}, {goal}}};")
         out.append("")
-    out.append("// メニューに並べる順（search_presets.json に書いた順）")
-    out.append(f"inline constexpr std::array<SearchPreset, {len(entries)}> PRESETS = {{")
-    out += [f"    {e['ident']}," for e in entries]
-    out += ["};", "", "} // namespace config::search", ""]
+    for menu, array in MENU_ARRAYS.items():
+        listed = [e for e in entries if e["menu"] == menu]
+        out.append(f"// メニュー（\"menu\": \"{menu}\"）に並べる順（search_presets.json に書いた順）")
+        out.append(f"inline constexpr std::array<SearchPreset, {len(listed)}> {array} = {{")
+        out += [f"    {e['ident']}," for e in listed]
+        out += ["};", ""]
+    out += ["} // namespace config::search", ""]
     return "\n".join(out)
 
 

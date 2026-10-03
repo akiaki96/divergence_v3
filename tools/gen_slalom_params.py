@@ -14,6 +14,7 @@ slalom_tuning.json の形（キーは slalom_params.json と同じ「表示名�
         "500": {
           "base_saved_at": "2026-10-02T03:34:10",
           "delta": { "Set_pri_offset": -2.0, "Set_post_offset": 1.5 },
+          "delta_left": { "Set_post_offset": 3.2 },
           "note": "出口で右に1mmずれる。電池8.1V"
         }
       }
@@ -22,7 +23,8 @@ slalom_tuning.json の形（キーは slalom_params.json と同じ「表示名�
   - base_saved_at … どの設計値に対して調整したか（slalom_params.json の saved_at）。
     設計値をデザイナーで保存し直すと一致しなくなり，生成をエラーで止める（古い差分をそのまま使わないため）。
     差分がまだ有効なら base_saved_at を新しい saved_at に書き換える
-  - delta … 足す量。使えるキーは DELTA_KEYS
+  - delta … 左右どちらの旋回にも足す量。使えるキーは DELTA_KEYS
+  - delta_left / delta_right … 左旋回だけ・右旋回だけに足す量（delta に重ねて足す）。キーは delta と同じ
   - note … 任意（調整の理由・条件）。ヘッダのコメントに出す
 
 使い方:
@@ -45,6 +47,13 @@ DELTA_KEYS = {
     "Set_pri_offset": ("pre_offset", "mm"),
     "Set_post_offset": ("post_offset", "mm"),
 }
+
+DIRS = ("left", "right")
+DIR_NAME = {"left": "左", "right": "右"}
+
+# slalom_tuning.json の差分のキー → 足す向き
+DELTA_FIELDS = {"delta": DIRS, "delta_left": ("left",), "delta_right": ("right",)}
+TUNING_FIELDS = {"base_saved_at", "note", *DELTA_FIELDS}
 
 ANCHOR = {"edge": "edge", "center": "center", "diag": "diagonal"}
 
@@ -85,9 +94,9 @@ def build_entries(params, tuning):
             where = f"{label} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
             if "fan" in design and bool(design["fan"]) != fan:
                 raise GenError(f"{where}: キーのファン（{'ON' if fan else 'OFF'}）と保存データの fan（{design['fan']}）が一致しません")
-            values = {key: float(design[key]) for key in DELTA_KEYS}
+            base = {key: float(design[key]) for key in DELTA_KEYS}
+            values = {d: dict(base) for d in DIRS}
             tune = tuning.get(label, {}).get(speed_key)
-            applied = []
             note = ""
             if tune is not None:
                 if tune.get("base_saved_at") != design.get("saved_at"):
@@ -95,19 +104,26 @@ def build_entries(params, tuning):
                         f"{where}: 調整の base_saved_at ({tune.get('base_saved_at')}) が設計値の saved_at "
                         f"({design.get('saved_at')}) と一致しません。設計値が保存し直されています。"
                         f"差分を見直して slalom_tuning.json の base_saved_at を更新してください")
-                for key, d in tune.get("delta", {}).items():
-                    if key not in DELTA_KEYS:
-                        raise GenError(f"{where}: 調整できないキー {key}（使えるのは {', '.join(DELTA_KEYS)}）")
-                    if float(d) != 0.0:
-                        applied.append((key, values[key], float(d)))
-                        values[key] += float(d)
+                unknown = set(tune) - TUNING_FIELDS
+                if unknown:
+                    raise GenError(f"{where}: 知らない項目 {', '.join(sorted(unknown))}（使えるのは {', '.join(sorted(TUNING_FIELDS))}）")
+                for field, dirs in DELTA_FIELDS.items():
+                    for key, d in tune.get(field, {}).items():
+                        if key not in DELTA_KEYS:
+                            raise GenError(f"{where}: {field} の調整できないキー {key}（使えるのは {', '.join(DELTA_KEYS)}）")
+                        for dir_ in dirs:
+                            values[dir_][key] += float(d)
                 note = tune.get("note", "")
+            # 設計値から変わったキー（ヘッダのコメントに出す）
+            applied = [key for key in DELTA_KEYS if any(values[d][key] != base[key] for d in DIRS)]
 
-            ramp = values["Set_low_AngVel"] ** 2 / (2.0 * values["Set_Low_AngAcl"])
-            if preset.angle - 2.0 * ramp < 0.0:
-                raise GenError(
-                    f"{where}: 最大角速度まで加速しきれません（加速・減速で{2 * ramp:.1f}° > 旋回角{preset.angle:g}°）。"
-                    f"シミュレータもこの形（三角形）は正しく扱えないので，角速度を下げるか角加速度を上げてください")
+            for dir_ in DIRS:
+                v = values[dir_]
+                ramp = v["Set_low_AngVel"] ** 2 / (2.0 * v["Set_Low_AngAcl"])
+                if preset.angle - 2.0 * ramp < 0.0:
+                    raise GenError(
+                        f"{where}（{DIR_NAME[dir_]}旋回）: 最大角速度まで加速しきれません（加速・減速で{2 * ramp:.1f}° > 旋回角{preset.angle:g}°）。"
+                        f"シミュレータもこの形（三角形）は正しく扱えないので，角速度を下げるか角加速度を上げてください")
 
             entries.append({
                 "ident": cpp_ident(preset.cpp_name, speed, fan),
@@ -115,6 +131,7 @@ def build_entries(params, tuning):
                 "label": label,
                 "preset": preset,
                 "speed": float(design["Set_Speed"]),
+                "base": base,
                 "values": values,
                 "applied": applied,
                 "note": note,
@@ -135,6 +152,12 @@ def build_entries(params, tuning):
             if speed_key not in params.get(label, {}):
                 raise GenError(f"slalom_tuning.json の「{label} / {speed_key}」に対応する設計値がありません")
     return entries
+
+
+def motion(v):
+    """slalom::Motion の初期化子 {omega_max, alpha, pre_offset, post_offset}"""
+    return (f"{{{fmt(v['Set_low_AngVel'])}, {fmt(v['Set_Low_AngAcl'])}, "
+            f"{fmt(v['Set_pri_offset'])}, {fmt(v['Set_post_offset'])}}}")
 
 
 def render(entries):
@@ -158,9 +181,16 @@ def render(entries):
         out.append(f"// {e['label']} {e['speed']:g}mm/s（設計値 saved {e['saved_at']}{sim}）")
         out.append(f"//   ファン {fan}，滑り係数 K {e['k_slip']:g}，c {e['c_slip']:g}mm")
         if e["applied"]:
-            for key, base, d in e["applied"]:
+            for key in e["applied"]:
                 member, unit = DELTA_KEYS[key]
-                out.append(f"//   調整 {member}: {base:g} → {base + d:g} {unit}（{d:+g}）")
+                b = e["base"][key]
+                l, r = (v[d][key] for d in DIRS)
+                if l == r:
+                    out.append(f"//   調整 {member}: 左右 {b:g} → {l:g} {unit}（{l - b:+g}）")
+                else:
+                    side = [f"{DIR_NAME[d]} {b:g} → {x:g}（{x - b:+g}）" if x != b else f"{DIR_NAME[d]} {b:g}（調整なし）"
+                            for d, x in zip(DIRS, (l, r))]
+                    out.append(f"//   調整 {member} [{unit}]: {'，'.join(side)}")
             if e["note"]:
                 out.append(f"//   メモ: {e['note']}")
         else:
@@ -168,8 +198,7 @@ def render(entries):
         out.append(
             f"inline constexpr Param {e['ident']} = {{\"{e['ident']}\", \"{e['speed_name']}\", {fmt(p.angle)}, "
             f"Anchor::{ANCHOR[p.entry]}, Anchor::{ANCHOR[p.exit]}, {fmt(e['speed'])}, "
-            f"{fmt(v['Set_low_AngVel'])}, {fmt(v['Set_Low_AngAcl'])}, "
-            f"{fmt(v['Set_pri_offset'])}, {fmt(v['Set_post_offset'])}, {'true' if e['fan'] else 'false'}}};")
+            f"{motion(v['left'])}, {motion(v['right'])}, {'true' if e['fan'] else 'false'}}};")
         out.append("")
     out.append("// すべてのパラメータ（種類の順，同じ種類の中は速度の昇順）")
     out.append(f"inline constexpr std::array<Param, {len(entries)}> ALL = {{")

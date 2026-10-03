@@ -8,6 +8,7 @@
 #include "config/node_func_maker.hpp"
 #include "test/slalom_test.hpp"
 #include "app/search.hpp"
+#include "app/fast_run.hpp"
 #include "app/maze_menu.hpp"
 #include "test/axle_check_test.hpp"
 #include "test/wall_edge_test.hpp"
@@ -22,6 +23,10 @@ constexpr bool slalomFitsMenu() {
 static_assert(slalomFitsMenu(), "slalom turns or speeds exceed config::menu::MAX_CHILDREN");
 static_assert(config::search::PRESETS.size() <= config::menu::MAX_CHILDREN,
               "search presets exceed config::menu::MAX_CHILDREN");
+static_assert(config::search::TEST_PRESETS.size() <= config::menu::MAX_CHILDREN,
+              "test search presets exceed config::menu::MAX_CHILDREN");
+static_assert(config::run::PRESETS.size() <= config::menu::MAX_CHILDREN,
+              "run presets exceed config::menu::MAX_CHILDREN");
 
 class Menu {
 public:
@@ -50,6 +55,18 @@ private:
     template <std::size_t... I>
     static std::array<MenuNode, sizeof...(I)> searchNodes(std::index_sequence<I...>) {
         return {MenuNode(config::search::PRESETS[I].name, nullptr, &search_onenter<I>)...};
+    }
+
+    // 最短走行：Run → Fast → プリセット（config::run::PRESETS，tools/run_presets.json の順）
+    template <std::size_t... I>
+    static std::array<MenuNode, sizeof...(I)> fastNodes(std::index_sequence<I...>) {
+        return {MenuNode(config::run::PRESETS[I].name, nullptr, &fast_onenter<I>)...};
+    }
+
+    // 試験用の探索：Test → Search → プリセット（config::search::TEST_PRESETS，"menu": "test" のもの）
+    template <std::size_t... I>
+    static std::array<MenuNode, sizeof...(I)> testSearchNodes(std::index_sequence<I...>) {
+        return {MenuNode(config::search::TEST_PRESETS[I].name, nullptr, &test_search_onenter<I>)...};
     }
 
     template <std::size_t... K>
@@ -88,6 +105,9 @@ private:
         MenuNode search_{"Search"};
             std::array<MenuNode, config::search::PRESETS.size()> search_presets_ =
                 searchNodes(std::make_index_sequence<config::search::PRESETS.size()>{});
+        MenuNode fast_{"Fast"};   // 最短走行（app/fast_run.hpp）。保存した迷路を使う
+            std::array<MenuNode, config::run::PRESETS.size()> fast_presets_ =
+                fastNodes(std::make_index_sequence<config::run::PRESETS.size()>{});
         MenuNode maze_{"Maze"};   // 保存した迷路（app/maze_store.hpp）
             MenuNode maze_show_{"Show"};
             MenuNode maze_clear_{"Clear"};
@@ -162,5 +182,10 @@ private:
             MenuNode axle_check_n2_{"n=2", nullptr, &axle_check_onenter<2>};
             MenuNode axle_check_n4_{"n=4", nullptr, &axle_check_onenter<4>};
             MenuNode axle_check_n8_{"n=8", nullptr, &axle_check_onenter<8>};
+
+    MenuNode test_{"Test"};
+        MenuNode test_search_{"Search"};   // 試験用の探索（近いゴールで往復する等）
+            std::array<MenuNode, config::search::TEST_PRESETS.size()> test_search_presets_ =
+                testSearchNodes(std::make_index_sequence<config::search::TEST_PRESETS.size()>{});
 
 };

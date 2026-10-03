@@ -66,6 +66,9 @@ constexpr bool allPresetsRunnable() {
     for (const auto& p : config::search::PRESETS) {
         if (!presetRunnable(p)) return false;
     }
+    for (const auto& p : config::search::TEST_PRESETS) {
+        if (!presetRunnable(p)) return false;
+    }
     return true;
 }
 static_assert(allPresetsRunnable(),
@@ -168,8 +171,8 @@ Stop runSteps(const SearchPreset& p) {
     const float v = p.speed;
 
     solver_options_reset();
-    solver_options.goal_x = config::search::GOAL_X;
-    solver_options.goal_y = config::search::GOAL_Y;
+    solver_options.goal_x = p.goal_x;
+    solver_options.goal_y = p.goal_y;
     uint8_vector first = adachi_return::solver_adachi_return_init();
     if (firstMotion(first) != ACT_MOVE_FIRST_HALF_CELL) return Stop::unknownAction;
 
@@ -218,7 +221,7 @@ Stop runSteps(const SearchPreset& p) {
             if (to_left ? left : right) return Stop::frontWall;
             auto dir = to_left ? slalom::TurnDir::left : slalom::TurnDir::right;
             if (slalom::push(planProfile, *p.turns.s90, dir) != SegmentResult::ok) return Stop::pushRejected;
-            step_end += slalom::totalDistance(*p.turns.s90);
+            step_end += slalom::totalDistance(*p.turns.s90, dir);
             break;
         }
         case ACT_TURN_BACK:
@@ -273,7 +276,7 @@ void runSearch(const SearchPreset& preset) {
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
     LOG("search %s: %.0f mm/s, turn %s, fan %s, wall control %s, goal (%u,%u)\r\n", preset.name, preset.speed,
         preset.turns.s90->name, preset.fan ? "on" : "off", preset.wall_control ? "on" : "off",
-        config::search::GOAL_X, config::search::GOAL_Y);
+        preset.goal_x, preset.goal_y);
 
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -336,7 +339,7 @@ void runSearch(const SearchPreset& preset) {
         // 消去・書き込みで1〜2s CPU が止まるので，モーターを止めた後に行う
         ledBar16.set(0xFFFF);
         maze_store::Result saved = maze_store::save(
-            maze_store::capture(config::search::GOAL_X, config::search::GOAL_Y, true));
+            maze_store::capture(preset.goal_x, preset.goal_y, true));
         ledBar16.set(0x0000);
         uint8_t bank = 0;
         const maze_store::Record* r = maze_store::latest(&bank);

@@ -40,6 +40,7 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
     "500": {
       "base_saved_at": "2026-10-02T03:34:10",
       "delta": { "Set_pri_offset": -2.0, "Set_post_offset": 1.5 },
+      "delta_left": { "Set_post_offset": 3.2 },
       "note": "出口で右に1mmずれる。電池8.1V"
     }
   }
@@ -49,7 +50,10 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
 - キーは `slalom_params.json` と同じ（表示名 → 速度）
 - `base_saved_at` は調整したときの設計値の `saved_at`。デザイナーで保存し直すと一致しなくなり，**ビルドがエラーで止まる**
   （古い差分を新しい設計値に足さないため）。差分がまだ有効なら新しい `saved_at` に書き換える
-- `delta` に使えるキーは `Set_low_AngVel` / `Set_Low_AngAcl` / `Set_pri_offset` / `Set_post_offset`（速度は表のキーなので変えられない）
+- `delta` は左右どちらの旋回にも足す。`delta_left` / `delta_right` は左旋回だけ・右旋回だけに足す（`delta` に重ねて足す。
+  上の例の左旋回の post_offset は +1.5 + 3.2 = +4.7mm）。どれも省略できる
+- 使えるキーは `Set_low_AngVel` / `Set_Low_AngAcl` / `Set_pri_offset` / `Set_post_offset`（速度は表のキーなので変えられない）。
+  知らない項目・キー（綴りの間違いなど）はビルドがエラーで止まる
 
 ## 横滑りの係数（c, K）の同定
 

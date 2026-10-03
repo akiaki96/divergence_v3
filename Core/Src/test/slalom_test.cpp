@@ -38,15 +38,15 @@ constexpr float accelDistance(float speed) {
 }
 
 // 走行時間 [ms]：静止100ms・助走（加速＋等速）・入口〜出口・停止・整定。低速ほど長い（200mm/s の L90 で約5s）
-constexpr float runMs(const slalom::Param& p) {
+constexpr float runMs(const slalom::Param& p, slalom::TurnDir dir) {
     float accel = accelDistance(p.speed);
-    float s = (2.f * accel + (runupDistance(p.entry) - accel) + slalom::totalDistance(p) + 2.f * stopDistance(p.exit)) / p.speed;
+    float s = (2.f * accel + (runupDistance(p.entry) - accel) + slalom::totalDistance(p, dir) + 2.f * stopDistance(p.exit)) / p.speed;
     return 100.f + s * 1000.f + SETTLE_MS;
 }
 
 // 走行がまるごとログに収まる長さ [ms]（2割の余裕）。ログが一杯になると記録が止まり，止まった位置が残らない
-uint32_t logMs(const slalom::Param& p) {
-    return static_cast<uint32_t>(runMs(p) * 1.2f);
+uint32_t logMs(const slalom::Param& p, slalom::TurnDir dir) {
+    return static_cast<uint32_t>(runMs(p, dir) * 1.2f);
 }
 
 // 試験中のパラメータ（runClosedLoopTest()の関数ポインタは引数を持てないので，ここで受け渡す）
@@ -104,7 +104,7 @@ void slalom_profile() {
 }
 
 // 走らせる前の検査。だめなら理由を表示してfalse
-bool checkRunnable(const slalom::Param& p) {
+bool checkRunnable(const slalom::Param& p, slalom::TurnDir dir) {
     using namespace config::profile_limit;
     if (p.entry == slalom::Anchor::diagonal || p.exit == slalom::Anchor::diagonal) {
         LOG("slalom test: %s has a diagonal entry/exit (not supported)\r\n", p.name);
@@ -116,11 +116,11 @@ bool checkRunnable(const slalom::Param& p) {
         LOG("slalom test: run-up %.1f mm is shorter than the acceleration %.1f mm\r\n", runup, accel);
         return false;
     }
-    SegmentResult r = slalom::validate(p);
+    SegmentResult r = slalom::validate(p, dir);
     if (r != SegmentResult::ok) {
-        slalom::Shape s = slalom::shapeOf(p);
+        slalom::Shape s = slalom::shapeOf(p, dir);
         LOG("slalom test: %s rejected (%s): ramp %.1f deg, cruise %.1f deg, alpha %.0f dps/s (limit %.0f)\r\n",
-            p.name, slalom::resultName(r), s.ramp_angle, s.cruise_angle, p.alpha, MAX_ALPHA);
+            p.name, slalom::resultName(r), s.ramp_angle, s.cruise_angle, p.motion(dir).alpha, MAX_ALPHA);
         return false;
     }
     if (validateSegment(p.speed, 0.f, stopDistance(p.exit), MAX_ACCEL_X, STOP_DECEL_LIMIT) != SegmentResult::ok) {
@@ -133,21 +133,22 @@ bool checkRunnable(const slalom::Param& p) {
 
 void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
     const char* dir_name = (dir == slalom::TurnDir::left) ? "left" : "right";
-    slalom::Shape s = slalom::shapeOf(p);
+    const slalom::Motion& m = p.motion(dir);
+    slalom::Shape s = slalom::shapeOf(p, dir);
     LOG("slalom test %s %s: speed %.0f mm/s, omega %.0f dps, alpha %.0f dps/s, pre %.1f mm, post %.1f mm, fan %s\r\n",
-        p.name, dir_name, p.speed, p.omega_max, p.alpha, p.pre_offset, p.post_offset, p.fan ? "on" : "off");
+        p.name, dir_name, p.speed, m.omega_max, m.alpha, m.pre_offset, m.post_offset, p.fan ? "on" : "off");
     LOG("  ramp %.2f deg x2, cruise %.2f deg, turn %.1f mm, pre..post %.1f mm\r\n",
-        s.ramp_angle, s.cruise_angle, slalom::turnDistance(p), slalom::totalDistance(p));
+        s.ramp_angle, s.cruise_angle, slalom::turnDistance(p, dir), slalom::totalDistance(p, dir));
 
-    if (!checkRunnable(p)) {
+    if (!checkRunnable(p, dir)) {
         blinkRefused();
         return;
     }
 
     g_param = &p;
     g_dir = dir;
-    g_log_ms = logMs(p);
-    LOG("  run about %.1f s, log %.1f s\r\n", runMs(p) / 1000.f, g_log_ms / 1000.f);
+    g_log_ms = logMs(p, dir);
+    LOG("  run about %.1f s, log %.1f s\r\n", runMs(p, dir) / 1000.f, g_log_ms / 1000.f);
     g_result = {0.f, 0.f};
     std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s", p.name, dir_name);
 
@@ -157,7 +158,7 @@ void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
 
     // 目標：最終角度は±angle，走行距離は 入口まで＋スラローム＋止まるまで
     float target_angle = (dir == slalom::TurnDir::left) ? p.angle : -p.angle;
-    float target_distance = runupDistance(p.entry) + slalom::totalDistance(p) + stopDistance(p.exit);
+    float target_distance = runupDistance(p.entry) + slalom::totalDistance(p, dir) + stopDistance(p.exit);
     LOG("slalom result %s %s: angle %.2f deg (target %.1f, error %+.2f), distance %.1f mm (target %.1f, error %+.1f)\r\n",
         p.name, dir_name, g_result.angle, target_angle, g_result.angle - target_angle,
         g_result.distance, target_distance, g_result.distance - target_distance);
