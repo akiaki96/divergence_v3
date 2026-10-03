@@ -231,7 +231,9 @@ Stop runSteps(const SearchPreset& p) {
                 return Stop::pushRejected;
             }
             step_end += CELL_MM;
-            wallEdge.expect(step_end);
+            // 戻った先の境界は教えない：横のセンサーは約 100 mm 先を見ているので，その境界の壁切れは
+            // 旋回する区画中央（境界の半区画手前）より手前で起き，旋回の後には来ない。教えると，中央へ止まりに
+            // 行く間の壁切れが対応づいて間違った補正になる（2026-10-03 の探索で −23.8 mm）
             break;
         case ACT_FINISH:
             // スタート区画の中央で止まる

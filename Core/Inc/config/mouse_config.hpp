@@ -188,10 +188,10 @@ inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いと�
 // 壁切れによる距離の補正（common/wall_edge.hpp）。直進中に横のセンサー（左・右）の値が下がった
 // （横壁が切れた）ところで，車軸の位置を区画境界から決まる位置にそろえる。
 // 検出したときの車軸の位置 = 区画境界 + OFFSET_* + LAG_S·（目標速度）
-// OFFSET_* / LAG_S は 2026-10-03 の calib 300/500/700 各3回（tools/WALL_EDGE.md の R2）から決めた。
 // 横のセンサーは斜め前を向いていて，車軸の約 100 mm 先の壁を見ている。
-// [要調整] THRESH_* は仮の値のまま。左の2か所（境界 312 / 672）で −99.1 / −103.5 mm と 4.4 mm 違い，
-// 平均を使っているので左の補正には ±2 mm ほど残る（壁の板の反射の違いか。R1 / R6 で確かめる）
+// LAG_S は calib 300/500/700 各3回（tools/WALL_EDGE.md の R2）から。OFFSET_* は探索2回の壁切れの中央値から
+// （calib の左 −101 / 右 −85 は，試験のコースで機体が横に寄っていた分。探索では左右とも約 −91）。
+// [要調整] THRESH_* は仮の値のまま
 namespace config::wall_edge {
 // 壁ありとみなす値・壁が切れたとみなす値（ヒステリシス）。壁切れの位置は OFF を下回った位置
 inline constexpr int16_t THRESH_ON_LEFT = 350;
@@ -200,15 +200,17 @@ inline constexpr int16_t THRESH_ON_RIGHT = 350;
 inline constexpr int16_t THRESH_OFF_RIGHT = 250;
 
 // [mm] 壁切れを検出したときの車軸の位置 − 区画境界（センサーの光が柱の向こう端を過ぎるので負，前を見るほど大きく負）
-inline constexpr float OFFSET_LEFT_MM = -101.f;   // 境界 312 で −99.1，672 で −103.5 の平均
-inline constexpr float OFFSET_RIGHT_MM = -85.f;    // 境界 492 で −85.4（柱だけの山の切れ目も −84.5 で同じ）
+// [試験中 2026-10-03] 探索の中央値 左 −93.5 / −90.5，右 −89.9 / −88.9。calib は左 −101，右 −85
+inline constexpr float OFFSET_LEFT_MM = -91.f;
+inline constexpr float OFFSET_RIGHT_MM = -91.f;
 // [s] 検出の遅れ（速いほど先で検出する分）。300〜700 mm/s で傾きが ±1 mm 以内に収まったので 0
 inline constexpr float LAG_S = 0.f;
 
 inline constexpr float MIN_WALL_MM = 20.f;     // [mm] これより短く見えた壁の切れ目は使わない（ノイズ・柱だけの反射）
-// [mm] 予想位置からこれ以上ずれた壁切れは補正に使わない。T180 の出口（約 −22 mm）も拾えるよう 15 から 30 へ
-// 広げた（2026-10-03）。隣の境界の壁切れは 180 mm 離れているので取り違えない
-inline constexpr float WINDOW_MM = 30.f;
+// [mm] 予想位置からこれ以上ずれた壁切れは補正に使わない。
+// [試験中 2026-10-03] 30 にしたら，探索で間違った壁切れが 24〜26 mm のずれで2回受け入れられ，機体が約 50 mm
+// 前にずれて横壁を読み落とし衝突した。探索で使う S90 の出口のずれ（約 10 mm）に余裕を足して 20 にする
+inline constexpr float WINDOW_MM = 20.f;
 inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いとき（加速の始め・停止・超信地旋回）は見ない
 
 // 探索で補正をかけるか。false でも壁切れは検出してログ（search/<preset>_edges）に残す。

@@ -10,14 +10,14 @@
 | --- | --- |
 | `common/wall_edge.hpp` | 検出器 `WallEdge`（デバイスに依存しない）。直進中（目標の角速度 0，目標速度 ≥ `MIN_VELOCITY`）に左右それぞれヒステリシス（`THRESH_ON_*` / `THRESH_OFF_*`）で壁の有無を追い，`OFF` を下回った位置を tick 間で補間する |
 | `app/update.cpp` | ISR が毎 tick `wallEdge.update()` を呼び，返った補正を `Odometry::shiftPositionX()` で実測位置に足す。目標軌道（PlanProfile）は動かさないので，差は並進の位置 P で追いつく |
-| `app/search.cpp` | 直進で着く区画境界（最初の半区画・1区画直進・行き止まりからの戻り）を `wallEdge.expect()` で教える。ターンの出口では使わない |
+| `app/search.cpp` | 直進で着く区画境界（最初の半区画・1区画直進）を `wallEdge.expect()` で教える。ターンの出口と行き止まりからの戻りでは使わない（戻った先の境界の壁切れは旋回の前に起きるため） |
 | `config::wall_edge` | 閾値・オフセット・窓。`SEARCH_CORRECTION` が false の間は記録だけ |
 
 検出したときの車軸の位置のモデル：
 
     x_edge = 区画境界 + OFFSET_side + LAG_S · v
 
-予想との差が `WINDOW_MM`（30 mm，2026-10-03 に 15 から変更）以内のときだけ補正する。左右が同じ境界で切れても補正は1回。
+予想との差が `WINDOW_MM`（20 mm。2026-10-03 に 15 → 30 → 20）以内のときだけ補正する。左右が同じ境界で切れても補正は1回。
 壁が `MIN_WALL_MM`（20 mm）より短く見えたときは使わない。
 
 ログ（`<dir>/<name>_edges.csv`，1行が1回の壁切れ）：`side`（0 左，1 右），`x`（補正前の実測），
