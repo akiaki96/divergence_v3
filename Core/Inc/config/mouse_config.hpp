@@ -199,12 +199,14 @@ inline constexpr float OFFSET_RIGHT_MM = -85.f;    // 境界 492 で −85.4（�
 inline constexpr float LAG_S = 0.f;
 
 inline constexpr float MIN_WALL_MM = 20.f;     // [mm] これより短く見えた壁の切れ目は使わない（ノイズ・柱だけの反射）
-inline constexpr float WINDOW_MM = 15.f;       // [mm] 予想位置からこれ以上ずれた壁切れは補正に使わない
+// [mm] 予想位置からこれ以上ずれた壁切れは補正に使わない。T180 の出口（約 −22 mm）も拾えるよう 15 から 30 へ
+// 広げた（2026-10-03）。隣の境界の壁切れは 180 mm 離れているので取り違えない
+inline constexpr float WINDOW_MM = 30.f;
 inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いとき（加速の始め・停止・超信地旋回）は見ない
 
 // 探索で補正をかけるか。false でも壁切れは検出してログ（search/<preset>_edges）に残す。
-// calib で OFFSET_* を決めるまでは false のままにする
-inline constexpr bool SEARCH_CORRECTION = false;
+// 2026-10-03 探索で挙動を見るため true にした（R8）。おかしければ false に戻すと記録だけになる
+inline constexpr bool SEARCH_CORRECTION = true;
 }
 
 // 探索（app/search.hpp）。速度・使うスラロームはプリセット（tools/search_presets.json）で選ぶ
