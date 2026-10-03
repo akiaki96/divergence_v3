@@ -35,6 +35,9 @@
 | verify 500 | あり | 較正後の確認。補正量はどれも 0 付近のはず |
 | inject 500 | あり | 教える境界を +10 mm ずらす。最初の壁切れで +10 mm 補正され，後端が線の 10 mm 手前で止まる |
 
+受け取りは `tools/main.py`（グラフは別ウィンドウで開き，受信は止まらない）。取りこぼしたら **LogDump** で
+時系列と壁切れの表をもう一度送れる。
+
 結果は UART の LOG（壁切れごとの offset / shift，左右の平均）と，`wall_edge/<mode>_<v>.csv`（時系列：
 実測・目標・`ir_l`・`ir_r`・`edge_shift`）・`wall_edge/<mode>_<v>_edges.csv` に出る。
 

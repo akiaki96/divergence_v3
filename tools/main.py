@@ -5,9 +5,12 @@ from parser import LogParser
 from realtime_plot import RealtimePlot
 from data_logger import CSVLogger
 from get_log import Saver
-from plot_log import plot_csv, plot_data
-
 import argparse
+import csv
+import os
+import subprocess
+import sys
+import tempfile
 
 # ArgumentParserの例を作成
 arg_parser = argparse.ArgumentParser()
@@ -33,65 +36,75 @@ receiver = SerialReceiver(
 
 FLOAT = 4
 
+# グラフは別のプロセスで開く（plt.show() で受信が止まると，その間に届いた後続の表が
+# USBシリアルのバッファからあふれて欠け，次の read_line() が表の途中のバイナリを読んでしまう）
+PLOT_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "plot_log.py")
+
+
+def plot_in_background(filename):
+    subprocess.Popen([sys.executable, PLOT_SCRIPT, filename])
+
+
+# BIN_START の後の1つの表を受け取る。壊れていれば（行が欠けた・時間切れ）None
+def receive_table():
+    dirName = receiver.read_line()
+    fileName = receiver.read_line()
+    timestamp_line = receiver.read_line()
+    size_line = receiver.read_line()
+    header_line = receiver.read_line()
+    if not timestamp_line.startswith("TIMESTAMP:") or not size_line.startswith("SIZE:"):
+        print(f"Warning: broken table header ({timestamp_line!r}, {size_line!r}); waiting for the next BIN_START")
+        return None
+    includeTimestamp = timestamp_line.split(":")[1] == "1"
+    expected_size = int(size_line.split(":")[1])
+    headers = [h for h in header_line.split(",") if h]
+    print(f"{dirName}/{fileName}: {headers}")
+    if not headers or expected_size % (FLOAT * len(headers)) != 0:
+        print(f"Warning: SIZE {expected_size} does not match {len(headers)} columns; waiting for the next BIN_START")
+        return None
+    try:
+        binary = receiver.read_bytes(expected_size)
+        end_raw = receiver.read_line_raw()
+    except TimeoutError as e:
+        binary, end_raw = e.args[0], b""
+        print(f"Warning: timed out after BIN_START ({dirName}/{fileName}, {len(binary)}/{expected_size} bytes)")
+    print("Actually received:", len(binary))
+    if end_raw.rstrip(b"\r\n") != b"BIN_END":
+        # 途中のバイトが欠けると，後ろの BIN_END や次の表まで本体として読んでしまう。この表は捨て，
+        # 読みすぎた中に次の表の BIN_START があればそこから読み直す
+        blob = binary + end_raw
+        i = blob.find(b"BIN_START\r\n")
+        if i >= 0:
+            receiver.unread(blob[i:])
+        print(f"Warning: BIN_END not received; {dirName}/{fileName} not saved (bytes were lost)"
+              + ("; resyncing at the next BIN_START" if i >= 0 else ""))
+        return None
+    return dirName, fileName, includeTimestamp, headers, LogParser(headers).parse(binary)
+
+
 while True:
     line = receiver.read_line()
 
     if line == "BIN_START":
-        # receiver.read_line() -> "DIR:<ディレクトリ名>"(str)
-        dirName = receiver.read_line()
-        # receiver.read_line() -> "<ファイル名>"(str, 未指定なら空文字)
-        fileName = receiver.read_line()
-        # receiver.read_line() -> "TIMESTAMP:<0 or 1>"(str)
-        timestamp_line = receiver.read_line()
-        includeTimestamp = timestamp_line.split(":")[1] == "1"
-        # receiver.read_line() -> "SIZE:<バイト数>"(str)
-        size_line = receiver.read_line()
-        expected_size = int(
-            size_line.split(":")[1]
-        )
-        # receiver.read_line() -> "h1,h2,...\r\n"(str) -> headers: list[str]
-        header_line = receiver.read_line()
-        headers = [
-            h for h in header_line.split(",")
-            if h
-        ]
-        print(headers)
-        parser = LogParser(headers)
-        if not args.no_save:
-            logger = CSVLogger(
-                "log.csv",
-                headers
-            )
+        table = receive_table()
+        if table is None:
+            continue
+        dirName, fileName, includeTimestamp, headers, data = table
 
-        # receiver.read_bytes(expected_size:int) -> binary: bytes(長さexpected_size)
-        binary = receiver.read_bytes(expected_size)
-        print("Actually revieved:", len(binary))
-
-        end_line = receiver.read_line()
-        bin_end_ok = end_line == "BIN_END"
-        if not bin_end_ok:
-            print("Warning: BIN_END not received correctly")
-
-        # parser.parse(binary:bytes) -> data: list[dict]（1要素=1サンプル）
-        data = parser.parse(binary)
-
-        if args.no_save or not bin_end_ok:
-            if args.no_save:
-                print("Not saved (--no_save)")
-            else:
-                print("Not saved (BIN_END not received)")
-            # plot_data(headers, columns) -> なし（グラフウィンドウを表示）
+        if args.no_save:
+            print("Not saved (--no_save)")
             if not args.no_gui:
-                columns = [[row[h] for row in data] for h in headers]
-                plot_data(headers, columns)
+                with tempfile.NamedTemporaryFile("w", suffix=".csv", delete=False, newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(headers)
+                    writer.writerows([row[h] for h in headers] for row in data)
+                plot_in_background(f.name)
         else:
             # saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp) -> filename: str（保存先CSVパス）
             saver = Saver(on_conflict=args.on_conflict)
             filename = saver.save_to_csv(data, headers, dirName, fileName, includeTimestamp)
-
-            # plot_csv(filename:str) -> なし（グラフウィンドウを表示）
             if not args.no_gui:
-                plot_csv(filename)
+                plot_in_background(filename)
 
     else:
         if line == "":

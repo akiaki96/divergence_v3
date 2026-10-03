@@ -1,4 +1,5 @@
 #include "menu/menu.hpp"
+#include "app/wall_edge_log.hpp"
 #include "common/debug.hpp"
 #include "device/device_instance.hpp"
 #include "device/device_test.hpp"
@@ -59,8 +60,10 @@ onselect(imu,
     ledManager.setall(false, false, false, false, true, false);
 )
 
+// 最後の走行のログをもう一度送る（受信に失敗したときの取り直し）。壁切れの記録があればそれも送る
 onenter(log_dump, 
     logger.dump();
+    wall_edge_log::dumpLast();
 )
 
 void Menu::setFunction() {

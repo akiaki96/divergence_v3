@@ -55,5 +55,7 @@ def plot_data(headers, data):
     plt.close(fig)
 
 if __name__ == "__main__":
-    filename = input("Enter CSV filename to plot: ")
+    import sys
+    # main.py は保存したCSVのパスを引数にして別プロセスで呼ぶ（受信を止めないため）
+    filename = sys.argv[1] if len(sys.argv) > 1 else input("Enter CSV filename to plot: ")
     plot_csv(filename)
