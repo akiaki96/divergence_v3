@@ -1,6 +1,6 @@
 #include "app/search.hpp"
 #include <cstdio>
-#include "adachi.hpp"
+#include "adachi_return.hpp"
 #include "app/maze_store.hpp"
 #include "common/debug.hpp"
 #include "common/etc.hpp"
@@ -167,8 +167,7 @@ Stop runSteps(const SearchPreset& p) {
     solver_options_reset();
     solver_options.goal_x = config::search::GOAL_X;
     solver_options.goal_y = config::search::GOAL_Y;
-    solver_options.search_return = true;
-    uint8_vector first = adachi::solver_adachi_init();
+    uint8_vector first = adachi_return::solver_adachi_return_init();
     if (firstMotion(first) != ACT_MOVE_FIRST_HALF_CELL) return Stop::unknownAction;
 
     float d_acc = accelDistance(p);
@@ -193,13 +192,13 @@ Stop runSteps(const SearchPreset& p) {
         bool front = wall::hasFront(s);
         bool right = wall::hasRight(s);
         MousePos at = mousePos;   // 壁を読んだ区画（ソルバーが次の区画へ進める前）
-        uint8_t action = firstMotion(adachi::solver_adachi(left, front, right));
+        uint8_t action = firstMotion(adachi_return::solver_adachi_return(left, front, right));
 
         if (g_step_count >= config::search::MAX_STEPS) return Stop::tooManySteps;
         SearchStep& rec = g_steps[g_step_count++];
         rec = {at.x, at.y, at.dir,
                static_cast<uint8_t>((left ? 1 : 0) | (front ? 2 : 0) | (right ? 4 : 0)),
-               action, static_cast<uint8_t>(adachi::is_returning() ? 1 : 0), {}, pos_target, pos_measured};
+               action, static_cast<uint8_t>(adachi_return::is_returning() ? 1 : 0), {}, pos_target, pos_measured};
         for (uint8_t i = 0; i < wall::POSITION_COUNT; ++i) rec.ir[i] = s.value[i];
 
         switch (action) {

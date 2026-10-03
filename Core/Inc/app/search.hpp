@@ -4,7 +4,7 @@
 #include "app/search_preset.hpp"
 #include "config/search_presets.hpp"
 
-// 足立法の探索（external/micromouse_simulator/solver の adachi をそのまま使う）。
+// 足立法の往復探索（external/micromouse_simulator/solver の adachi_return をそのまま使う）。
 //
 // 置き方はスラロームの試験と同じ：機体の後端をスタート区画 (0,0) の後壁に当て，北（前）へ向ける。
 // ゴール（config::search::GOAL_X/Y）に着いたらスタートへ戻る探索を続け，スタート区画の中央で止まる。
