@@ -77,6 +77,12 @@
 - [ ] **R2 較正（calib）**：上の並べ方で calib 300 / 500 / 700 を各3回。`python3 tools/wall_edge.py` の
   値を `config::wall_edge` に入れる。
   合格：対応のない壁切れなし，残差 rms ≤ 1 mm・最大 ≤ 2 mm，同じ境界の3回のばらつき ±1 mm
+  - 2026-10-03 1回目（9回。受信の不具合で `_edges.csv` が欠けたので，LogDump で取り直した時系列から求めた）：
+    左 境界312 −99.1 / 境界672 −103.5 mm（同じ走行の中で毎回 4.4 mm 違う），右 境界492 −85.4 mm，
+    右の柱だけの山 −84.5 mm（使える），速度による差なし。標準偏差 1.3〜1.6 mm（大半は置き方で，同じ走行の中ではそろう）。
+    calib_700.csv（1回目）だけ左 +10 / 右 +4 mm 外れた（置いたときの横の位置か向き）。
+    → OFFSET_LEFT −101，OFFSET_RIGHT −85，LAG_S 0 を反映。左の 4.4 mm の差が残るので**未合格**。
+    次：新しい値で calib 500 を2〜3回（`_edges.csv` がそろうか，`tools/wall_edge.py` の値が上と ±1 mm で合うか）→ R3
 - [ ] **R3 確認（verify 500）**：R2 の値でビルドして3回。`python3 tools/wall_edge.py --check tools/log/wall_edge/verify_500_edges.csv`。
   合格：どの壁切れも |shift| ≤ 2 mm。後端の止まった位置 δ（線より先が正）が calib 500 の δ と ±2 mm で同じ
 - [ ] **R4 補正が効くこと（inject 500）**：合格：最初の壁切れの shift が +10 ± 1 mm，それ以降は |shift| ≤ 2 mm，
