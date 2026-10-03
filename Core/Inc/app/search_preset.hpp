@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include "common/slalom.hpp"
 
 // 探索のプリセット。tools/search_presets.json から tools/gen_search_presets.py が
@@ -37,4 +38,6 @@ struct SearchPreset {
     PivotParam pivot;
     bool fan;                        // ファンを config::fan::RUN_DUTY で回して走る（ターンもファンONの設計を使う）
     bool wall_control;               // [実験中] 直進中に横壁で向きを補正するか（JSONで省略すると false）
+    uint8_t goal_x;                  // ゴール区画（JSONで省略すると config::search::GOAL_X/Y）。
+    uint8_t goal_y;                  // 試験用に近いゴールで往復させるときに変える
 };

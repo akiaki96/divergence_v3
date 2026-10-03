@@ -32,5 +32,24 @@
     "fan": true,
     "wall_control": true,
     "note": "ターンはファンOFFの設計を写した初期値（ファンONの滑りは未同定）"
+  },
+  "500_goal10": {
+    "speed": 500,
+    "accel": 3000,
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "goal": [1, 0],
+    "note": "試験用：スタート(0,0)からゴール(1,0)へ行き，スタートへ戻る"
+  },
+  "500_goal01": {
+    "speed": 500,
+    "accel": 3000,
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "goal": [0, 1],
+    "menu": "test",
+    "note": "試験用：スタート(0,0)から1区画先のゴール(0,1)へ行き，超信地旋回でスタートへ戻る"
   }
 }

@@ -21,6 +21,8 @@ constexpr bool slalomFitsMenu() {
 static_assert(slalomFitsMenu(), "slalom turns or speeds exceed config::menu::MAX_CHILDREN");
 static_assert(config::search::PRESETS.size() <= config::menu::MAX_CHILDREN,
               "search presets exceed config::menu::MAX_CHILDREN");
+static_assert(config::search::TEST_PRESETS.size() <= config::menu::MAX_CHILDREN,
+              "test search presets exceed config::menu::MAX_CHILDREN");
 
 class Menu {
 public:
@@ -49,6 +51,12 @@ private:
     template <std::size_t... I>
     static std::array<MenuNode, sizeof...(I)> searchNodes(std::index_sequence<I...>) {
         return {MenuNode(config::search::PRESETS[I].name, nullptr, &search_onenter<I>)...};
+    }
+
+    // 試験用の探索：Test → Search → プリセット（config::search::TEST_PRESETS，"menu": "test" のもの）
+    template <std::size_t... I>
+    static std::array<MenuNode, sizeof...(I)> testSearchNodes(std::index_sequence<I...>) {
+        return {MenuNode(config::search::TEST_PRESETS[I].name, nullptr, &test_search_onenter<I>)...};
     }
 
     template <std::size_t... K>
@@ -155,5 +163,10 @@ private:
             MenuNode axle_check_n2_{"n=2", nullptr, &axle_check_onenter<2>};
             MenuNode axle_check_n4_{"n=4", nullptr, &axle_check_onenter<4>};
             MenuNode axle_check_n8_{"n=8", nullptr, &axle_check_onenter<8>};
+
+    MenuNode test_{"Test"};
+        MenuNode test_search_{"Search"};   // 試験用の探索（近いゴールで往復する等）
+            std::array<MenuNode, config::search::TEST_PRESETS.size()> test_search_presets_ =
+                testSearchNodes(std::make_index_sequence<config::search::TEST_PRESETS.size()>{});
 
 };
