@@ -10,6 +10,7 @@
 #include "app/search.hpp"
 #include "app/maze_menu.hpp"
 #include "test/axle_check_test.hpp"
+#include "test/wall_edge_test.hpp"
 
 // スラロームの種類・速度とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
 constexpr bool slalomFitsMenu() {
@@ -140,6 +141,12 @@ private:
             MenuNode ir_fl_{"IR Front Left"};
             MenuNode ir_l_{"IR Left"};
             MenuNode ir_wall_check_{"Wall check"};
+            MenuNode ir_wall_edge_{"Wall edge"};   // 壁切れの補正の試験（test/wall_edge_test.hpp）
+                MenuNode wall_edge_calib_300_{"calib 300", nullptr, &wall_edge_test_onenter<WallEdgeMode::calib, 300>};
+                MenuNode wall_edge_calib_500_{"calib 500", nullptr, &wall_edge_test_onenter<WallEdgeMode::calib, 500>};
+                MenuNode wall_edge_calib_700_{"calib 700", nullptr, &wall_edge_test_onenter<WallEdgeMode::calib, 700>};
+                MenuNode wall_edge_verify_500_{"verify 500", nullptr, &wall_edge_test_onenter<WallEdgeMode::verify, 500>};
+                MenuNode wall_edge_inject_500_{"inject 500", nullptr, &wall_edge_test_onenter<WallEdgeMode::inject, 500>};
         MenuNode battery_{"Battery"};
         MenuNode led_{"LED"};
 

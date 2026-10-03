@@ -178,6 +178,33 @@ inline constexpr float MAX_OMEGA = 90.f;        // [dps] 補正の角速度の�
 inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いとき（停止・超信地旋回）は補正しない
 }
 
+// 壁切れによる距離の補正（common/wall_edge.hpp）。直進中に横のセンサー（左・右）の値が下がった
+// （横壁が切れた）ところで，車軸の位置を区画境界から決まる位置にそろえる。
+// 検出したときの車軸の位置 = 区画境界 + OFFSET_* + LAG_S·（目標速度）
+// [要調整] OFFSET_* / LAG_S / THRESH_* は仮の値。Device → IR → Wall edge の calib で測り，
+// tools/wall_edge.py の出す値に置き換える（手順は tools/WALL_EDGE.md）
+namespace config::wall_edge {
+// 壁ありとみなす値・壁が切れたとみなす値（ヒステリシス）。壁切れの位置は OFF を下回った位置
+inline constexpr int16_t THRESH_ON_LEFT = 350;
+inline constexpr int16_t THRESH_OFF_LEFT = 250;
+inline constexpr int16_t THRESH_ON_RIGHT = 350;
+inline constexpr int16_t THRESH_OFF_RIGHT = 250;
+
+// [mm] 壁切れを検出したときの車軸の位置 − 区画境界（センサーの光が柱の向こう端を過ぎるので負，前を見るほど大きく負）
+inline constexpr float OFFSET_LEFT_MM = -20.f;
+inline constexpr float OFFSET_RIGHT_MM = -20.f;
+// [s] 検出の遅れ（速いほど先で検出する分）。2つ以上の速度の calib から求める
+inline constexpr float LAG_S = 0.f;
+
+inline constexpr float MIN_WALL_MM = 20.f;     // [mm] これより短く見えた壁の切れ目は使わない（ノイズ・柱だけの反射）
+inline constexpr float WINDOW_MM = 15.f;       // [mm] 予想位置からこれ以上ずれた壁切れは補正に使わない
+inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いとき（加速の始め・停止・超信地旋回）は見ない
+
+// 探索で補正をかけるか。false でも壁切れは検出してログ（search/<preset>_edges）に残す。
+// calib で OFFSET_* を決めるまでは false のままにする
+inline constexpr bool SEARCH_CORRECTION = false;
+}
+
 // 探索（app/search.hpp）。速度・使うスラロームはプリセット（tools/search_presets.json）で選ぶ
 namespace config::search {
 // [mm] 区画境界のこれだけ手前で壁を読み，次の動作を積む。プリセットによらず同じ。

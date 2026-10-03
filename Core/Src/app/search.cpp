@@ -2,6 +2,7 @@
 #include <cstdio>
 #include "adachi_return.hpp"
 #include "app/maze_store.hpp"
+#include "app/wall_edge_log.hpp"
 #include "common/debug.hpp"
 #include "common/etc.hpp"
 #include "common/wall_sensor.hpp"
@@ -118,6 +119,7 @@ const char* stopName(Stop s) {
 
 char g_log_name[24];
 char g_trace_name[32];
+char g_edge_name[32];
 
 void initTraceLog() {
     logger.initLoggedVal();
@@ -128,6 +130,7 @@ void initTraceLog() {
     logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&WallControl::omega>("wall_omega", wallControl);
     logger.add<&WallControl::offset>("wall_offset", wallControl);
+    logger.add<&WallEdge::totalShift>("edge_shift", wallEdge);
     logger.setDuration(TRACE_MS);
 }
 
@@ -176,6 +179,7 @@ Stop runSteps(const SearchPreset& p) {
         return Stop::pushRejected;
     }
     float step_end = START_TO_EDGE;   // 今積んでいる1歩が終わる位置（並進の目標位置，区画境界）
+    wallEdge.expect(step_end);
 
     while (true) {
         // 機体（実測）が区画境界の READ_LEAD 手前に来るまで待つ（今の1歩の残りが走っている間に次を積む）。
@@ -206,6 +210,7 @@ Stop runSteps(const SearchPreset& p) {
             if (front) return Stop::frontWall;
             if (planProfile.straight(v, CELL_MM) != SegmentResult::ok) return Stop::pushRejected;
             step_end += CELL_MM;
+            wallEdge.expect(step_end);   // 直進で着く境界だけ（ターンの出口では壁切れを使わない）
             break;
         case ACT_TURN_LEFT_MOVE:
         case ACT_TURN_RIGHT_MOVE: {
@@ -223,6 +228,7 @@ Stop runSteps(const SearchPreset& p) {
                 return Stop::pushRejected;
             }
             step_end += CELL_MM;
+            wallEdge.expect(step_end);
             break;
         case ACT_FINISH:
             // スタート区画の中央で止まる
@@ -264,6 +270,7 @@ void blinkRefused() {
 void runSearch(const SearchPreset& preset) {
     std::snprintf(g_log_name, sizeof(g_log_name), "%s", preset.name);
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
+    std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
     LOG("search %s: %.0f mm/s, turn %s, fan %s, wall control %s, goal (%u,%u)\r\n", preset.name, preset.speed,
         preset.turns.s90->name, preset.fan ? "on" : "off", preset.wall_control ? "on" : "off",
         config::search::GOAL_X, config::search::GOAL_Y);
@@ -295,6 +302,8 @@ void runSearch(const SearchPreset& preset) {
     planProfile.reset();
     wallControl.reset();
     wallControl.enable(preset.wall_control);
+    wallEdge.reset();
+    wallEdge.start(config::wall_edge::SEARCH_CORRECTION);
     g_step_count = 0;
 
     ledBar16.set(0x0000);
@@ -310,12 +319,16 @@ void runSearch(const SearchPreset& preset) {
     planProfile.stop();
     fan.stop();
     wallControl.enable(false);
+    wallEdge.stop();
     logger.stop();
     motorDriver.setBreak();
 
     LOG("search %s: %s after %u wall reads (rejected %lu, dropped %lu)\r\n", preset.name, stopName(stop),
         g_step_count, static_cast<unsigned long>(planProfile.rejectedCount()),
         static_cast<unsigned long>(planProfile.droppedCount()));
+    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
+        static_cast<unsigned long>(wallEdge.eventCount()), config::wall_edge::SEARCH_CORRECTION ? "on" : "off",
+        wallEdge.totalShift());
     if (stop != Stop::finished) {
         blinkRefused();
     } else {
@@ -336,6 +349,7 @@ void runSearch(const SearchPreset& preset) {
     ledBar16.set(0xFFFF);
     haltByAccZ();
     dumpSteps(g_log_name);
+    wall_edge_log::dump("search", g_edge_name);
     logger.dump();
     ledBar16.set(0x0000);
 }

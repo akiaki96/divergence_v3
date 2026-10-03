@@ -11,6 +11,7 @@
 #include "device/fan.hpp"
 #include "app/logger.hpp"
 #include "common/wall_control.hpp"
+#include "common/wall_edge.hpp"
 
 extern float globalTime;
 
@@ -41,3 +42,4 @@ extern Fan fan;
 extern Logger logger;
 
 extern WallControl wallControl;
+extern WallEdge wallEdge;

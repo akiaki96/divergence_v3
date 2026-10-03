@@ -30,3 +30,4 @@ Fan fan(&htim3, TIM_CHANNEL_1);
 Logger logger;
 
 WallControl wallControl;
+WallEdge wallEdge;

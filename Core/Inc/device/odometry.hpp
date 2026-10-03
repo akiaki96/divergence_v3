@@ -14,8 +14,15 @@ public:
 
     void update();
 
-    // 原点を取り直す：エンコーダ（並進位置）を0にし，今の姿勢を角度0とする
+    // 原点を取り直す：エンコーダ（並進位置）を0にし，今の姿勢を角度0とする。壁切れの補正も0に戻す
     void reset();
+
+    // 並進の実測位置に delta [mm] を足す（壁切れの補正，common/wall_edge.hpp）。足した分は reset() まで残る。
+    // 割り込み（update() の後）から呼ぶ
+    void shiftPositionX(float delta) {
+        position_shift_x_ = position_shift_x_ + delta;
+        position_x_ = position_x_ + delta;
+    }
 
     AxisMeasurement translation() const {
         return {position_x_, velocity_x_};
@@ -52,7 +59,8 @@ private:
     Imu& imu_;
 
     // 割り込み（update()）とメインコンテキスト（ログ以外の読み出し・reset()）の両方から触るためvolatileにする
-    volatile float position_x_ = 0.f;     // [mm]
+    volatile float position_x_ = 0.f;     // [mm] エンコーダの平均 + position_shift_x_
+    volatile float position_shift_x_ = 0.f;   // [mm] 壁切れの補正の合計
     volatile float velocity_x_ = 0.f;     // [mm/s]
     volatile float angle_ = 0.f;          // [deg] reset()時の姿勢を0とする
     volatile float omega_ = 0.f;          // [dps]

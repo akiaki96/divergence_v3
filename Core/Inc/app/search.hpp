@@ -13,8 +13,11 @@
 // 渡して次の動作を受け取り，PlanProfile に積む。今の動作の残り（READ_LEAD_MM ぶん）を走っている間に
 // 積み終わるので，止まらずに続けて走る。
 //
-// 走り終わったら機体を持ち上げて（haltByAccZ）待ち，置くと2つのログを送る：
+// 直進で着く区画境界は WallEdge に教え，壁切れを記録する（config::wall_edge::SEARCH_CORRECTION なら補正もする）。
+//
+// 走り終わったら機体を持ち上げて（haltByAccZ）待ち，置くと3つのログを送る：
 //   search/<preset>       … 壁を読むたびに1行（シミュレータの replay.py でそのまま再生できる）
+//   search/<preset>_edges … 壁切れごとに1行（app/wall_edge_log.hpp，tools/wall_edge.py で読む）
 //   search/<preset>_trace … 走行中の目標・実測と壁の補正（時系列）
 void runSearch(const SearchPreset& preset);
 
