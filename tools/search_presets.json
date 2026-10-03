@@ -14,5 +14,23 @@
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
     "note": ""
+  },
+  "500_fan": {
+    "speed": 500,
+    "accel": 3000,
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "fan": true,
+    "wall_control": true,
+    "note": "ターンはファンOFFの設計を写した初期値（ファンONの滑りは未同定）"
+  },
+  "700_fan": {
+    "speed": 700,
+    "accel": 4000,
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "fan": true,
+    "wall_control": true,
+    "note": "ターンはファンOFFの設計を写した初期値（ファンONの滑りは未同定）"
   }
 }
