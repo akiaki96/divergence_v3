@@ -213,7 +213,7 @@ Stop runSteps(const SearchPreset& p) {
             if (to_left ? left : right) return Stop::frontWall;
             auto dir = to_left ? slalom::TurnDir::left : slalom::TurnDir::right;
             if (slalom::push(planProfile, *p.turns.s90, dir) != SegmentResult::ok) return Stop::pushRejected;
-            step_end += slalom::totalDistance(*p.turns.s90);
+            step_end += slalom::totalDistance(*p.turns.s90, dir);
             break;
         }
         case ACT_TURN_BACK:
