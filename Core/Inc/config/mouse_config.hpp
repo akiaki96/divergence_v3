@@ -170,8 +170,8 @@ inline constexpr int16_t THRESH_LEFT = 300;
 inline constexpr int16_t THRESH_RIGHT = 300;
 inline constexpr int16_t THRESH_FRONT = 300;    // 前の左右（FL, FR）の平均と比べる
 
-inline constexpr int16_t REF_LEFT = 1000;
-inline constexpr int16_t REF_RIGHT = 1000;
+inline constexpr int16_t REF_LEFT = 744;
+inline constexpr int16_t REF_RIGHT = 694;
 
 inline constexpr float KP = 0.02f;              // [dps/count] 中心線からのずれ（センサー値の差）→ 補正の角速度
 inline constexpr float MAX_OMEGA = 90.f;        // [dps] 補正の角速度の上限
