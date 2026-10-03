@@ -72,6 +72,12 @@ public:
     // 積んだ区間がすべて終わり，取り消しの反映も済んでいるか
     bool isIdle() const;
 
+    // 区間キューの空き。割り込み側が取り出すと増えるだけなので，積む側から見れば少なめの見積もり。
+    // スラロームのように複数の区間を続けて積むとき，途中で queueFull にならないよう先に確かめる
+    std::size_t freeSlots() const {
+        return queue_.available();
+    }
+
     // isIdle()になるまで待つ（閉ループ中＝update()が呼ばれている間に呼ぶこと）
     void waitUntilIdle() const;
 

@@ -15,8 +15,9 @@ Menu::Menu() {
 void Menu::buildTree() {
     root_.setChildren(std::array{&run_, &device_, &log_dump_, &slalom_, &test_});
 
-        run_.setChildren(std::array{&search_, &maze_});
+        run_.setChildren(std::array{&search_, &fast_, &maze_});
             search_.setChildren(pointersOf(search_presets_));
+            fast_.setChildren(pointersOf(fast_presets_));
             maze_.setChildren(std::array{&maze_show_, &maze_clear_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});

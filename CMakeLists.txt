@@ -120,11 +120,32 @@ add_custom_command(
     VERBATIM
 )
 
+# Run presets: shortest-run speeds and whether to use diagonals, chosen
+# from the menu (Run > Fast). Like the search presets, a preset naming a
+# slalom that is not designed in slalom_params.json stops the build.
+set(RUN_PRESETS_HPP ${GENERATED_INC_DIR}/config/run_presets.hpp)
+add_custom_command(
+    OUTPUT ${RUN_PRESETS_HPP}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_run_presets.py
+            --presets ${CMAKE_SOURCE_DIR}/tools/run_presets.json
+            --slalom-params ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
+            --out ${RUN_PRESETS_HPP}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/tools/gen_run_presets.py
+        ${CMAKE_SOURCE_DIR}/tools/gen_slalom_params.py
+        ${CMAKE_SOURCE_DIR}/tools/slalom_presets.py
+        ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
+        ${CMAKE_SOURCE_DIR}/tools/run_presets.json
+    COMMENT "Generating config/run_presets.hpp"
+    VERBATIM
+)
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${APP_SOURCES}
     ${SLALOM_PARAMS_HPP}
     ${SEARCH_PRESETS_HPP}
+    ${RUN_PRESETS_HPP}
 )
 
 # Add include paths
