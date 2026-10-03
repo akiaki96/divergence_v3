@@ -23,9 +23,12 @@ struct Snapshot {
 // 今のセンサーの値（ISRが毎tick更新する値をそのまま読む）
 Snapshot read();
 
-// 壁の有無（config::wall の閾値）。前は前左・前右の平均で判定する
+// 壁の有無（config::wall の閾値）。前は前左・前右のどちらかが自分の閾値を超えたら壁あり
+// （閾値が同じなら「大きい方の値 > 閾値」）。斜めに向いていても強く当たる方で読める
 bool hasLeft(const Snapshot& s);
 bool hasFront(const Snapshot& s);
+bool hasFrontLeft(const Snapshot& s);    // 前左だけの判定（Wall check / Front check で閾値を確かめる用）
+bool hasFrontRight(const Snapshot& s);
 bool hasRight(const Snapshot& s);
 
 } // namespace wall

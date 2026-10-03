@@ -28,8 +28,16 @@ bool hasLeft(const Snapshot& s) {
     return s.value[left] > config::wall::THRESH_LEFT;
 }
 
+bool hasFrontLeft(const Snapshot& s) {
+    return s.value[front_left] > config::wall::THRESH_FRONT_LEFT;
+}
+
+bool hasFrontRight(const Snapshot& s) {
+    return s.value[front_right] > config::wall::THRESH_FRONT_RIGHT;
+}
+
 bool hasFront(const Snapshot& s) {
-    return (s.value[front_left] + s.value[front_right]) / 2 > config::wall::THRESH_FRONT;
+    return hasFrontLeft(s) || hasFrontRight(s);
 }
 
 bool hasRight(const Snapshot& s) {

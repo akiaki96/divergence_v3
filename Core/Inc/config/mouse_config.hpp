@@ -163,12 +163,16 @@ inline constexpr float START_MM = WALL_HALF_MM + config::mouse::BACK_TO_AXLE_MM;
 
 // 壁の判定と横壁による向きの補正（common/wall_sensor.hpp, common/wall_control.hpp）。
 // [要調整] 仮の値。Device → IR → Wall check で実機の値を見て決める：
-//   THRESH_* … 区画境界の config::search::READ_LEAD_MM 手前（探索で壁を読む位置）で，壁があるときとないときの値の中間
+//   THRESH_* … 区画境界の config::search::READ_LEAD_MM 手前（探索で壁を読む位置）で，壁があるときとないときの値の中間。
+//              前は Device → IR → Front check で前左・前右それぞれの値を測り，出てきた閾値を使う
 //   REF_*    … 区画の中心線上で両側に壁があるときの左右の値
 namespace config::wall {
 inline constexpr int16_t THRESH_LEFT = 300;
 inline constexpr int16_t THRESH_RIGHT = 300;
-inline constexpr int16_t THRESH_FRONT = 300;    // 前の左右（FL, FR）の平均と比べる
+// 前壁：前左・前右のどちらかが自分の閾値を超えたら壁あり（2つを同じ値にすると「大きい方の値 > 閾値」と同じ）。
+// 2026-10-03 平均で判定していたら，探索で前壁を読み落として衝突した（平均 284 < 300）。大きい方で判定するよう変更
+inline constexpr int16_t THRESH_FRONT_LEFT = 300;
+inline constexpr int16_t THRESH_FRONT_RIGHT = 300;
 
 inline constexpr int16_t REF_LEFT = 744;
 inline constexpr int16_t REF_RIGHT = 694;
