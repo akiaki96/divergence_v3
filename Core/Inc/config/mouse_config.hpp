@@ -171,8 +171,11 @@ inline constexpr int16_t THRESH_LEFT = 300;
 inline constexpr int16_t THRESH_RIGHT = 300;
 // 前壁：前左・前右のどちらかが自分の閾値を超えたら壁あり（2つを同じ値にすると「大きい方の値 > 閾値」と同じ）。
 // 2026-10-03 平均で判定していたら，探索で前壁を読み落として衝突した（平均 284 < 300）。大きい方で判定するよう変更
-inline constexpr int16_t THRESH_FRONT_LEFT = 300;
-inline constexpr int16_t THRESH_FRONT_RIGHT = 300;
+// 2026-10-03 Front check（静止，wall / no wall 各3回）：FL 壁あり ≥515・壁なし ≤199，FR 壁あり ≥241・壁なし ≤109。
+// 探索中は前壁が弱く出る（FL 310〜460）ので，FR は探索のログ（壁なし最大 195，壁あり最小 214）の間に置いた。
+// この組で探索のログ100回（衝突前）を誤りなく判定できる。[要調整] FR の余裕は約20。向きをずらした Front check で確かめる
+inline constexpr int16_t THRESH_FRONT_LEFT = 357;    // 静止の中間値（余裕 316）
+inline constexpr int16_t THRESH_FRONT_RIGHT = 205;
 
 inline constexpr int16_t REF_LEFT = 744;
 inline constexpr int16_t REF_RIGHT = 694;
