@@ -216,6 +216,10 @@ inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いと�
 // 探索で補正をかけるか。false でも壁切れは検出してログ（search/<preset>_edges）に残す。
 // 2026-10-03 探索で挙動を見るため true にした（R8）。おかしければ false に戻すと記録だけになる
 inline constexpr bool SEARCH_CORRECTION = true;
+
+// 最短走行（app/fast_run.cpp）：大回り（L90・T180）の入口（区画中央）の手前の区画境界をいくつ教えるか。
+// 直前の境界で横壁が切れなくても，その1つ前で合わせられるように2つ。補正をかけるかはプリセットの "wall_edge"
+inline constexpr int FAST_BOUNDARIES_PER_TURN = 2;
 }
 
 // 前壁の距離による S90 の入口の補正（common/front_correction.hpp）。探索で S90 を積むとき，読み位置

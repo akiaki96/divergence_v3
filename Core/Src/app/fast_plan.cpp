@@ -1,6 +1,8 @@
 #include "app/fast_plan.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include "common/wall_edge.hpp"
 
 namespace fast_plan {
 
@@ -209,6 +211,40 @@ float estimatedTime(const Steps& steps, const RunPreset& p) {
         }
     }
     return t;
+}
+
+std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, float* out, std::size_t max) {
+    using namespace config::wall_edge;
+    std::size_t n = 0;
+    float x = 0.f;   // 手順 i の始めの位置
+    for (std::size_t i = 0; i < steps.size(); ++i) {
+        const Step& s = steps[i];
+        if (s.turn == nullptr) {
+            x += s.distance;
+            continue;
+        }
+        // 直前が縦横の直線の大回りだけ。直線は [x − 長さ, x]，x がターンの入口（区画中央）
+        const Step* prev = (i > 0) ? &steps[i - 1] : nullptr;
+        bool large = (s.turn == p.turns.l90 || s.turn == p.turns.t180);
+        if (large && prev != nullptr && prev->turn == nullptr && !prev->diagonal) {
+            const float straight_start = x - prev->distance;
+            // 入口に近い境界から per_turn 個まで数えてから，位置の小さい順に入れる
+            int k = 0;
+            while (k < per_turn) {
+                float b = x - HALF_MM - static_cast<float>(k) * CELL_MM;
+                float earliest = std::min(WallEdge::expectedX(WallEdge::left, b, p.turn_speed),
+                                          WallEdge::expectedX(WallEdge::right, b, p.turn_speed)) - WINDOW_MM;
+                // 直線に入ってから MIN_WALL_MM 以上壁を見ていないと壁切れにならない
+                if (earliest - MIN_WALL_MM < straight_start) break;
+                ++k;
+            }
+            for (int j = k - 1; j >= 0 && n < max; --j) {
+                out[n++] = x - HALF_MM - static_cast<float>(j) * CELL_MM;
+            }
+        }
+        x += slalom::totalDistance(*s.turn, s.dir);
+    }
+    return n;
 }
 
 } // namespace fast_plan

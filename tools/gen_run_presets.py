@@ -19,6 +19,7 @@ run_presets.json の形:
         "decel": 3000,            … 直線の減速度 [mm/s^2]
         "diagonal": false,        … 斜めの経路を使うか
         "fan": false,             … 任意（省略で false）。ファンを回して走るか
+        "wall_edge": true,        … 任意（省略で false）。大回り（L90・T180）の前の直線で壁切れの補正をかけるか
         "note": ""                … 任意。ヘッダのコメントに出す
       }
     }
@@ -38,7 +39,7 @@ from slalom_presets import PRESET_LIST, parse_speed_key
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel", "diagonal"]
-OPTIONAL_KEYS = ["fan", "note"]
+OPTIONAL_KEYS = ["fan", "wall_edge", "note"]
 
 # RunPreset のターンの集合と、その並び（app/run_preset.hpp の RunTurns、app/search_preset.hpp の DiagonalTurns と同じ順）
 ORTHO_TURNS = ["S90", "L90", "T180"]
@@ -67,7 +68,8 @@ def build_entries(presets, slalom_params):
 
         fan = preset.get("fan", False)
         diagonal = preset["diagonal"]
-        for key, value in [("fan", fan), ("diagonal", diagonal)]:
+        wall_edge = preset.get("wall_edge", False)
+        for key, value in [("fan", fan), ("diagonal", diagonal), ("wall_edge", wall_edge)]:
             if not isinstance(value, bool):
                 raise GenError(f"{where}: {key} は true / false です")
         condition = f"{speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
@@ -89,6 +91,7 @@ def build_entries(presets, slalom_params):
             "diag_ident": f"D_{name}" if diagonal else None,
             "turns": resolved,
             "fan": fan,
+            "wall_edge": wall_edge,
             "values": preset,
         })
     if not entries:
@@ -116,7 +119,8 @@ def render(entries):
     for e in entries:
         v = e["values"]
         note = f"  メモ: {v['note']}" if v.get("note") else ""
-        extra = ("，斜めあり" if e["diag_ident"] else "，斜めなし") + ("，ファンON" if e["fan"] else "")
+        extra = (("，斜めあり" if e["diag_ident"] else "，斜めなし") + ("，ファンON" if e["fan"] else "")
+                 + ("，壁切れ補正" if e["wall_edge"] else ""))
         out.append(f"// {e['name']}: ターン {v['turn_speed']:g}mm/s，直線 {v['max_speed']:g} / 斜め {v['max_speed_dia']:g}mm/s"
                    f"{extra}{note}")
         if e["diag_ident"]:
@@ -124,7 +128,8 @@ def render(entries):
         out.append(
             f"inline constexpr RunPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['turn_speed'])}, {fmt(v['max_speed'])}, "
             f"{fmt(v['max_speed_dia'])}, {fmt(v['accel'])}, {fmt(v['decel'])}, {turn_list(e, ORTHO_TURNS)}, "
-            f"{'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, {'true' if e['fan'] else 'false'}}};")
+            f"{'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, {'true' if e['fan'] else 'false'}, "
+            f"{'true' if e['wall_edge'] else 'false'}}};")
         out.append("")
     out.append("// メニューに並べる順（run_presets.json に書いた順）")
     out.append(f"inline constexpr std::array<RunPreset, {len(entries)}> PRESETS = {{")

@@ -65,4 +65,10 @@ SegmentResult validate(const Steps& steps, const RunPreset& p, std::size_t* bad_
 // 推定の走行時間 [s]（区間の速度から計算。ログとホストでの確認用）
 float estimatedTime(const Steps& steps, const RunPreset& p);
 
+// 壁切れの補正（common/wall_edge.hpp）に教える区画境界。大回り（L90・T180）の入口は区画中央なので，その手前の
+// 縦横の直線にある境界（入口 − 半区画，さらに1区画ずつ手前）を，ターンごとに最大 per_turn 個。
+// 壁切れを検出する予想位置（窓の幅も含めて）が直線の中に収まる境界だけ（ターンの直後の短い直線では検出できない）。
+// 位置は経路に沿った距離で，置いた位置が 0（Odometry::positionX と同じ座標）。小さい順に out に入れ，数を返す
+std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, float* out, std::size_t max);
+
 } // namespace fast_plan
