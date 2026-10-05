@@ -19,7 +19,7 @@ run_presets.json の形:
         "decel": 3000,            … 直線の減速度 [mm/s^2]
         "diagonal": false,        … 斜めの経路を使うか
         "fan": false,             … 任意（省略で false）。ファンを回して走るか
-        "wall_edge": true,        … 任意（省略で false）。大回り（L90・T180）の前の直線で壁切れの補正をかけるか
+        "wall_edge": true,        … 任意（省略で false）。区画中央から入るターン（L90・T180・IN45・IN135）の前の直線で壁切れの補正をかけるか
         "note": ""                … 任意。ヘッダのコメントに出す
       }
     }

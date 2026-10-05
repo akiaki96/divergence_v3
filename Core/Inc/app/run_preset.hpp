@@ -24,5 +24,5 @@ struct RunPreset {
     RunTurns turns;
     const DiagonalTurns* diagonal;   // 斜めのターン。nullptr なら斜めの経路を使わない（solver_options.diagonal = false）
     bool fan;                        // ファンを config::fan::RUN_DUTY で回して走る（ターンもファンONの設計を使う）
-    bool wall_edge;                  // 大回り（L90・T180）の前の直線で壁切れの補正をかける（false でも壁切れは記録する）
+    bool wall_edge;                  // 区画中央から入るターン（L90・T180・IN45・IN135）の前の直線で壁切れの補正をかける（false でも壁切れは記録する）
 };

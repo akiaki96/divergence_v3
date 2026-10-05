@@ -223,10 +223,12 @@ std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn,
             x += s.distance;
             continue;
         }
-        // 直前が縦横の直線の大回りだけ。直線は [x − 長さ, x]，x がターンの入口（区画中央）
+        // 入口が区画中央（大回り90°・180°・入45°・入135°）で，直前が縦横の直線のターンだけ。
+        // 斜めから入るターン（出45°・出135°・V90）の前は斜めの直線で，横壁が区画境界で切れない。
+        // 直線は [x − 長さ, x]，x がターンの入口（区画中央）
         const Step* prev = (i > 0) ? &steps[i - 1] : nullptr;
-        bool large = (s.turn == p.turns.l90 || s.turn == p.turns.t180);
-        if (large && prev != nullptr && prev->turn == nullptr && !prev->diagonal) {
+        bool from_center = (s.turn->entry == slalom::Anchor::center);
+        if (from_center && prev != nullptr && prev->turn == nullptr && !prev->diagonal) {
             const float straight_start = x - prev->distance;
             // 入口に近い境界から per_turn 個まで数えてから，位置の小さい順に入れる
             int k = 0;

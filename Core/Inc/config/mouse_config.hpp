@@ -217,7 +217,7 @@ inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いと�
 // 2026-10-03 探索で挙動を見るため true にした（R8）。おかしければ false に戻すと記録だけになる
 inline constexpr bool SEARCH_CORRECTION = true;
 
-// 最短走行（app/fast_run.cpp）：大回り（L90・T180）の入口（区画中央）の手前の区画境界をいくつ教えるか。
+// 最短走行（app/fast_run.cpp）：入口が区画中央のターン（L90・T180・IN45・IN135）の手前の区画境界をいくつ教えるか。
 // 直前の境界で横壁が切れなくても，その1つ前で合わせられるように2つ。補正をかけるかはプリセットの "wall_edge"
 inline constexpr int FAST_BOUNDARIES_PER_TURN = 2;
 }

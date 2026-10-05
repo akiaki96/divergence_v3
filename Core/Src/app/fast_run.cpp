@@ -56,7 +56,7 @@ static_assert(allPresetsUsable(), "a run preset cannot run: check tools/run_pres
 // 経路の手順（スタックに置かない）
 fast_plan::Steps g_steps;
 
-// 壁切れの補正に教える区画境界（大回りの手前。fast_plan::edgeBoundaries）と，次に教える番号
+// 壁切れの補正に教える区画境界（区画中央から入るターンの手前。fast_plan::edgeBoundaries）と，次に教える番号
 constexpr std::size_t MAX_EDGE_BOUNDARIES = 64;
 float g_edge_boundaries[MAX_EDGE_BOUNDARIES];
 std::size_t g_edge_count = 0;
@@ -157,7 +157,7 @@ bool plan(const RunPreset& p) {
 
     g_edge_count = fast_plan::edgeBoundaries(g_steps, p, config::wall_edge::FAST_BOUNDARIES_PER_TURN,
                                              g_edge_boundaries, MAX_EDGE_BOUNDARIES);
-    LOG("fast %s: wall edge %s, %u boundaries before the large turns:", p.name,
+    LOG("fast %s: wall edge %s, %u boundaries before the center-entry turns:", p.name,
         p.wall_edge ? "correction" : "log only", static_cast<unsigned>(g_edge_count));
     for (std::size_t i = 0; i < g_edge_count; ++i) LOG(" %.0f", g_edge_boundaries[i]);
     LOG("\r\n");
@@ -246,7 +246,7 @@ void runFastRun(const RunPreset& preset) {
     planProfile.reset();
     wallControl.reset();
     wallControl.enable(false);   // 横壁の補正は使わない（斜めでは横壁を読めない）
-    // 壁切れ：大回りの手前の境界だけ教える（教えていない壁切れは記録だけ）。プリセットが false なら補正しない
+    // 壁切れ：区画中央から入るターン（大回り・入45°・入135°）の手前の境界だけ教える（教えていない壁切れは記録だけ）。プリセットが false なら補正しない
     wallEdge.reset();
     wallEdge.start(preset.wall_edge);
     g_edge_next = 0;

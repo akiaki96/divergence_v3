@@ -26,7 +26,13 @@ constexpr slalom::Motion M{600.f, 6000.f, 10.f, 15.f};
 constexpr slalom::Param S90{"S90_T", "t", 90.f, Anchor::edge, Anchor::edge, 500.f, M, M, false};
 constexpr slalom::Param L90{"L90_T", "t", 90.f, Anchor::center, Anchor::center, 500.f, M, M, false};
 constexpr slalom::Param T180{"T180_T", "t", 180.f, Anchor::center, Anchor::center, 500.f, M, M, false};
-constexpr RunPreset P{"t", 500.f, 1500.f, 1000.f, 3000.f, 3000.f, {&S90, &L90, &T180}, nullptr, false, true};
+constexpr slalom::Param IN45{"IN45_T", "t", 45.f, Anchor::center, Anchor::diagonal, 500.f, M, M, false};
+constexpr slalom::Param OUT45{"OUT45_T", "t", 45.f, Anchor::diagonal, Anchor::center, 500.f, M, M, false};
+constexpr slalom::Param V90{"V90_T", "t", 90.f, Anchor::diagonal, Anchor::diagonal, 500.f, M, M, false};
+constexpr slalom::Param IN135{"IN135_T", "t", 135.f, Anchor::center, Anchor::diagonal, 500.f, M, M, false};
+constexpr slalom::Param OUT135{"OUT135_T", "t", 135.f, Anchor::diagonal, Anchor::center, 500.f, M, M, false};
+constexpr DiagonalTurns D{&IN45, &OUT45, &V90, &IN135, &OUT135};
+constexpr RunPreset P{"t", 500.f, 1500.f, 1000.f, 3000.f, 3000.f, {&S90, &L90, &T180}, &D, false, true};
 
 fast_plan::Step straight(float d, bool dia = false) {
     return {nullptr, TurnDir::left, dia, d};
@@ -76,6 +82,33 @@ void testOtherTurns() {
     check(fast_plan::edgeBoundaries(steps, P, 2, out, 8) == 0, "no boundaries");
 }
 
+void testDiagonalTurns() {
+    std::printf("diagonal turns: IN45 / IN135 (center entry) are used, OUT45 / V90 / OUT135 are not\n");
+    const float dia = 3.f * HALF_MM * 1.41421356f;
+    fast_plan::Steps steps;
+    steps.push_back(straight(900.f));                 // 入口 900
+    steps.push_back(turn(IN45, TurnDir::right));
+    steps.push_back(straight(dia, true));
+    steps.push_back(turn(V90, TurnDir::left));        // 直前が斜め：教えない
+    steps.push_back(straight(dia, true));
+    steps.push_back(turn(OUT45, TurnDir::right));     // 直前が斜め：教えない
+    steps.push_back(straight(3.f * CELL_MM));         // 540
+    steps.push_back(turn(IN135, TurnDir::left));
+    steps.push_back(straight(dia, true));
+    steps.push_back(turn(OUT135, TurnDir::left));     // 直前が斜め：教えない
+    steps.push_back(straight(41.f));
+
+    float x = 900.f;
+    for (std::size_t i = 1; i <= 6; ++i) {
+        x += (steps[i].turn != nullptr) ? slalom::totalDistance(*steps[i].turn, steps[i].dir) : steps[i].distance;
+    }
+    float out[8];
+    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, out, 8);
+    check(n == 4, "4 boundaries (IN45 2 + IN135 2)");
+    check(n >= 2 && near(out[0], 900.f - HALF_MM - CELL_MM) && near(out[1], 900.f - HALF_MM), "IN45: entry - 270, - 90");
+    check(n >= 4 && near(out[2], x - HALF_MM - CELL_MM) && near(out[3], x - HALF_MM), "IN135: entry - 270, - 90");
+}
+
 void testFirstStraightLimit() {
     std::printf("the first straight must be long enough to see the wall before the edge\n");
     // 経路の始めから入口まで 220: 境界 130 の検出 130 − 91 − 20 = 19 < MIN_WALL_MM
@@ -94,6 +127,7 @@ void testFirstStraightLimit() {
 int main() {
     testLongShortStraights();
     testOtherTurns();
+    testDiagonalTurns();
     testFirstStraightLimit();
     std::printf("test_fast_plan: %s (%d failures)\n", g_failures == 0 ? "PASS" : "FAIL", g_failures);
     return g_failures == 0 ? 0 : 1;
