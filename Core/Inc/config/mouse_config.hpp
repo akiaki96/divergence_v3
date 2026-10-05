@@ -227,10 +227,12 @@ inline constexpr bool SEARCH_CORRECTION = true;
 // 2026-10-05 既存の探索ログでは e の σ≈11 mm，その後の壁切れのずれとの相関はほぼ 0（1回の読みではノイズが大きい）。
 // 大きなずれだけを小さくするよう，不感帯と上限をつけている。tools/front_correction.py でログから確かめる
 namespace config::front_correction {
-// [mm] 読み位置での前壁の距離（換算表の値）の基準。[要調整] 探索4走行の「直進の後」に S90 を積んだ読み
-// （前壁あり 79 回）の中央値。Device → IR → Front check（wall）が静止で測った候補を出す
-inline constexpr float REF_LEFT_MM = 198.5f;
-inline constexpr float REF_RIGHT_MM = 204.9f;
+// [mm] 読み位置での前壁の距離（換算表の値）の基準。Device → IR → Front check（wall）が静止で測った候補を出す。
+// 2026-10-05 ゴール (1,0) の探索5走行の step 0（スタートから1区画目の読み。直後の壁切れのずれ約 2 mm で，
+// 本当のずれはほぼ 0）の平均：FL 186.6〜187.3，FR 194.0〜195.9。前の値 198.5 / 204.9（前の迷路の探索ログの
+// 「直進の後」の中央値）では step 0 で e ≈ −10 mm と出て，補正が負側にかかりすぎていた
+inline constexpr float REF_LEFT_MM = 187.3f;
+inline constexpr float REF_RIGHT_MM = 195.2f;
 // [mm] 換算した距離がこの範囲にあるときだけ使う（両方とも）。読み位置の前壁は約 184 mm
 inline constexpr float MIN_DISTANCE_MM = 140.f;
 inline constexpr float MAX_DISTANCE_MM = 260.f;
