@@ -8,6 +8,14 @@ namespace {
 constexpr uint32_t BASE[COUNT] = {0x080C0000u, 0x080E0000u};
 constexpr uint32_t SECTOR[COUNT] = {FLASH_SECTOR_10, FLASH_SECTOR_11};
 
+// ART のデータキャッシュを捨てる。HAL は消去の後にしか捨てないので，書いた直後に読むと，書く前に読んで
+// キャッシュに載った古い値（0xFF）が返りうる
+void flushDataCache() {
+    __HAL_FLASH_DATA_CACHE_DISABLE();
+    __HAL_FLASH_DATA_CACHE_RESET();
+    __HAL_FLASH_DATA_CACHE_ENABLE();
+}
+
 void clearErrors() {
     __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR |
                            FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
@@ -43,6 +51,7 @@ bool program(uint8_t bank, uint32_t offset, const uint32_t* words, uint32_t coun
         ok = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, BASE[bank] + offset + i * 4, words[i]) == HAL_OK;
     }
     HAL_FLASH_Lock();
+    flushDataCache();
     return ok;
 }
 

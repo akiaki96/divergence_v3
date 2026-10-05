@@ -7,10 +7,52 @@ namespace maze_store {
 
 namespace {
 constexpr uint32_t WORDS = sizeof(Record) / 4;
+constexpr uint32_t ERASED = 0xFFFFFFFFu;
 
 bool valid(const Record& r) {
     return r.magic == MAGIC && r.version == VERSION && r.length == sizeof(Record) &&
            r.crc == crc32(&r, offsetof(Record, crc));
+}
+
+const Record* slotAt(uint8_t bank, uint32_t slot) {
+    return reinterpret_cast<const Record*>(flash_bank::address(bank) + slot * sizeof(Record));
+}
+
+// 枠が消したまま（全語 0xFF）か。書きかけで止まった枠は 0xFF でない語があるので使用中になる
+bool blank(uint8_t bank, uint32_t slot) {
+    const uint32_t* w = reinterpret_cast<const uint32_t*>(slotAt(bank, slot));
+    for (uint32_t i = 0; i < WORDS; ++i) {
+        if (w[i] != ERASED) return false;
+    }
+    return true;
+}
+
+// ---- journal の状態 ----
+struct Journal {
+    bool open = false;
+    uint8_t bank = 0;
+    uint32_t next_slot = 0;       // 次に書き始める枠
+    uint32_t next_sequence = 1;
+    union {                       // 書きかけ（または最後に書いた）記録。フラッシュへは語で書く
+        Record record;
+        uint32_t words[WORDS];
+    } buf = {};
+    bool has_last = false;
+    uint32_t writing_slot = 0;
+    uint32_t written = WORDS;     // words[] のうち書いた語の数（WORDS なら書きかけはない）
+    Result result = Result::ok;   // 最後に書き終えた記録の結果
+    uint32_t appended = 0;
+    uint32_t failed = 0;
+};
+Journal g_journal;
+
+// 書き終えた記録を読み直して確かめる
+void finishRecord(Journal& j) {
+    const Record* r = slotAt(j.bank, j.writing_slot);
+    if (j.result == Result::ok && (std::memcmp(r, &j.buf.record, sizeof(Record)) != 0 || !valid(*r))) {
+        j.result = Result::verifyFailed;
+    }
+    if (j.result != Result::ok) ++j.failed;
 }
 } // namespace
 
@@ -19,7 +61,9 @@ const char* resultName(Result r) {
     case Result::ok:            return "ok";
     case Result::eraseFailed:   return "erase failed";
     case Result::programFailed: return "program failed";
-    default:                    return "verify failed";
+    case Result::verifyFailed:  return "verify failed";
+    case Result::full:          return "bank full";
+    default:                    return "journal not open";
     }
 }
 
@@ -57,9 +101,19 @@ void applyToSolver(const Record& r) {
     }
 }
 
+uint32_t usedSlots(uint8_t bank) {
+    // 枠は先頭から順に書くので，後ろから見て最初に消したままでない枠の次が使っている数
+    uint32_t n = SLOT_COUNT;
+    while (n > 0 && blank(bank, n - 1)) --n;
+    return n;
+}
+
 const Record* recordIn(uint8_t bank) {
-    const Record* r = reinterpret_cast<const Record*>(flash_bank::address(bank));
-    return valid(*r) ? r : nullptr;
+    for (uint32_t n = usedSlots(bank); n > 0; --n) {
+        const Record* r = slotAt(bank, n - 1);
+        if (valid(*r)) return r;
+    }
+    return nullptr;
 }
 
 const Record* latest(uint8_t* bank) {
@@ -74,37 +128,123 @@ const Record* latest(uint8_t* bank) {
     return best;
 }
 
+bool sameMaze(const Record& a, const Record& b) {
+    return a.goal_x == b.goal_x && a.goal_y == b.goal_y && a.flags == b.flags &&
+           std::memcmp(&a.wallzero, &b.wallzero, sizeof(Wall)) == 0 &&
+           std::memcmp(&a.wallone, &b.wallone, sizeof(Wall)) == 0 &&
+           std::memcmp(a.visited, b.visited, sizeof(a.visited)) == 0;
+}
+
 Result save(Record r) {
-    uint8_t current_bank = 0;
-    const Record* current = latest(&current_bank);
-    // 最新の記録が入っていない方へ書く（どちらにもなければA面）
-    uint8_t target = (current != nullptr && current_bank == 0) ? 1 : 0;
-
-    r.magic = MAGIC;
-    r.version = VERSION;
-    r.length = sizeof(Record);
-    r.sequence = (current != nullptr) ? current->sequence + 1 : 1;
-    r.crc = crc32(&r, offsetof(Record, crc));
-
-    uint32_t words[WORDS];
-    std::memcpy(words, &r, sizeof(words));
-    if (!flash_bank::erase(target)) return Result::eraseFailed;
-    // CRC の語を最後に書く：途中で止まれば CRC が 0xFFFFFFFF のままで，この面は無効になる
-    if (!flash_bank::program(target, 0, words, WORDS - 1) ||
-        !flash_bank::program(target, (WORDS - 1) * 4, &words[WORDS - 1], 1)) {
-        return Result::programFailed;
-    }
-    if (std::memcmp(flash_bank::address(target), &r, sizeof(Record)) != 0 || recordIn(target) == nullptr) {
-        return Result::verifyFailed;
-    }
-    return Result::ok;
+    Result opened = journal::open(1);
+    if (opened != Result::ok) return opened;
+    if (!journal::append(r)) return Result::full;
+    return journal::flush();
 }
 
 bool clear() {
+    journal::close();
     bool ok = true;
     for (uint8_t b = 0; b < flash_bank::COUNT; ++b) ok = flash_bank::erase(b) && ok;
     return ok;
 }
+
+namespace journal {
+
+Result open(uint32_t min_free, bool* erased) {
+    Journal& j = g_journal;
+    j = Journal{};
+    if (erased != nullptr) *erased = false;
+    if (min_free < 1) min_free = 1;
+    if (min_free > SLOT_COUNT) min_free = SLOT_COUNT;
+
+    uint8_t newest_bank = 0;
+    const Record* newest = latest(&newest_bank);
+    // 最新の記録がある面の続きに書く。空きが足りなければもう一方の面（記録がなければA面）
+    uint8_t target = 0;
+    if (newest != nullptr) {
+        target = (SLOT_COUNT - usedSlots(newest_bank) >= min_free) ? newest_bank
+                                                                   : static_cast<uint8_t>(1 - newest_bank);
+    }
+    uint32_t used = usedSlots(target);
+    if (SLOT_COUNT - used < min_free) {
+        // ここに来るのは最新の記録がない面だけ（最新の記録は消さない）
+        if (!flash_bank::erase(target)) return Result::eraseFailed;
+        if (erased != nullptr) *erased = true;
+        used = 0;
+    }
+    j.open = true;
+    j.bank = target;
+    j.next_slot = used;
+    j.next_sequence = (newest != nullptr) ? newest->sequence + 1 : 1;
+    return Result::ok;
+}
+
+bool isOpen() {
+    return g_journal.open;
+}
+
+void close() {
+    g_journal.open = false;
+}
+
+bool append(Record r) {
+    Journal& j = g_journal;
+    if (!j.open || busy() || j.next_slot >= SLOT_COUNT) return false;
+    r.magic = MAGIC;
+    r.version = VERSION;
+    r.length = sizeof(Record);
+    r.sequence = j.next_sequence++;
+    r.crc = crc32(&r, offsetof(Record, crc));
+    j.buf.record = r;
+    j.has_last = true;
+    j.writing_slot = j.next_slot++;
+    j.written = 0;
+    j.result = Result::ok;
+    ++j.appended;
+    return true;
+}
+
+bool busy() {
+    return g_journal.written < WORDS;
+}
+
+void step(uint32_t words) {
+    Journal& j = g_journal;
+    // 語の順に書くので，CRC（最後の語）が最後になる
+    for (uint32_t n = 0; n < words && j.written < WORDS; ++n) {
+        if (!flash_bank::program(j.bank, j.writing_slot * sizeof(Record) + j.written * 4, &j.buf.words[j.written], 1)) {
+            j.result = Result::programFailed;
+            j.written = WORDS;   // この枠は捨てる（CRC が合わないので読むときに無視される）。次は次の枠へ
+            finishRecord(j);
+            return;
+        }
+        if (++j.written == WORDS) finishRecord(j);
+    }
+}
+
+Result flush() {
+    step(WORDS);
+    return g_journal.result;
+}
+
+const Record* last() {
+    return g_journal.has_last ? &g_journal.buf.record : nullptr;
+}
+
+uint32_t appendedCount() {
+    return g_journal.appended;
+}
+
+uint32_t failedCount() {
+    return g_journal.failed;
+}
+
+uint32_t freeSlots() {
+    return g_journal.open ? SLOT_COUNT - g_journal.next_slot : 0;
+}
+
+} // namespace journal
 
 WallState wallState(const Record& r, uint8_t x, uint8_t y, AbsDir dir) {
     if (get_wall_abs(&r.wallzero, x, y, dir)) return WallState::wall;

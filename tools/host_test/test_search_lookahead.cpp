@@ -10,6 +10,7 @@
 #include "adachi.hpp"
 #include "adachi_return.hpp"
 #include "app/search_lookahead.hpp"
+#include "config/mouse_config.hpp"
 
 namespace {
 int g_failures = 0;
@@ -117,7 +118,7 @@ Run g_direct, g_ahead;
 
 void testMazes(const char* name, float density, float misread_rate, int count) {
     std::mt19937 rng(12345);
-    int same = 0, finished = 0, blocked = 0, total_steps = 0;
+    int same = 0, finished = 0, blocked = 0, total_steps = 0, max_saves = 0;
     double direct_us = 0., take_us = 0., prepare_us = 0.;
     for (int k = 0; k < count; ++k) {
         Wall maze = makeMaze(rng, density);
@@ -133,6 +134,21 @@ void testMazes(const char* name, float density, float misread_rate, int count) {
         if (g_direct.count > 0 && g_direct.steps[g_direct.count - 1].action == ACT_FINISH) ++finished;
         if (g_direct.blocked) ++blocked;
         total_steps += g_direct.count;
+        // 探索中の迷路の保存（app/search.cpp の updateSaveDue）：ゴールに着いた歩で1回，その後 EVERY_STEPS 歩ごと。
+        // 迷路が変わらず見送る分は数えない（多めに見積もる）
+        int saves = 0, since = 0;
+        bool goal = false;
+        for (int i = 0; i < g_direct.count; ++i) {
+            if (!g_direct.steps[i].returning) continue;
+            if (!goal) {
+                goal = true;
+                ++saves;
+            } else if (++since >= config::maze_save::EVERY_STEPS) {
+                since = 0;
+                ++saves;
+            }
+        }
+        if (saves + 1 > max_saves) max_saves = saves + 1;   // +1：スタートに戻ったときの記録
         direct_us += g_direct.solver_us;
         take_us += g_ahead.solver_us;
         prepare_us += g_ahead.prepare_us;
@@ -141,6 +157,10 @@ void testMazes(const char* name, float density, float misread_rate, int count) {
                 total_steps);
     std::printf("  host time per step: direct %.2f us, take %.3f us, prepare %.2f us\n",
                 direct_us / total_steps, take_us / total_steps, prepare_us / total_steps);
+    std::printf("  maze saves per search: at most %d (RESERVE_SLOTS %lu)\n", max_saves,
+                static_cast<unsigned long>(config::maze_save::RESERVE_SLOTS));
+    check(static_cast<uint32_t>(max_saves) <= config::maze_save::RESERVE_SLOTS,
+          "the maze saves of one search fit in RESERVE_SLOTS");
     char what[96];
     std::snprintf(what, sizeof(what), "lookahead matches the direct solver in all %d mazes (%d did)", count, same);
     check(same == count, what);

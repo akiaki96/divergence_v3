@@ -7,10 +7,13 @@
 void maze_show_onenter() {
     for (uint8_t b = 0; b < flash_bank::COUNT; ++b) {
         const maze_store::Record* r = maze_store::recordIn(b);
+        unsigned long used = maze_store::usedSlots(b);
         if (r == nullptr) {
-            LOG("bank %c: empty or invalid\r\n", 'A' + b);
+            LOG("bank %c: %lu/%lu slots, no valid record\r\n", 'A' + b, used,
+                static_cast<unsigned long>(maze_store::SLOT_COUNT));
         } else {
-            LOG("bank %c: sequence %lu, goal (%u,%u), %s\r\n", 'A' + b, static_cast<unsigned long>(r->sequence),
+            LOG("bank %c: %lu/%lu slots, last sequence %lu, goal (%u,%u), %s\r\n", 'A' + b, used,
+                static_cast<unsigned long>(maze_store::SLOT_COUNT), static_cast<unsigned long>(r->sequence),
                 r->goal_x, r->goal_y, (r->flags & maze_store::FLAG_COMPLETE) ? "complete" : "partial");
         }
     }

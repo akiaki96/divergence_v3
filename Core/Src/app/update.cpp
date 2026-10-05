@@ -1,10 +1,30 @@
 #include "common/wall_sensor.hpp"
 #include "device/device_instance.hpp"
 #include "menu/menuInstance.hpp"
+#include "app/update.hpp"
 #include "tim.h"
+
+namespace {
+volatile uint32_t g_last_cycles = 0;   // 0：まだ測っていない
+volatile uint32_t g_max_gap_cycles = 0;
+} // namespace
+
+namespace control_timing {
+void reset() {
+    g_last_cycles = 0;
+    g_max_gap_cycles = 0;
+}
+
+uint32_t maxGapUs() {
+    return g_max_gap_cycles / (SystemCoreClock / 1000000u);
+}
+} // namespace control_timing
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     if (htim == &htim6) {
+        uint32_t now = DWT->CYCCNT;
+        if (g_last_cycles != 0 && now - g_last_cycles > g_max_gap_cycles) g_max_gap_cycles = now - g_last_cycles;
+        g_last_cycles = now;
         globalTime += config::control::DT_S;
         
         ledBar16.update();

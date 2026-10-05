@@ -256,6 +256,16 @@ inline constexpr uint16_t MAX_STEPS = 2048;     // 壁を読む回数の上限�
 inline constexpr float MIN_BATTERY_V = 7.4f;    // [V] これより低ければ走らない
 }
 
+// 探索中の迷路の保存（app/maze_store の journal）。ゴールに着いた後，途中で止まっても最短走行できるように
+// 定期的に今の迷路をフラッシュへ追記する。消去は走る前だけ（走行中は消した後の枠に書くだけ）
+namespace config::maze_save {
+// true：走りながら1語ずつ書く（1語で CPU が典型 16us・最大 100us 止まり，1kHz の制御の割り込みがその分遅れる）。
+// false：保存する歩で区画中央に止まってから書く（直進・行き止まりの歩だけ。ターンの歩なら次の機会に回す）
+inline constexpr bool WHILE_RUNNING = true;
+inline constexpr uint16_t EVERY_STEPS = 4;      // ゴールに着いた歩で1回，その後はこの歩数ごとに保存する（迷路が変わっていれば）
+inline constexpr uint32_t RESERVE_SLOTS = 160;  // 探索を始めるとき，書く面にこれだけの空き枠がなければ面を消す（1面728枠）
+}
+
 namespace config::menu {
 inline constexpr uint8_t MAX_CHILDREN = 10;  // 子ノード数の上限（現在の最大はFanの9項目）
 }
