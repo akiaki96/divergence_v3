@@ -120,6 +120,23 @@ add_custom_command(
     VERBATIM
 )
 
+# Front distance table: front IR value -> distance to the front wall, from
+# the front sweep calibration (tools/ir_calibration.json). Used to correct
+# where the search starts each small 90 deg turn (common/front_correction).
+set(FRONT_DISTANCE_HPP ${GENERATED_INC_DIR}/config/front_distance_table.hpp)
+add_custom_command(
+    OUTPUT ${FRONT_DISTANCE_HPP}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_front_distance.py
+            --calib ${CMAKE_SOURCE_DIR}/tools/ir_calibration.json
+            --out ${FRONT_DISTANCE_HPP}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/tools/gen_front_distance.py
+        ${CMAKE_SOURCE_DIR}/tools/gen_slalom_params.py
+        ${CMAKE_SOURCE_DIR}/tools/ir_calibration.json
+    COMMENT "Generating config/front_distance_table.hpp"
+    VERBATIM
+)
+
 # Run presets: shortest-run speeds and whether to use diagonals, chosen
 # from the menu (Run > Fast). Like the search presets, a preset naming a
 # slalom that is not designed in slalom_params.json stops the build.
@@ -146,6 +163,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${SLALOM_PARAMS_HPP}
     ${SEARCH_PRESETS_HPP}
     ${RUN_PRESETS_HPP}
+    ${FRONT_DISTANCE_HPP}
 )
 
 # Add include paths

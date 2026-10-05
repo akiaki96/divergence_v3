@@ -1,6 +1,7 @@
 #include "test/front_check_test.hpp"
 #include <algorithm>
 #include "common/debug.hpp"
+#include "common/front_correction.hpp"
 #include "common/wall_sensor.hpp"
 #include "device/device_instance.hpp"
 #include "test/closed_loop_test.hpp"
@@ -117,6 +118,13 @@ void showFrontCheck() {
                 LOG("      -> %s alone cannot separate (wall min <= no-wall max by %ld)\r\n", SENSOR_NAME[k], -margin);
             }
         }
+    }
+    // 壁ありの平均を換算表で距離にしたもの：探索で S90 の入口を補正するときの基準（config::front_correction）の候補
+    if (w[FL].count > 0 && w[FR].count > 0) {
+        LOG("  front wall distance (mean, table): FL %.1f mm, FR %.1f mm"
+            " -> REF_LEFT_MM / REF_RIGHT_MM candidates (now %.1f / %.1f)\r\n",
+            front_correction::frontLeftMm(w[FL].mean()), front_correction::frontRightMm(w[FR].mean()),
+            config::front_correction::REF_LEFT_MM, config::front_correction::REF_RIGHT_MM);
     }
     LOG("  with the current thresholds: missed %lu / %lu wall samples, false %lu / %lu no-wall samples\r\n",
         static_cast<unsigned long>(g_totals.wrong[0]), static_cast<unsigned long>(g_totals.samples[0]),

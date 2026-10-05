@@ -218,6 +218,27 @@ inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いと�
 inline constexpr bool SEARCH_CORRECTION = true;
 }
 
+// 前壁の距離による S90 の入口の補正（common/front_correction.hpp）。探索で S90 を積むとき，読み位置
+// （区画境界の config::search::READ_LEAD_MM 手前）で前壁があれば，前左・前右の値を換算表
+// （tools/ir_calibration.json → config/front_distance_table.hpp）で距離にして，基準 REF_* とのずれ e を求める。
+// e > 0 は機体が実際は後ろにいる（旋回を遅らせる）。補正 δ = clamp(GAIN·(|e| − DEADBAND_MM)·sign(e), ±MAX_MM)
+// を pre-offset に足す。pre が負になる分は実測位置をずらして（Odometry::requestShiftX）位置制御で戻す。
+// 補正するかはプリセットの front_correction。しないときも e と δ は探索のログ（front_err / front_corr）に残す。
+// 2026-10-05 既存の探索ログでは e の σ≈11 mm，その後の壁切れのずれとの相関はほぼ 0（1回の読みではノイズが大きい）。
+// 大きなずれだけを小さくするよう，不感帯と上限をつけている。tools/front_correction.py でログから確かめる
+namespace config::front_correction {
+// [mm] 読み位置での前壁の距離（換算表の値）の基準。[要調整] 探索4走行の「直進の後」に S90 を積んだ読み
+// （前壁あり 79 回）の中央値。Device → IR → Front check（wall）が静止で測った候補を出す
+inline constexpr float REF_LEFT_MM = 198.5f;
+inline constexpr float REF_RIGHT_MM = 204.9f;
+// [mm] 換算した距離がこの範囲にあるときだけ使う（両方とも）。読み位置の前壁は約 184 mm
+inline constexpr float MIN_DISTANCE_MM = 140.f;
+inline constexpr float MAX_DISTANCE_MM = 260.f;
+inline constexpr float GAIN = 0.5f;
+inline constexpr float DEADBAND_MM = 10.f;   // [mm] |e| がこれより小さければ補正しない
+inline constexpr float MAX_MM = 15.f;        // [mm] 補正 δ の上限
+}
+
 // 探索（app/search.hpp）。速度・使うスラロームはプリセット（tools/search_presets.json）で選ぶ
 namespace config::search {
 // [mm] 区画境界のこれだけ手前で壁を読み，次の動作を積む。プリセットによらず同じ。

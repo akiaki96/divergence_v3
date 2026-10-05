@@ -11,3 +11,12 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     "$ROOT/Core/Src/common/wall_edge.cpp" "$ROOT/tools/host_test/test_wall_edge.cpp" \
     -o "$OUT/test_wall_edge"
 "$OUT/test_wall_edge"
+
+# 前壁の距離による S90 の入口の補正（換算表のヘッダはビルドと同じく JSON から生成する）
+python3 "$ROOT/tools/gen_front_distance.py" --calib "$ROOT/tools/ir_calibration.json" \
+    --out "$OUT/generated/config/front_distance_table.hpp"
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" -I "$OUT/generated" \
+    "$ROOT/Core/Src/common/front_correction.cpp" "$ROOT/tools/host_test/test_front_correction.cpp" \
+    -o "$OUT/test_front_correction"
+"$OUT/test_front_correction"

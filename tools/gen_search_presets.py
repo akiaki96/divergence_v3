@@ -27,6 +27,8 @@ search_presets.json の形:
                   "alpha": 2500},         … 超信地旋回の角加速度 [dps/s]
         "fan": false,                     … 任意（省略で false）。ファンを回して走るか
         "wall_control": true,             … 任意（省略で false）。[実験中] 直進中に横壁で向きを補正するか
+        "front_correction": true,         … 任意（省略で false）。[実験中] S90 の入口を前壁の距離で補正するか
+                                            （false でも推定したずれはログに残す。config::front_correction）
         "goal": [7, 7],                   … 任意（省略で config::search::GOAL_X/Y）。ゴール区画 [x, y]。
                                             試験用に近いゴール（例 [1, 0]）で往復させるときに書く
         "menu": "search",                 … 任意（省略で "search"）。並べるメニュー。
@@ -52,7 +54,7 @@ from slalom_presets import PRESET_LIST, parse_speed_key
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["speed", "accel", "turns", "pivot"]
-OPTIONAL_KEYS = ["fan", "wall_control", "goal", "menu", "note"]
+OPTIONAL_KEYS = ["fan", "wall_control", "front_correction", "goal", "menu", "note"]
 # "menu" の値 → 生成する配列の名前（menu/menu.hpp がそれぞれのメニューに並べる）
 MENU_ARRAYS = {"search": "PRESETS", "test": "TEST_PRESETS"}
 MAZE_SIZE = 16
@@ -90,7 +92,8 @@ def build_entries(presets, slalom_params):
 
         fan = preset.get("fan", False)
         wall_control = preset.get("wall_control", False)
-        for key, value in [("fan", fan), ("wall_control", wall_control)]:
+        front_correction = preset.get("front_correction", False)
+        for key, value in [("fan", fan), ("wall_control", wall_control), ("front_correction", front_correction)]:
             if not isinstance(value, bool):
                 raise GenError(f"{where}: {key} は true / false です")
         condition = f"{speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
@@ -137,6 +140,7 @@ def build_entries(presets, slalom_params):
             "pivot": pivot,
             "fan": fan,
             "wall_control": wall_control,
+            "front_correction": front_correction,
             "goal": goal,
             "menu": menu,
             "values": preset,
@@ -169,7 +173,8 @@ def render(entries):
         v = e["values"]
         note = f"  メモ: {v['note']}" if v.get("note") else ""
         labels = "・".join(label for label, _ in e["turns"].values())
-        wall = ("，ファンON" if e["fan"] else "") + ("，横壁の補正あり" if e["wall_control"] else "")
+        wall = (("，ファンON" if e["fan"] else "") + ("，横壁の補正あり" if e["wall_control"] else "")
+                + ("，前壁でS90の入口を補正" if e["front_correction"] else ""))
         goal_note = f"，ゴール ({e['goal'][0]}, {e['goal'][1]})" if e["goal"] else ""
         goal = f"{e['goal'][0]}, {e['goal'][1]}" if e["goal"] else "GOAL_X, GOAL_Y"
         out.append(f"// {e['name']}: {v['speed']:g}mm/s，ターンは{labels}{wall}{goal_note}{note}")
@@ -179,7 +184,8 @@ def render(entries):
             f"inline constexpr SearchPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['speed'])}, {fmt(v['accel'])}, "
             f"{turn_list(e, ORTHO_TURNS)}, {'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, "
             f"{{{fmt(e['pivot']['omega'])}, {fmt(e['pivot']['alpha'])}}}, "
-            f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}, {goal}}};")
+            f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}, "
+            f"{'true' if e['front_correction'] else 'false'}, {goal}}};")
         out.append("")
     for menu, array in MENU_ARRAYS.items():
         listed = [e for e in entries if e["menu"] == menu]

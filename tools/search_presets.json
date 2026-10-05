@@ -7,6 +7,15 @@
     "wall_control": true,
     "note": "最初に試す速度"
   },
+  "500_fc": {
+    "speed": 500,
+    "accel": 3000,
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "front_correction": true,
+    "note": "500 と同じで，S90 の入口を前壁の距離で補正する（比べる用）"
+  },
   "700": {
     "speed": 700,
     "accel": 4000,

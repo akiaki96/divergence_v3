@@ -80,12 +80,14 @@ constexpr float totalDistance(const Param& p, TurnDir dir) {
 }
 
 // 積む前の検査：PlanProfileが積むときと同じvalidateSegment()で，オフセットの直進と角速度の各区間を調べる。
-// オフセットは0なら積まない（負は弾く）。等角速度の角度が負（omega_maxまで加速しきれない）ならtooShort
-constexpr SegmentResult validate(const Param& p, TurnDir dir) {
+// オフセットは0なら積まない（負は弾く）。等角速度の角度が負（omega_maxまで加速しきれない）ならtooShort。
+// pre_adjust は入口オフセットに足す補正 [mm]（前壁の距離による補正，common/front_correction.hpp）
+constexpr SegmentResult validate(const Param& p, TurnDir dir, float pre_adjust = 0.f) {
     using namespace config::profile_limit;
     const Motion& m = p.motion(dir);
-    if (m.pre_offset != 0.f) {
-        SegmentResult r = validateSegment(p.speed, p.speed, m.pre_offset, MAX_ACCEL_X, MAX_DECEL_X);
+    const float pre = m.pre_offset + pre_adjust;
+    if (pre != 0.f) {
+        SegmentResult r = validateSegment(p.speed, p.speed, pre, MAX_ACCEL_X, MAX_DECEL_X);
         if (r != SegmentResult::ok) return r;
     }
     Shape s = shapeOf(p, dir);
@@ -111,8 +113,9 @@ constexpr SegmentResult validate(const Param& p) {
 }
 
 // スラローム1回分の区間を積む（待たずに戻る）。並進の目標速度がspeedになっている（直前の区間の終速がspeed）こと。
-// 先にvalidate()で検査し，通らなければ何も積まずにその結果を返す
-SegmentResult push(PlanProfile& plan, const Param& p, TurnDir dir);
+// 先にvalidate()で検査し，通らなければ何も積まずにその結果を返す。
+// pre_adjust は入口オフセットに足す補正 [mm]。積む距離は totalDistance() + pre_adjust になる
+SegmentResult push(PlanProfile& plan, const Param& p, TurnDir dir, float pre_adjust = 0.f);
 
 const char* resultName(SegmentResult r);
 

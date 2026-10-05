@@ -12,6 +12,8 @@
 | `Core/Src/app/search.cpp` | 探索のループ（壁を読む → ソルバー → 動作を積む）とログ | — |
 | `Core/Src/common/wall_sensor.cpp` | IRセンサーの位置の対応と壁の判定 | 対応がずれていたら |
 | `Core/Src/common/wall_control.cpp` | 直進中の横壁による向きの補正 | — |
+| `Core/Src/common/front_correction.cpp` | 前壁の距離による S90 の入口の補正（換算表は `ir_calibration.json` → `gen_front_distance.py`） | — |
+| `front_correction.py` | 探索のログから前壁の補正（前後のずれ e，補正 δ，壁切れとの相関）を評価する | — |
 | `Core/Inc/config/mouse_config.hpp` | `config::wall`（閾値・基準値・ゲイン），`config::search`（壁を読む位置・ゴール・ログの行数・電池） | 調整で |
 
 プリセットの例（`search_presets.json`）：
@@ -34,6 +36,7 @@
 - `fan` を `true` にするとファンを `config::fan::RUN_DUTY` で回して走り，ターンもファンONの設計（`"500_fan"`，
   `config::slalom::S90_500_FAN`）を使う。省略すると `false`
 - `wall_control` は**実験中**の横壁による向きの補正。省略すると `false`
+- `front_correction` は**実験中**の前壁の距離による S90 の入口の補正（下の節）。省略すると `false`
 - `goal` はゴール区画 `[x, y]`。省略すると `config::search::GOAL_X/Y`（既定 (7,7)）。
   試験用プリセット `500_goal10` は `"goal": [1, 0]` で，スタート (0,0) から隣の (1,0) へ行って戻る。
   スタート区画の東は壁とみなす（規定）ので，経路は (0,0) → (0,1) → (1,1) → (1,0) → 戻りは逆順になり，
@@ -74,6 +77,29 @@
    - `tools/log/search/<preset>.csv` … 壁を読むたびに1行（位置・壁・ソルバーの動作・帰り探索中か・IRの値，
      読んだときの並進の目標位置 `pos_target` と実測 `pos_measured` [mm]。差が追従遅れ）
    - `tools/log/search/<preset>_trace.csv` … 走行中の目標・実測の位置と角度，壁の補正（68s分を間引いて記録，約22Hz）
+
+## 前壁の距離による S90 の入口の補正（[実験中]，`common/front_correction.hpp`）
+
+S90 が続くと，前のターンの出口のずれ（新しい向きの前後）が次の S90 の入口に入って積み重なる。壁を読む位置
+（境界の `READ_LEAD_MM` 手前）では前のセンサーが新しい向きの前壁（約 184 mm 先）を見ているので，S90 を積むときに
+前壁があれば，前左・前右の値を換算表（`tools/ir_calibration.json` → 生成ヘッダ `config/front_distance_table.hpp`）で
+距離にし，基準 `REF_*` とのずれ e（正：機体は実際は後ろ）から入口オフセット（pre-offset）を伸び縮みさせる。
+
+- 補正 δ = clamp(GAIN·(|e| − DEADBAND)·sign(e), ±MAX)（`config::front_correction`，初期値 0.5 / 10 mm / 15 mm）。
+  pre が 0 を下回る分（機体が前に出すぎ）は実測位置をずらして（`Odometry::requestShiftX`）位置制御で戻す
+- 補正するのはプリセットの `"front_correction": true` だけ（今は `500_fc`。`500` と同じ条件で比べる）。
+  しないプリセットでも e はログの `front_err` 列に残る（`front_corr` は補正した δ，しないプリセットでは 0）
+- 既存のログ（2026-10-05）：e の σ は約 15 mm（壁切れで位置が合っている直進の後でも同じ）で，次の壁切れの
+  ずれとの相関はほぼ 0（n 36, r −0.08）。1回読むだけだとノイズ（壁板の反射率・向き・横ずれ）が大きいので，
+  不感帯で大きなずれだけを小さくする
+
+手順：
+1. `Device` → `IR` → `Front check` → `wall` を置き方を変えて何回か走らせ，結果の
+   `front wall distance (mean, table)` を見る（静止での `REF_*` の候補。走行中の値は少しずれる）
+2. `Run` → `Search` → `500` と `500_fc` を同じ迷路で走らせる（S90 が続く区間を入れる）
+3. 評価：`python3 tools/front_correction.py tools/log/search/500_fc.csv --edges tools/log/search/500_fc_edges.csv --rows`。
+   直前の動作ごとの e の分布，補正がかかった読み，次の壁切れのずれとの相関（効くなら負）を出す。
+   `--suggest-ref` で直進の後の読みの中央値（走行中の `REF_*` の候補），`--ref FL FR` で REF を試せる
 
 ## 迷路の保存（`app/maze_store.hpp`，`device/flash_bank.hpp`）
 

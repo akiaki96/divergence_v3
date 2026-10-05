@@ -38,6 +38,8 @@ struct SearchPreset {
     PivotParam pivot;
     bool fan;                        // ファンを config::fan::RUN_DUTY で回して走る（ターンもファンONの設計を使う）
     bool wall_control;               // [実験中] 直進中に横壁で向きを補正するか（JSONで省略すると false）
+    bool front_correction;           // [実験中] S90 の入口（pre-offset）を前壁の距離で補正するか（省略で false）。
+                                     // false でも推定したずれは探索のログに残す（config::front_correction）
     uint8_t goal_x;                  // ゴール区画（JSONで省略すると config::search::GOAL_X/Y）。
     uint8_t goal_y;                  // 試験用に近いゴールで往復させるときに変える
 };

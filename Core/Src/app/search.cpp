@@ -1,10 +1,13 @@
 #include "app/search.hpp"
+#include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include "adachi_return.hpp"
 #include "app/maze_store.hpp"
 #include "app/wall_edge_log.hpp"
 #include "common/debug.hpp"
 #include "common/etc.hpp"
+#include "common/front_correction.hpp"
 #include "common/wall_sensor.hpp"
 #include "device/device_instance.hpp"
 #include "device/uart.hpp"
@@ -74,6 +77,11 @@ constexpr bool allPresetsRunnable() {
 static_assert(allPresetsRunnable(),
               "a search preset cannot run: check tools/search_presets.json against the profile limits");
 
+// 前壁の補正で入口オフセットをこれより短くしない（1tick より短い区間は PlanProfile が tooShort で弾く）
+constexpr float minPreMm(float v) {
+    return 2.f * v * config::control::DT_S;
+}
+
 // 壁を読む位置が1歩の中にある（最も短い1歩は行き止まりの後半の半区画）
 constexpr float READ_LEAD = config::search::READ_LEAD_MM;
 static_assert(READ_LEAD > 0.f && READ_LEAD < HALF_MM, "config::search::READ_LEAD_MM must be inside half a cell");
@@ -85,9 +93,14 @@ struct SearchStep {
     uint8_t action;      // ソルバーが返した動作（solver/core/action.h）
     uint8_t returning;   // 帰り探索中か
     int16_t ir[wall::POSITION_COUNT];
+    int16_t front_err;    // [0.1 mm] S90 を積むときの前壁の距離による前後のずれ（common/front_correction.hpp）。
+                          // 使えなかった・S90 でないときは FRONT_ERR_NONE。補正 δ は書き出すときに計算し直す
     float pos_target;     // [mm] 壁を読んだときの並進の目標位置（区画境界の READ_LEAD 手前に来たときの値）
     float pos_measured;   // [mm] そのときの実測（エンコーダ）。待つのはこちらで，差が追従遅れ
 };
+
+constexpr int16_t FRONT_ERR_NONE = INT16_MIN;
+static_assert(sizeof(SearchStep) * config::search::MAX_STEPS <= 64 * 1024, "search step log exceeds CCMRAM");
 
 // CCMRAM（64KB，ほかに使っていない）に置く。スタートアップは CCMRAM を0にしないので，
 // 件数（g_step_count，通常のRAM）だけで有効な範囲を表す
@@ -97,7 +110,7 @@ uint16_t g_step_count = 0;
 // 位置の2列は末尾に足している（replay.py は列を名前で読むので，知らない列は無視される）
 constexpr const char* STEP_COLUMNS[] = {"step", "x", "y", "dir", "left", "front", "right", "action",
                                         "returning", "ir_l", "ir_fl", "ir_fr", "ir_r",
-                                        "pos_target", "pos_measured"};
+                                        "pos_target", "pos_measured", "front_err", "front_corr"};
 constexpr uint32_t STEP_COLUMN_COUNT = sizeof(STEP_COLUMNS) / sizeof(STEP_COLUMNS[0]);
 
 enum class Stop : uint8_t {
@@ -205,7 +218,8 @@ Stop runSteps(const SearchPreset& p) {
         SearchStep& rec = g_steps[g_step_count++];
         rec = {at.x, at.y, at.dir,
                static_cast<uint8_t>((left ? 1 : 0) | (front ? 2 : 0) | (right ? 4 : 0)),
-               action, static_cast<uint8_t>(adachi_return::is_returning() ? 1 : 0), {}, pos_target, pos_measured};
+               action, static_cast<uint8_t>(adachi_return::is_returning() ? 1 : 0), {}, FRONT_ERR_NONE,
+               pos_target, pos_measured};
         for (uint8_t i = 0; i < wall::POSITION_COUNT; ++i) rec.ir[i] = s.value[i];
 
         switch (action) {
@@ -220,8 +234,26 @@ Stop runSteps(const SearchPreset& p) {
             bool to_left = (action == ACT_TURN_LEFT_MOVE);
             if (to_left ? left : right) return Stop::frontWall;
             auto dir = to_left ? slalom::TurnDir::left : slalom::TurnDir::right;
-            if (slalom::push(planProfile, *p.turns.s90, dir) != SegmentResult::ok) return Stop::pushRejected;
-            step_end += slalom::totalDistance(*p.turns.s90, dir);
+            const slalom::Param& s90 = *p.turns.s90;
+            // 前壁があれば，前のターンの出口のずれを前壁の距離から求めて入口（pre-offset）を直す。
+            // 補正しないプリセットでもずれは記録する
+            float pre_adjust = 0.f;
+            if (front) {
+                float error = front_correction::estimateError(
+                    s.value[wall::front_left], s.value[wall::front_right], pos_measured - (step_end - READ_LEAD));
+                if (error == error) rec.front_err = static_cast<int16_t>(std::lround(error * 10.f));
+                float delta = front_correction::correction(error);
+                if (p.front_correction && delta != 0.f) {
+                    front_correction::Split sp =
+                        front_correction::split(delta, s90.motion(dir).pre_offset, minPreMm(v));
+                    pre_adjust = sp.pre_adjust;
+                    if (sp.position_shift != 0.f && !odometry.requestShiftX(sp.position_shift)) {
+                        return Stop::profileError;
+                    }
+                }
+            }
+            if (slalom::push(planProfile, s90, dir, pre_adjust) != SegmentResult::ok) return Stop::pushRejected;
+            step_end += slalom::totalDistance(s90, dir) + pre_adjust;
             break;
         }
         case ACT_TURN_BACK:
@@ -245,11 +277,13 @@ Stop runSteps(const SearchPreset& p) {
     }
 }
 
-void dumpSteps(const char* file) {
+// corrected: 前壁の補正をかけたか（プリセットの front_correction）。かけなければ front_corr 列は 0
+void dumpSteps(const char* file, bool corrected) {
     bin_table::begin("search", file, false, g_step_count * STEP_COLUMN_COUNT * sizeof(float),
                      STEP_COLUMNS, STEP_COLUMN_COUNT);
     for (uint16_t i = 0; i < g_step_count; ++i) {
         const SearchStep& r = g_steps[i];
+        float front_err = (r.front_err == FRONT_ERR_NONE) ? NAN : static_cast<float>(r.front_err) / 10.f;
         float row[STEP_COLUMN_COUNT] = {
             static_cast<float>(i), static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.dir),
             static_cast<float>(r.walls & 1), static_cast<float>((r.walls >> 1) & 1),
@@ -257,6 +291,7 @@ void dumpSteps(const char* file) {
             static_cast<float>(r.ir[wall::left]), static_cast<float>(r.ir[wall::front_left]),
             static_cast<float>(r.ir[wall::front_right]), static_cast<float>(r.ir[wall::right]),
             r.pos_target, r.pos_measured,
+            front_err, corrected ? front_correction::correction(front_err) : 0.f,
         };
         uart_write(reinterpret_cast<const uint8_t*>(row), sizeof(row));
     }
@@ -276,9 +311,9 @@ void runSearch(const SearchPreset& preset) {
     std::snprintf(g_log_name, sizeof(g_log_name), "%s", preset.name);
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
-    LOG("search %s: %.0f mm/s, turn %s, fan %s, wall control %s, goal (%u,%u)\r\n", preset.name, preset.speed,
-        preset.turns.s90->name, preset.fan ? "on" : "off", preset.wall_control ? "on" : "off",
-        preset.goal_x, preset.goal_y);
+    LOG("search %s: %.0f mm/s, turn %s, fan %s, wall control %s, front correction %s, goal (%u,%u)\r\n",
+        preset.name, preset.speed, preset.turns.s90->name, preset.fan ? "on" : "off",
+        preset.wall_control ? "on" : "off", preset.front_correction ? "on" : "off", preset.goal_x, preset.goal_y);
 
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -353,7 +388,7 @@ void runSearch(const SearchPreset& preset) {
     HAL_Delay(500);
     ledBar16.set(0xFFFF);
     haltByAccZ();
-    dumpSteps(g_log_name);
+    dumpSteps(g_log_name, preset.front_correction);
     wall_edge_log::dump("search", g_edge_name);
     logger.dump();
     ledBar16.set(0x0000);

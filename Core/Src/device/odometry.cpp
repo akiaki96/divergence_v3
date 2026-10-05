@@ -6,6 +6,8 @@ Odometry::Odometry(Encoder& left, Encoder& right, Imu& imu)
 {}
 
 void Odometry::update() {
+    float delta;
+    while (shift_requests_.pop(delta)) position_shift_x_ = position_shift_x_ + delta;
     velocity_x_ = (left_.velocity() + right_.velocity()) / 2.f;
     position_x_ = (left_.distance() + right_.distance()) / 2.f + position_shift_x_;
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <etl/queue_spsc_atomic.h>
 #include "common/types.hpp"
 #include "device/encoder.hpp"
 #include "device/imu.hpp"
@@ -22,6 +23,12 @@ public:
     void shiftPositionX(float delta) {
         position_shift_x_ = position_shift_x_ + delta;
         position_x_ = position_x_ + delta;
+    }
+
+    // メインコンテキストから実測位置の補正を頼む（前壁の距離による補正，app/search.cpp）。
+    // 次の update()（割り込み）で shiftPositionX() と同じように足す。キューが一杯なら false
+    bool requestShiftX(float delta) {
+        return shift_requests_.push(delta);
     }
 
     AxisMeasurement translation() const {
@@ -60,7 +67,8 @@ private:
 
     // 割り込み（update()）とメインコンテキスト（ログ以外の読み出し・reset()）の両方から触るためvolatileにする
     volatile float position_x_ = 0.f;     // [mm] エンコーダの平均 + position_shift_x_
-    volatile float position_shift_x_ = 0.f;   // [mm] 壁切れの補正の合計
+    volatile float position_shift_x_ = 0.f;   // [mm] 壁切れ・前壁の補正の合計
+    etl::queue_spsc_atomic<float, 4> shift_requests_;   // メイン → 割り込み（requestShiftX）
     volatile float velocity_x_ = 0.f;     // [mm/s]
     volatile float angle_ = 0.f;          // [deg] reset()時の姿勢を0とする
     volatile float omega_ = 0.f;          // [dps]
