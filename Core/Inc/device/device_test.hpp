@@ -5,6 +5,8 @@
 
 void imu_acc_onenter();
 void imu_gyro_onenter();
+void imu_acc_fan_onenter();
+void imu_gyro_fan_onenter();
 void encoder_right_onenter();
 void encoder_left_onenter();
 void battery_onenter();

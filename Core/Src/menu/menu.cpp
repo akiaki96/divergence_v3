@@ -27,7 +27,7 @@ void Menu::buildTree() {
                 ir_front_check_.setChildren(std::array{&front_check_wall_, &front_check_no_wall_, &front_check_show_, &front_check_reset_});
                 ir_wall_edge_.setChildren(std::array{&wall_edge_calib_300_, &wall_edge_calib_500_, &wall_edge_calib_700_, &wall_edge_verify_500_, &wall_edge_inject_500_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
-            imu_.setChildren(std::array{&imu_gyro_, &imu_acc_});
+            imu_.setChildren(std::array{&imu_gyro_, &imu_acc_, &imu_gyro_fan_, &imu_acc_fan_});
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &plan_profile_, &plan_rotation_, &rotation_});
                 motor_r_.setChildren(std::array{&right_050_});
                 motor_velocity_x_.setChildren(std::array{&velocity_step_300_, &velocity_step_600_, &velocity_step_900_, &velocity_step_000_});
@@ -89,6 +89,8 @@ void Menu::setFunction() {
 
     imu_acc_.setOnEnter(imu_acc_onenter);
     imu_gyro_.setOnEnter(imu_gyro_onenter);
+    imu_acc_fan_.setOnEnter(imu_acc_fan_onenter);
+    imu_gyro_fan_.setOnEnter(imu_gyro_fan_onenter);
     encoder_l_.setOnEnter(encoder_left_onenter);
     encoder_r_.setOnEnter(encoder_right_onenter);
 

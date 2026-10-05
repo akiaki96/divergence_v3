@@ -117,6 +117,8 @@ private:
         MenuNode imu_{"IMU"};
             MenuNode imu_acc_{"IMU Accel"};
             MenuNode imu_gyro_{"IMU Gyros"};
+            MenuNode imu_acc_fan_{"IMU Accel Fan"};
+            MenuNode imu_gyro_fan_{"IMU Gryos Fan"};
         MenuNode encoder_{"Encoder"};
             MenuNode encoder_l_{"Encoder Left"};
             MenuNode encoder_r_{"Encoder Right"};

@@ -3,12 +3,46 @@
 #include "common/wall_sensor.hpp"
 
 onenter(imu_acc, 
+    ledBar16.set(0);
+    imu.calibrate();
+    HAL_Delay(1100);
+    ledBar16.set(0xFFFF);
     while (true) {
         LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.accelX(), imu.accelY(), imu.accelZ());
         ledBar16.set(imu.accelZ(), LedBarValMode::pmbit8, 10.f * 1000.f);
     }
 )
 onenter(imu_gyro, 
+    ledBar16.set(0);
+    imu.calibrate();
+    HAL_Delay(1100);
+    ledBar16.set(0xFFFF);
+    while (true) {
+        LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());
+        ledBar16.set(imu.gyroAngleZ(), LedBarValMode::pmlinear8, 360.f);
+    }
+)
+
+onenter(imu_acc_fan, 
+    ledBar16.set(0);
+    fan.setDuty(0.2);
+    HAL_Delay(2000);
+    imu.calibrate();
+    HAL_Delay(1100);
+    ledBar16.set(0xFFFF);
+    while (true) {
+        LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.accelX(), imu.accelY(), imu.accelZ());
+        ledBar16.set(imu.accelZ(), LedBarValMode::pmbit8, 10.f * 1000.f);
+    }
+)
+
+onenter(imu_gyro_fan, 
+    ledBar16.set(0);
+    fan.setDuty(0.2);
+    HAL_Delay(2000);
+    imu.calibrate();
+    HAL_Delay(1100);
+    ledBar16.set(0xFFFF);
     while (true) {
         LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());
         ledBar16.set(imu.gyroAngleZ(), LedBarValMode::pmlinear8, 360.f);
