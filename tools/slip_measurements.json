@@ -4,6 +4,17 @@
     {"log": "slalom/S90_500_right.csv", "outward": 10, "longitudinal": -12, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
     {"log": "slalom/T180_500_right.csv", "outward": 1, "longitudinal": -22, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
     {"log": "slalom/L90_700_right_1.csv", "outward": 13, "longitudinal": -8, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
-    {"log": "slalom/S90_700_right.csv", "outward": 15, "longitudinal": -10, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"}
+    {"log": "slalom/S90_700_right.csv", "outward": 15, "longitudinal": -10, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
+    {"log": "slalom/S90_500_FAN_right.csv", "outward": 4.5, "longitudinal": 6, "note": "2026-10-05, fan_duty=0.2"},
+    {"log": "slalom/L90_500_FAN_right.csv", "outward": 0, "longitudinal": 0, "note": "2026-10-05, fan_duty=0.2"},
+    {"log": "slalom/T180_500_FAN_right.csv", "outward": -8, "longitudinal": -6, "note": "2026-10-05, fan_duty=0.2"},
+    {"log": "slalom/S90_700_FAN_right.csv", "outward": -2, "longitudinal": 8, "note": "2026-10-05, fan_duty=0.2"},
+    {"log": "slalom/L90_700_FAN_right.csv", "outward": -5, "longitudinal": 9, "note": "2026-10-05, fan_duty=0.2"},
+    {"log": "slalom/T180_700_FAN_right.csv", "outward": -5, "longitudinal": 12, "note": "2026-10-05, fan_duty=0.2"},
+
+    {"log": "slalom/S90_900_FAN_right.csv", "outward": 13.5, "longitudinal": -10, "note": "2026-10-05, fan_duty=0.2"},
+    {"log": "slalom/L90_900_FAN_right.csv", "outward": 2, "longitudinal": 0, "note": "2026-10-05, fan_duty=0.2"},
+    {"log": "slalom/T180_900_FAN_right.csv", "outward": -4, "longitudinal": -12, "note": "2026-10-05, fan_duty=0.2"}
+
   ]
 }

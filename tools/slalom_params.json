@@ -71,6 +71,24 @@
         "time_ms": 225.4
       },
       "saved_at": "2026-10-03T11:11:43"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 1080.0,
+      "Set_Low_AngAcl": 15700.0,
+      "Set_pri_offset": 10.0,
+      "Set_post_offset": 8.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 62.1,
+        "const_dist": 12.6,
+        "total_dist": 154.8,
+        "time_ms": 172.0
+      },
+      "saved_at": "2026-10-05T19:42:50"
     }
   },
   "大回り90°": {
@@ -145,6 +163,24 @@
         "time_ms": 442.4
       },
       "saved_at": "2026-10-03T11:11:43"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 510.0,
+      "Set_Low_AngAcl": 3550.0,
+      "Set_pri_offset": 10.0,
+      "Set_post_offset": 8.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 129.6,
+        "const_dist": 28.8,
+        "total_dist": 306.0,
+        "time_ms": 340.0
+      },
+      "saved_at": "2026-10-05T19:43:16"
     }
   },
   "180°": {
@@ -219,6 +255,24 @@
         "time_ms": 659.7
       },
       "saved_at": "2026-10-03T11:11:43"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 640.0,
+      "Set_Low_AngAcl": 4150.0,
+      "Set_pri_offset": 10.0,
+      "Set_post_offset": 7.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 139.5,
+        "const_dist": 113.4,
+        "total_dist": 409.4,
+        "time_ms": 454.9
+      },
+      "saved_at": "2026-10-05T19:43:32"
     }
   },
   "入45°": {
@@ -257,6 +311,24 @@
         "time_ms": 303.7
       },
       "saved_at": "2026-10-03T03:45:58"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 420.0,
+      "Set_Low_AngAcl": 6150.0,
+      "Set_pri_offset": 10.0,
+      "Set_post_offset": 43.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 62.1,
+        "const_dist": 34.2,
+        "total_dist": 211.4,
+        "time_ms": 234.9
+      },
+      "saved_at": "2026-10-05T19:43:57"
     }
   },
   "出45°": {
@@ -295,6 +367,24 @@
         "time_ms": 303.7
       },
       "saved_at": "2026-10-03T03:46:10"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 430.0,
+      "Set_Low_AngAcl": 5100.0,
+      "Set_pri_offset": 40.0,
+      "Set_post_offset": 0.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 76.5,
+        "const_dist": 18.0,
+        "total_dist": 211.0,
+        "time_ms": 234.4
+      },
+      "saved_at": "2026-10-05T19:45:17"
     }
   },
   "V90°": {
@@ -333,6 +423,24 @@
         "time_ms": 318.7
       },
       "saved_at": "2026-10-03T03:46:35"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 750.0,
+      "Set_Low_AngAcl": 12000.0,
+      "Set_pri_offset": 30.0,
+      "Set_post_offset": 27.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 56.7,
+        "const_dist": 51.3,
+        "total_dist": 221.7,
+        "time_ms": 246.3
+      },
+      "saved_at": "2026-10-05T19:45:39"
     }
   },
   "入135°": {
@@ -371,6 +479,24 @@
         "time_ms": 460.3
       },
       "saved_at": "2026-10-03T03:47:13"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 780.0,
+      "Set_Low_AngAcl": 5700.0,
+      "Set_pri_offset": 30.0,
+      "Set_post_offset": 12.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 123.3,
+        "const_dist": 32.4,
+        "total_dist": 321.0,
+        "time_ms": 356.7
+      },
+      "saved_at": "2026-10-05T19:46:12"
     }
   },
   "出135°": {
@@ -409,6 +535,24 @@
         "time_ms": 458.9
       },
       "saved_at": "2026-10-03T03:47:29"
+    },
+    "900_fan": {
+      "Set_Speed": 900.0,
+      "Set_low_AngVel": 780.0,
+      "Set_Low_AngAcl": 6750.0,
+      "Set_pri_offset": 30.0,
+      "Set_post_offset": 42.0,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 0.0,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 104.4,
+        "const_dist": 51.3,
+        "total_dist": 332.1,
+        "time_ms": 369.0
+      },
+      "saved_at": "2026-10-05T19:46:28"
     }
   }
 }
