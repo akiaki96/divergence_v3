@@ -41,7 +41,7 @@ import os
 import re
 import sys
 
-from slalom_presets import PRESET_LIST
+from slalom_presets import PRESET_LIST, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR = os.path.dirname(TOOLS_DIR)
@@ -206,7 +206,7 @@ def suggest(params, fan, c_mm, k):
     print("    滑りで出口の基準点がずれる量と，それを打ち消す pre/post_offset の1次の目安。最後はデザイナーで軌跡を確認する")
     for p in PRESET_LIST:
         for key, e in sorted(params.get(p.label, {}).items()):
-            if key.endswith("_fan") != fan or p.cpp_name not in EXIT_DISPLACEMENT:
+            if parse_speed_key(key)[1] != fan or p.cpp_name not in EXIT_DISPLACEMENT:
                 continue
             o, l = simulate_exit_shift(e, p.angle, c_mm, k)
             pre, post = e["Set_pri_offset"], e["Set_post_offset"]

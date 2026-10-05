@@ -35,6 +35,9 @@
 - `slalom_params.json` にその速度の設計がないとビルドが止まる（設計済みの速度が表示される）
 - `straight_speed` は既知の区画が続く直進で加速する最高速度 [mm/s]（下の節）。省略すると `speed`（加速しない）。
   加速・減速は `accel`
+- `slalom` は使うスラロームの組（`slalom_params.json` の速度のキー，`SLALOM.md` の「スラロームの組」）。省略すると
+  `speed` と `fan` から決まる（`"500"` / `"500_fan"`）。組の速度は `speed` と同じでなければならない（ターンは探索速度で曲がる）。
+  `turns` に並べたターンはすべてその組に保存されていること（組 `b` を小回り90°だけ作ったなら `"turns": ["S90"]`）
 - `pivot` は超信地旋回（行き止まりの180°）の最大角速度 [dps] と角加速度 [dps/s]
 - `fan` を `true` にするとファンを `config::fan::RUN_DUTY` で回して走り，ターンもファンONの設計（`"500_fan"`，
   `config::slalom::S90_500_FAN`）を使う。省略すると `false`
@@ -84,6 +87,23 @@
      `left/front/right` はソルバーに渡した壁，`sensor_left/front/right` はセンサーの壁，`known` は地図の壁を使ったか，
      `rechecked` は止まって読み直した後の読みか，`run_cells` はその読みで加速して積んだ直進の区画数）
    - `tools/log/search/<preset>_trace.csv` … 走行中の目標・実測の位置と角度，壁の補正（68s分を間引いて記録，約22Hz）
+
+## スラロームと直進の組み合わせを試す（試験用プリセット）
+
+1つのプリセットが「スラロームの組（`slalom`）＋ 既知の直進の速度・加速度（`straight_speed` / `accel`）」の組み合わせになる。
+名前を付けて `"menu": "test"` で並べれば，`Test` → `Search` から選んで続けて試せる。ログはプリセット名のファイル
+（`tools/log/search/<preset>.csv` など）に分かれるので，組み合わせごとの結果がそのまま残る。
+
+```json
+"500_s1000":  {"speed": 500, "accel": 3000, "straight_speed": 1000, "slalom": "500",   "turns": ["S90", "L90", "T180"], ..., "menu": "test"},
+"500b_s1000": {"speed": 500, "accel": 3000, "straight_speed": 1000, "slalom": "500_b", "turns": ["S90"], ..., "menu": "test"}
+```
+
+- 今ある試験用：`500_s800` / `500_s1000` / `500_s1100`（組 `500`），`700_s1100`（組 `700`）
+- 1つのメニューに並ぶのは `config::menu::MAX_CHILDREN`（10）個まで（超えるとビルドが止まる）
+- `straight_speed` の上限は，最高速度から読んだ区画の中央より手前で止まれること（`BRAKE_DECEL` 8000 なら約 1130 mm/s）。
+  超えるとビルドが `a search preset cannot run` で止まる
+- 探索の始めのシリアルの1行目に，プリセット名・速度・既知の直進の速度・小回り90°の定数名（`S90_500_B` なら組 `b`）が出る
 
 ## 既知の区画の直進を加速する（`straight_speed`）
 

@@ -36,7 +36,7 @@ import json
 import os
 import sys
 
-from slalom_presets import PRESET_BY_LABEL, PRESET_LIST, parse_speed_key
+from slalom_presets import PRESET_BY_LABEL, PRESET_LIST, parse_slalom_key, slalom_key_label, slalom_key_order
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -78,9 +78,10 @@ def fmt(x):
     return (s + ".f") if ("." not in s and "e" not in s) else (s + "f")
 
 
-def cpp_ident(cpp_name, speed, fan):
-    """S90, 500.0, False -> S90_500 / S90, 512.5, True -> S90_512p5_FAN"""
-    return f"{cpp_name}_{speed:g}".replace(".", "p") + ("_FAN" if fan else "")
+def cpp_ident(cpp_name, speed, fan, variant=""):
+    """S90, 500.0, False -> S90_500 / S90, 512.5, True -> S90_512p5_FAN / S90, 500.0, False, "b" -> S90_500_B"""
+    return (f"{cpp_name}_{speed:g}".replace(".", "p") + ("_FAN" if fan else "")
+            + (f"_{variant.upper()}" if variant else ""))
 
 
 def build_entries(params, tuning):
@@ -89,9 +90,17 @@ def build_entries(params, tuning):
         preset = PRESET_BY_LABEL.get(label)
         if preset is None:
             raise GenError(f"slalom_params.json の「{label}」は slalom_presets.py にないターンです")
-        for speed_key, design in sorted(by_speed.items(), key=lambda kv: parse_speed_key(kv[0])):
-            speed, fan = parse_speed_key(speed_key)
-            where = f"{label} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
+        for speed_key in by_speed:
+            try:
+                parse_slalom_key(speed_key)
+            except ValueError as e:
+                raise GenError(f"slalom_params.json の「{label}」: {e}") from None
+        for speed_key, design in sorted(by_speed.items(), key=lambda kv: slalom_key_order(kv[0])):
+            speed, fan, variant = parse_slalom_key(speed_key)
+            where = (f"{label} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
+                     + (f" 組 {variant}" if variant else ""))
+            if float(design["Set_Speed"]) != speed:
+                raise GenError(f"{where}: キーの速度と保存データの Set_Speed（{design['Set_Speed']}）が一致しません")
             if "fan" in design and bool(design["fan"]) != fan:
                 raise GenError(f"{where}: キーのファン（{'ON' if fan else 'OFF'}）と保存データの fan（{design['fan']}）が一致しません")
             base = {key: float(design[key]) for key in DELTA_KEYS}
@@ -126,8 +135,9 @@ def build_entries(params, tuning):
                         f"シミュレータもこの形（三角形）は正しく扱えないので，角速度を下げるか角加速度を上げてください")
 
             entries.append({
-                "ident": cpp_ident(preset.cpp_name, speed, fan),
-                "speed_name": f"{speed:g}" + (" fan" if fan else ""),
+                "ident": cpp_ident(preset.cpp_name, speed, fan, variant),
+                "speed_name": slalom_key_label(speed_key),
+                "variant": variant,
                 "label": label,
                 "preset": preset,
                 "speed": float(design["Set_Speed"]),
@@ -144,7 +154,7 @@ def build_entries(params, tuning):
 
     # メニューの並びを保存した順によらず一定にする：種類は slalom_presets.py の順，同じ種類の中は速度の昇順
     order = {p.label: i for i, p in enumerate(PRESET_LIST)}
-    entries.sort(key=lambda e: (order[e["label"]], e["speed"], e["fan"]))
+    entries.sort(key=lambda e: (order[e["label"]], e["speed"], e["fan"], e["variant"]))
 
     # 表にない調整は書き間違いの可能性が高いので止める
     for label, by_speed in tuning.items():
@@ -178,7 +188,8 @@ def render(entries):
         p, v = e["preset"], e["values"]
         sim = f", sim total {e['sim_total']:g}mm" if e["sim_total"] is not None else ""
         fan = "ON" if e["fan"] else "OFF"
-        out.append(f"// {e['label']} {e['speed']:g}mm/s（設計値 saved {e['saved_at']}{sim}）")
+        group = f" 組 {e['variant']}" if e["variant"] else ""
+        out.append(f"// {e['label']} {e['speed']:g}mm/s{group}（設計値 saved {e['saved_at']}{sim}）")
         out.append(f"//   ファン {fan}，滑り係数 K {e['k_slip']:g}，c {e['c_slip']:g}mm")
         if e["applied"]:
             for key in e["applied"]:

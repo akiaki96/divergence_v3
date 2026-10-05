@@ -7,9 +7,12 @@
 大回りなどを使うので，複数のターンを持てる。種類ごとに SearchPreset の集合へ振り分ける：
   区画に沿ったターン（OrthoTurns）  … S90, L90, T180
   斜めのターン（DiagonalTurns）     … IN45, OUT45, V90, IN135, OUT135（1つでもあれば集合を作る）
-ターンは並進速度を保ったまま曲がるので，どれも探索速度 "speed" のもの（config::slalom::<turn>_<speed>）を
-使う。"fan": true ならファンONの設計（slalom_params.json の "500_fan"，config::slalom::<turn>_<speed>_FAN）を
-使う。slalom_params.json にその速度・ファンの条件の設計がなければ，生成をエラーで止める（ビルドが止まる）。
+ターンは並進速度を保ったまま曲がるので，どれも探索速度 "speed" のものを使う。どの設計を使うかは
+"slalom"（slalom_params.json の速度のキー＝スラロームの組）で選ぶ。省略すると "speed" と "fan" から決まる
+（"500"，"fan": true なら "500_fan"）。同じ速度で別に保存した組（"500_b" など）を選べば，ターンと既知の直進の
+速度・加速度の組み合わせを名前つきのプリセットとして並べて試せる。組の速度は "speed" と同じ，ファンは "fan"
+（省略すると組のキーから決まる）と同じでなければならない。slalom_params.json にその組の設計がなければ，
+生成をエラーで止める（ビルドが止まる）。
 
 S90（小回り90°）は必須：未知区間は区画境界で壁を読んで1歩ずつ進むので，入口・出口とも区画境界の
 ターンで曲がる。並べていない種類は nullptr になり，使わない。
@@ -25,6 +28,7 @@ search_presets.json の形:
         "straight_speed": 1000,           … 任意（省略で speed）。既知の区画が続く直進で加速する最高速度 [mm/s]
                                             （区画の左・前・右の壁がすべて分かっていて，ソルバーの答えが決まっている区間）
         "turns": ["S90", "L90", "T180"],  … 使うターンの種類
+        "slalom": "500_b",                … 任意（省略で speed と fan から）。使うスラロームの組（slalom_params.json のキー）
         "pivot": {"omega": 360,           … 超信地旋回（行き止まりの180°）の最大角速度 [dps]
                   "alpha": 2500},         … 超信地旋回の角加速度 [dps/s]
         "fan": false,                     … 任意（省略で false）。ファンを回して走るか
@@ -51,12 +55,12 @@ import re
 import sys
 
 from gen_slalom_params import GenError, cpp_ident, fmt, load_json
-from slalom_presets import PRESET_LIST, parse_speed_key
+from slalom_presets import PRESET_LIST, make_speed_key, parse_slalom_key, slalom_key_order
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["speed", "accel", "turns", "pivot"]
-OPTIONAL_KEYS = ["straight_speed", "fan", "wall_control", "front_correction", "goal", "menu", "note"]
+OPTIONAL_KEYS = ["straight_speed", "slalom", "fan", "wall_control", "front_correction", "goal", "menu", "note"]
 # "menu" の値 → 生成する配列の名前（menu/menu.hpp がそれぞれのメニューに並べる）
 MENU_ARRAYS = {"search": "PRESETS", "test": "TEST_PRESETS"}
 MAZE_SIZE = 16
@@ -95,13 +99,29 @@ def build_entries(presets, slalom_params):
             if float(pivot[key]) <= 0.0:
                 raise GenError(f"{where}: pivot.{key} は正の値にしてください")
 
-        fan = preset.get("fan", False)
+        slalom = preset.get("slalom")
+        if slalom is not None:
+            if not isinstance(slalom, str):
+                raise GenError(f"{where}: slalom はスラロームの組の名前（slalom_params.json のキー，例 \"500_b\"）です")
+            try:
+                key = parse_slalom_key(slalom)
+            except ValueError as e:
+                raise GenError(f"{where}: {e}") from None
+            if key.speed != speed:
+                raise GenError(f"{where}: slalom「{slalom}」の速度 {key.speed:g} が speed {speed:g} と違います"
+                               "（ターンは探索速度で曲がる）")
+            if "fan" in preset and preset["fan"] != key.fan:
+                raise GenError(f"{where}: slalom「{slalom}」のファン（{'ON' if key.fan else 'OFF'}）が fan と違います")
+        fan = preset.get("fan", key.fan if slalom is not None else False)
         wall_control = preset.get("wall_control", False)
         front_correction = preset.get("front_correction", False)
         for key, value in [("fan", fan), ("wall_control", wall_control), ("front_correction", front_correction)]:
             if not isinstance(value, bool):
                 raise GenError(f"{where}: {key} は true / false です")
-        condition = f"{speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
+        if slalom is None:
+            slalom = make_speed_key(speed, fan) if isinstance(fan, bool) else ""
+        variant = parse_slalom_key(slalom).variant if slalom else ""
+        condition = f"組「{slalom}」（{speed:g}mm/s ファン{'ON' if fan else 'OFF'}）"
 
         goal = preset.get("goal")  # None なら config::search::GOAL_X/Y
         if goal is not None:
@@ -129,10 +149,10 @@ def build_entries(presets, slalom_params):
                 raise GenError(f"{where}: turns の「{cpp_name}」は slalom_presets.py にありません"
                                f"（使えるのは {', '.join(by_cpp_name)}）")
             designed = slalom_params.get(turn.label, {})
-            if (speed, fan) not in map(parse_speed_key, designed):
+            if slalom not in designed:
                 raise GenError(f"{where}: {turn.label} の {condition} は slalom_params.json に設計されていません"
-                               f"（設計済み: {', '.join(sorted(designed, key=parse_speed_key)) or 'なし'}）")
-            resolved[cpp_name] = (turn.label, cpp_ident(turn.cpp_name, speed, fan))
+                               f"（設計済み: {', '.join(sorted(designed, key=slalom_key_order)) or 'なし'}）")
+            resolved[cpp_name] = (turn.label, cpp_ident(turn.cpp_name, speed, fan, variant))
         s90 = by_cpp_name[REQUIRED_TURN]
         if s90.entry != "edge" or s90.exit != "edge":
             raise GenError(f"{REQUIRED_TURN} は入口・出口とも区画境界のはずです（slalom_presets.py を確認）")
@@ -149,6 +169,7 @@ def build_entries(presets, slalom_params):
             "goal": goal,
             "menu": menu,
             "values": preset,
+            "slalom": slalom,
             "straight_speed": straight_speed,
         })
     if not entries:
@@ -184,7 +205,8 @@ def render(entries):
         goal_note = f"，ゴール ({e['goal'][0]}, {e['goal'][1]})" if e["goal"] else ""
         goal = f"{e['goal'][0]}, {e['goal'][1]}" if e["goal"] else "GOAL_X, GOAL_Y"
         straight = f"（既知の直進 {e['straight_speed']:g}mm/s）" if e["straight_speed"] > float(v["speed"]) else ""
-        out.append(f"// {e['name']}: {v['speed']:g}mm/s{straight}，ターンは{labels}{wall}{goal_note}{note}")
+        out.append(f"// {e['name']}: {v['speed']:g}mm/s{straight}，ターンは組「{e['slalom']}」の{labels}"
+                   f"{wall}{goal_note}{note}")
         if e["diag_ident"]:
             out.append(f"inline constexpr DiagonalTurns {e['diag_ident']} = {turn_list(e, DIAGONAL_TURNS)};")
         out.append(
