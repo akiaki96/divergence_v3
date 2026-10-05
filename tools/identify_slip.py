@@ -26,8 +26,8 @@
   - back_to_axle_mm … 走ったときの config::mouse::BACK_TO_AXLE_MM（省略すると今の mouse_config.hpp の値）
   - note … 任意
 
-ファンON/OFFは別々に同定する（滑りがファンの有無で変わるため）。結果の c, K をデザイナーの
-「滑り係数 c(mm)」「滑り係数 K」に入れ，pre/post_offset を設計し直す（目安も表示する）。
+ファンON/OFFは別々に同定する（滑りがファンの有無で変わるため）。結果の c, K で設計し直す：
+slalom_autotune.py refit --fan off --c <c> --k <K>（各パラメータの合わせ直した値もここに表示する）。
 
 使い方:
     python3 tools/identify_slip.py
@@ -41,7 +41,9 @@ import os
 import re
 import sys
 
-from slalom_presets import PRESET_LIST
+import slalom_autotune
+import slalom_sim
+from slalom_presets import PRESET_LIST, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR = os.path.dirname(TOOLS_DIR)
@@ -51,8 +53,10 @@ WALL_HALF_MM = 6.0
 V_FLOOR = 50.0   # [mm/s] これより遅いときは横すべりを足さない（c·ω/v が発散しないように）
 
 # 試験（Core/Src/test/slalom_test.cpp）の幾何。右旋回，x右・y前，区画の後ろの境界が y=0，機体の中心線が x=0。
-# 入口から出口の基準点までの変位（action の折れ線）は slalom_presets.py の exit_offset
-EXIT_DISPLACEMENT = {p.cpp_name: p.exit_offset for p in PRESET_LIST if p.exit_offset is not None}
+# 入口から出口の基準点までの変位（action の折れ線）は slalom_presets.py の exit_offset。
+# 試験が走れる（斜めの入口・出口がない）ターンだけ
+TESTABLE = ("S90", "L90", "T180")
+EXIT_DISPLACEMENT = {p.cpp_name: p.exit_offset for p in PRESET_LIST if p.cpp_name in TESTABLE}
 
 LOG_NAME = re.compile(r"^(?P<turn>[A-Z0-9]+)_(?P<speed>\d+(?:p\d+)?)(?P<fan>_FAN)?_(?P<dir>left|right)(?:_\d+)?\.csv$")
 
@@ -173,50 +177,24 @@ def fit(runs, use_k):
     return c, k, rms
 
 
-def simulate_exit_shift(entry, angle, c_mm, k):
-    """デザイナーと同じ計算（1ms刻み，設計値の角速度の台形）で，滑りによる出口の基準点のずれ（外側, 前後）[mm]"""
-    v = entry["Set_Speed"]
-    w, a = entry["Set_low_AngVel"], entry["Set_Low_AngAcl"]
-    ramp = w * w / (2 * a)
-    tr, tc = w / a, (angle - 2 * ramp) / w
-    dt = 0.001
-
-    def end(c_val, k_val):
-        x = y = th = t = 0.0
-        while t < 2 * tr + tc:
-            om = a * t if t < tr else (w if t < tr + tc else max(0.0, w - a * (t - tr - tc)))
-            th += om * dt
-            om_r, v_m = math.radians(om), v / 1000.0
-            beta = math.degrees(k_val * v_m * om_r + (c_val / 1000.0) * om_r / v_m)
-            x += v * dt * math.sin(math.radians(th - beta))
-            y += v * dt * math.cos(math.radians(th - beta))
-            t += dt
-        return x, y
-
-    x0, y0 = end(0.0, 0.0)
-    x1, y1 = end(c_mm, k)
-    h = math.radians(angle)
-    u, n = (math.sin(h), math.cos(h)), (-math.cos(h), math.sin(h))
-    ex, ey = x1 - x0, y1 - y0
-    return ex * n[0] + ey * n[1], ex * u[0] + ey * u[1]
-
-
 def suggest(params, fan, c_mm, k):
-    print(f"  設計し直すときの目安（slalom_params.json のファン{'ON' if fan else 'OFF'}のパラメータ，c={c_mm:.1f}mm, K={k:.4f}）")
-    print("    滑りで出口の基準点がずれる量と，それを打ち消す pre/post_offset の1次の目安。最後はデザイナーで軌跡を確認する")
+    """この c, K で slalom_autotune.py refit と同じように合わせ直した値（ω・α の形は保つ）"""
+    print(f"  設計し直した値（slalom_params.json のファン{'ON' if fan else 'OFF'}のパラメータ，c={c_mm:.1f}mm, K={k:.4f}。"
+          f"書くには slalom_autotune.py refit --fan {'on' if fan else 'off'} --c {c_mm:.1f} --k {k:.4f} --write）")
     for p in PRESET_LIST:
-        for key, e in sorted(params.get(p.label, {}).items()):
-            if key.endswith("_fan") != fan or p.cpp_name not in EXIT_DISPLACEMENT:
+        for key, e in sorted(params.get(p.label, {}).items(), key=lambda kv: parse_speed_key(kv[0])):
+            if key.endswith("_fan") != fan:
                 continue
-            o, l = simulate_exit_shift(e, p.angle, c_mm, k)
-            pre, post = e["Set_pri_offset"], e["Set_post_offset"]
-            if p.angle == 180:
-                # 出口が入口と逆向き：pre を増やすと出口が手前（前後が負），post を増やすと先へ。横ずれはオフセットでは消せない
-                hint = f"post_offset {post:g} → {post - l:.1f}（外側 {o:+.1f}mm はオフセットでは直らない）"
-            else:
-                # 出口が入口と直交：pre は出口に対する横ずれ，post は前後だけを動かす
-                hint = f"pre_offset {pre:g} → {pre - o:.1f}, post_offset {post:g} → {post - l:.1f}"
-            print(f"    {p.cpp_name}_{key:<9} 滑りによるずれ 外側 {o:+5.1f} / 前後 {l:+5.1f} mm → {hint}")
+            try:
+                d = slalom_autotune.refit(p, e, c_mm, k)
+            except slalom_autotune.AutotuneError as ex:
+                print(f"    {p.cpp_name}_{key:<9} {ex}")
+                continue
+            shape = (f"ω {e['Set_low_AngVel']:g} → {d.omega:g}, α {e['Set_Low_AngAcl']:g} → {d.alpha:g}, "
+                     if slalom_sim.parallel(p) else "")
+            warn = "（オフセットが負：optimize で ω・α から設計し直す）" if min(d.pre, d.post) < 0 else ""
+            print(f"    {p.cpp_name}_{key:<9} {shape}pre {e['Set_pri_offset']:g} → {d.pre:g}, "
+                  f"post {e['Set_post_offset']:g} → {d.post:g}{warn}")
 
 
 def main():

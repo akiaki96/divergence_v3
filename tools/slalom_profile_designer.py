@@ -10,6 +10,7 @@ import datetime
 import pyperclip
 
 from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
+import slalom_sim
 
 PRESET_BY_KEY = {p.key: p for p in PRESET_LIST}
 
@@ -36,6 +37,7 @@ BG = (245, 245, 245)
 PANEL = (230, 230, 230)
 GRID_COLOR = (170, 170, 170)
 PILLAR_COLOR = (200, 30, 30)
+WALL_COLOR = (235, 170, 170)   # ありうる壁（区画境界のうち，基準の折れ線が通り抜けないもの）
 LINE_BLUE = (5, 5, 255)
 LINE_GREEN = (40, 255, 40)
 LINE_RED = (255, 40, 40)
@@ -291,11 +293,8 @@ params = [
     ("滑り係数 c(mm)", "0", "Set_C_SP"),
     ("機体の横幅(mm)", "86", "Set_Width")
 ]
-# スリップ角（速度の向きが機体の向きより外側へ遅れる角）β [rad] のモデル：
-#   β = K·v·ω + c·ω/v   （v [m/s], ω [rad/s], c [m]）
-#   K … 横加速度 v·ω に比例する滑り（タイヤの横方向の弾性）
-#   c … 速度によらない横滑り（車軸の横すべり速度 c·ω。車軸より c 前の点を中心に回るのと同じ）
-# どちらも機体・床・ファンの有無で変わる。片方を0にすればもう片方だけのモデルになる
+# 軌跡と滑り角 β = K·v·ω + c·ω/v のモデルは slalom_sim.py（slalom_autotune.py・identify_slip.py と共有）。
+# K・c はどちらも機体・床・ファンの有無で変わる。片方を0にすればもう片方だけのモデルになる
 # 保存データに無い項目を読み込むときの値（以前の保存データとの互換）
 LOAD_DEFAULTS = {"Set_K_SP": 0.0, "Set_C_SP": 0.0}
 
@@ -454,23 +453,13 @@ def draw_canvas(surface):
     ]
     for (ax,ay),(bx,by) in segs:
         pygame.draw.line(surface, GRID_COLOR, world_to_screen(ax,ay), world_to_screen(bx,by), 1)
-    # pillars (12x12 mm) drawn as red rects; original used centers near -90..264 etc.
-    pillar_centers = [
-        (-90, 0), (-90, 180), (-90, 360),
-        (84, 0), (84, 180), (84, 360),
-        (264, 0), (264, 180), (264, 360)
-    ]
-    # original rectangles used coords like (-96,-6,-84,6) etc -> pillar size 12x12
-    half = 6.0
-    for cx, cy in pillar_centers:
-        x1 = cx - half
-        y1 = cy - half
-        x2 = cx + half
-        y2 = cy + half
-        p_tl = world_to_screen(x1, y2)  # note y flipped
-        p_br = world_to_screen(x2, y1)
+    # 柱（12mm角）と，このターンで（探索中に）ありうる壁。位置は slalom_sim と同じ（余裕の計算に使うもの）
+    for cx, cy, hx, hy in slalom_sim.obstacles(PRESET_BY_KEY[current_preset]):
+        p_tl = world_to_screen(cx - hx, cy + hy)  # note y flipped
+        p_br = world_to_screen(cx + hx, cy - hy)
         rect = pygame.Rect(p_tl, (p_br[0]-p_tl[0], p_br[1]-p_tl[1]))
-        pygame.draw.rect(surface, PILLAR_COLOR, rect)
+        color = PILLAR_COLOR if hx == hy else WALL_COLOR
+        pygame.draw.rect(surface, color, rect)
 
 # --- 追加: グローバル変数で軌道を保持 ---
 trace_segments = []
@@ -487,209 +476,74 @@ def draw_trace(surface):
         else:
             pygame.draw.line(surface, color, p1, p2, 2)
 
-def exit_error_lines(end_x, end_y, end_angle, pre, post):
+def exit_error_lines(traj, speed, omega, alpha, pre, post, c_mm, k):
     """出口のずれ：出口オフセットの終点と出口の基準点（action の折れ線の出口）の差を，出口の向きに対して
     外側（入口と反対側が正）と前後（先が正）に分けて出す。実機の試験で止まった位置を測るときと同じ向き。
-    S90/L90 は入口オフセットが外側だけ・出口オフセットが前後だけを動かすので，そのまま打ち消す値も出す"""
+    出口の位置はオフセットに対して1次なので，ずれを0にする pre/post も厳密に解ける（slalom_sim.solve_offsets）"""
     p = PRESET_BY_KEY[current_preset]
-    if p.exit_offset is None:
-        return ["出口  : 基準点なし（斜めのターン）"]
-    ex, ey = ini_x + p.exit_offset[0], ini_y + p.exit_offset[1]
-    h = np.deg2rad(fin_angle)
-    u = (np.sin(h), np.cos(h))          # 出口の向き
-    n = (-u[1], u[0])                   # 出口の外側（右旋回の左手）
-    dx, dy = end_x - ex, end_y - ey
-    outward = dx * n[0] + dy * n[1]
-    longitudinal = dx * u[0] + dy * u[1]
-    lines = [f"出口のずれ: 外側 {outward:+.1f} / 前後 {longitudinal:+.1f} mm，向き {end_angle - fin_angle:+.2f}°"]
-    if p.angle == 180:
-        lines.append(f"→ 出口オフセット {post - longitudinal:.1f}（横は直せない）")
+    outward, longitudinal = slalom_sim.exit_error(p, traj.end_x, traj.end_y)
+    lines = [f"出口のずれ: 外側 {outward:+.1f} / 前後 {longitudinal:+.1f} mm，向き {traj.end_angle - fin_angle:+.2f}°"]
+    if slalom_sim.parallel(p):
+        _, q, lateral = slalom_sim.solve_offsets(p, speed, omega, alpha, c_mm, k, pre=pre)
+        lines.append(f"→ 出口オフセット {q:.1f}（横 {lateral:+.1f} は ω・α で直す）")
     else:
-        lines.append(f"→ 入口 {pre - outward:.1f} / 出口 {post - longitudinal:.1f} で 0")
+        pp, q, _ = slalom_sim.solve_offsets(p, speed, omega, alpha, c_mm, k)
+        lines.append(f"→ 入口 {pp:.1f} / 出口 {q:.1f} で 0")
     return lines
+
+# 軌跡の色（フェーズごと）
+PHASE_COLOR = {slalom_sim.PRE: LINE_RED, slalom_sim.ACCEL: LINE_BLUE, slalom_sim.CRUISE: LINE_GREEN,
+               slalom_sim.DECEL: LINE_BLUE, slalom_sim.POST: LINE_RED}
 
 # --- on_generate uses inputs dict for all parameters ---
 def on_generate(cp = False):
-    global lines, info_lines, trace_segments, last_result
+    """入力欄の値で軌跡を計算して（slalom_sim.simulate），描く線と表示を作り直す"""
+    global info_lines, trace_segments, last_result
 
-    # read all parameters from NumericInput 'inputs'
     speed = inputs["Set_Speed"].get_value()           # [mm/s]
     low_AngVel = inputs["Set_low_AngVel"].get_value() # [deg/s]
     Low_AngAcl = inputs["Set_Low_AngAcl"].get_value() # [deg/s^2]
     pri_offset = inputs["Set_pri_offset"].get_value() # [mm]
     post_offset = inputs["Set_post_offset"].get_value()# [mm]
     K_slip_angle = inputs["Set_K_SP"].get_value()     # [coef]
-    c_slip_m = inputs["Set_C_SP"].get_value() / 1000.0  # [m]
+    c_slip_mm = inputs["Set_C_SP"].get_value()        # [mm]
     Width = inputs["Set_Width"].get_value()           # [mm]
+    if speed <= 0.0 or low_AngVel <= 0.0 or Low_AngAcl <= 0.0:
+        info_lines = ["速度・最大角速度・角加速度は正にする"]
+        trace_segments = []
+        return
 
-    # 時間ステップ [s]
-    dt = 0.001  # 1 ms
+    preset = PRESET_BY_KEY[current_preset]
+    t = slalom_sim.simulate(preset, speed, low_AngVel, Low_AngAcl, pri_offset, post_offset, c_slip_mm, K_slip_angle)
 
-    # 1ステップごとの並進距離 [mm]
-    step_dist = speed * dt
-
-    # 各パラメータ
-    ang_acc = Low_AngAcl            # [deg/s^2]
-    ang_vel_max = low_AngVel        # [deg/s]
-    v_m_s = speed / 1000.0          # [m/s] for slip calc
-
-    def slip_deg(omega_rad):
-        """スリップ角 β [deg]（モデルは params の下のコメント）"""
-        if v_m_s <= 0.0:
-            return 0.0
-        return np.rad2deg(K_slip_angle * v_m_s * omega_rad + c_slip_m * omega_rad / v_m_s)
-
-    # 初期状態
-    befor_x, befor_y = 0.0, 0.0
-    now_AngVel = 0.0
-    now_angle = ini_angle
+    # 重心の軌跡（フェーズで色分け）と，機体の横幅の両端の軌跡（灰色）
     lines = []
-    cen_grav_len = 0.0
-
-    pi = np.pi
-    fin_x = ini_x + pri_offset * np.sin(np.deg2rad(ini_angle))
-    fin_y = ini_y + pri_offset * np.cos(np.deg2rad(ini_angle))
-    lines.append(((ini_x, ini_y), (fin_x, fin_y), LINE_RED))
-    cen_grav_len += math.hypot((ini_x-fin_x), (ini_y-fin_y))
-    lines.append(((ini_x + (Width/2)*np.cos(np.deg2rad(ini_angle)),
-                       ini_y - (Width/2)*np.sin(np.deg2rad(ini_angle))),
-                      (fin_x + (Width/2)*np.cos(np.deg2rad(ini_angle)),
-                       fin_y - (Width/2)*np.sin(np.deg2rad(ini_angle))), GREY_LINE))
-    lines.append(((ini_x - (Width/2)*np.cos(np.deg2rad(ini_angle)),
-                       ini_y + (Width/2)*np.sin(np.deg2rad(ini_angle))),
-                      (fin_x - (Width/2)*np.cos(np.deg2rad(ini_angle)),
-                       fin_y + (Width/2)*np.sin(np.deg2rad(ini_angle))), GREY_LINE))
-
-
-    dist = 0.0
-    # --- 加速フェーズ ---
-    while now_AngVel < ang_vel_max:
-        befor_x, befor_y = fin_x, fin_y
-
-        now_AngVel += ang_acc * dt
-        if now_AngVel > ang_vel_max:
-            now_AngVel = ang_vel_max
-        now_angle += now_AngVel * dt
-
-        # スリップ角度補正
-        omega_rad = np.deg2rad(now_AngVel)  # rad/s
-        s_now_angle = now_angle - slip_deg(omega_rad)
-
-        fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
-        fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
-        lines.append(((befor_x, befor_y), (fin_x, fin_y), LINE_BLUE))
-        cen_grav_len += math.hypot((befor_x-fin_x), (befor_y-fin_y))
-        lines.append(((befor_x + (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           befor_y - (Width/2)*np.sin(np.deg2rad(s_now_angle))),
-                          (fin_x + (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           fin_y - (Width/2)*np.sin(np.deg2rad(s_now_angle))), GREY_LINE))
-        lines.append(((befor_x - (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           befor_y + (Width/2)*np.sin(np.deg2rad(s_now_angle))),
-                          (fin_x - (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           fin_y + (Width/2)*np.sin(np.deg2rad(s_now_angle))), GREY_LINE))
-        dist += step_dist
-
-    acc_dist = round(dist, 3)
-
-    # --- 等角速度フェーズ ---
-    dist = 0.0
-    # loop condition: rotate until remaining angle equals decel required (triangular/trapezoid)
-    while now_angle < fin_angle - ang_vel_max**2 / (2 * ang_acc):
-        now_angle += now_AngVel * dt
-
-        omega_rad = np.deg2rad(now_AngVel)
-        s_now_angle = now_angle - slip_deg(omega_rad)
-
-        fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
-        fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
-
-        lines.append(((befor_x, befor_y), (fin_x, fin_y), LINE_GREEN))
-        cen_grav_len += math.hypot((befor_x-fin_x), (befor_y-fin_y))
-
-        lines.append(((befor_x + (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           befor_y - (Width/2)*np.sin(np.deg2rad(s_now_angle))),
-                          (fin_x + (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           fin_y - (Width/2)*np.sin(np.deg2rad(s_now_angle))), GREY_LINE))
-        lines.append(((befor_x - (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           befor_y + (Width/2)*np.sin(np.deg2rad(s_now_angle))),
-                          (fin_x - (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           fin_y + (Width/2)*np.sin(np.deg2rad(s_now_angle))), GREY_LINE))
-
-        dist += step_dist
-
-        befor_x, befor_y = fin_x, fin_y
-    const_dist = round(dist, 3)
-
-    # --- 減速フェーズ ---
-    while now_AngVel > 0.0:
-        now_AngVel -= ang_acc * dt
-        if now_AngVel < 0.0:
-            now_AngVel = 0.0
-        now_angle += now_AngVel * dt
-
-        omega_rad = np.deg2rad(now_AngVel)
-        s_now_angle = now_angle - slip_deg(omega_rad)
-
-        fin_x = befor_x + step_dist * np.sin(np.deg2rad(s_now_angle))
-        fin_y = befor_y + step_dist * np.cos(np.deg2rad(s_now_angle))
-
-        lines.append(((befor_x, befor_y), (fin_x, fin_y), LINE_BLUE))
-        cen_grav_len += math.hypot((befor_x-fin_x), (befor_y-fin_y))
-
-        lines.append(((befor_x + (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           befor_y - (Width/2)*np.sin(np.deg2rad(s_now_angle))),
-                          (fin_x + (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           fin_y - (Width/2)*np.sin(np.deg2rad(s_now_angle))), GREY_LINE))
-        lines.append(((befor_x - (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           befor_y + (Width/2)*np.sin(np.deg2rad(s_now_angle))),
-                          (fin_x - (Width/2)*np.cos(np.deg2rad(s_now_angle)),
-                           fin_y + (Width/2)*np.sin(np.deg2rad(s_now_angle))), GREY_LINE))
-
-        befor_x, befor_y = fin_x, fin_y
-
-    # --- 直進フェーズ（後方オフセット） ---
-    befor_x = fin_x; befor_y = fin_y
-    fin_x = befor_x + post_offset * np.sin(np.deg2rad(fin_angle))
-    fin_y = befor_y + post_offset * np.cos(np.deg2rad(fin_angle))
-    lines.append(((befor_x, befor_y), (fin_x, fin_y), LINE_RED))
-    cen_grav_len += math.hypot((befor_x-fin_x), (befor_y-fin_y))
-    lines.append(((befor_x + (Width/2)*np.cos(np.deg2rad(fin_angle)),
-                    befor_y - (Width/2)*np.sin(np.deg2rad(fin_angle))),
-                    (fin_x + (Width/2)*np.cos(np.deg2rad(fin_angle)),
-                    fin_y - (Width/2)*np.sin(np.deg2rad(fin_angle))), GREY_LINE))
-    lines.append(((befor_x - (Width/2)*np.cos(np.deg2rad(fin_angle)),
-                    befor_y + (Width/2)*np.sin(np.deg2rad(fin_angle))),
-                    (fin_x - (Width/2)*np.cos(np.deg2rad(fin_angle)),
-                    fin_y + (Width/2)*np.sin(np.deg2rad(fin_angle))), GREY_LINE))
-
-    befor_x, befor_y = fin_x, fin_y
-
-    # --- prepare info lines (these replace previous prints) ---
-    cen_grav_len = round(cen_grav_len, 3)
-
-    # 所要時間: 並進速度一定なので 経路長 / 速度
-    time_ms = round(cen_grav_len / speed * 1000.0, 1) if speed > 0 else 0.0
-
-    exit_lines = exit_error_lines(fin_x, fin_y, now_angle, pri_offset, post_offset)
+    h = np.deg2rad(t.headings)
+    side_x, side_y = (Width / 2) * np.cos(h), -(Width / 2) * np.sin(h)
+    for i in range(1, len(t.xs)):
+        lines.append(((t.xs[i-1], t.ys[i-1]), (t.xs[i], t.ys[i]), PHASE_COLOR[t.phases[i]]))
+        for sgn in (1.0, -1.0):
+            lines.append(((t.xs[i-1] + sgn * side_x[i], t.ys[i-1] + sgn * side_y[i]),
+                          (t.xs[i] + sgn * side_x[i], t.ys[i] + sgn * side_y[i]), GREY_LINE))
 
     info_lines = [
-        f"acc   : {acc_dist} mm",
-        f"const : {const_dist} mm",
-        f"total : {cen_grav_len} mm",
-        f"time  : {time_ms} ms",
-        f"slip  : β max {slip_deg(np.deg2rad(ang_vel_max)):.2f}°（fan {'ON' if fan_on else 'OFF'}）",
-    ] + exit_lines
+        f"acc   : {t.acc_dist} mm",
+        f"const : {t.const_dist} mm",
+        f"total : {t.total_dist} mm",
+        f"time  : {t.time_ms} ms",
+        f"slip  : β max {float(slalom_sim.slip_deg(low_AngVel, speed, c_slip_mm, K_slip_angle)):.2f}°（fan {'ON' if fan_on else 'OFF'}）",
+        f"余裕  : 柱・壁まで {slalom_sim.clearance(preset, t, Width):.1f} mm",
+    ] + exit_error_lines(t, speed, low_AngVel, Low_AngAcl, pri_offset, post_offset, c_slip_mm, K_slip_angle)
 
     last_result = {
-        "acc_dist": acc_dist,
-        "const_dist": const_dist,
-        "total_dist": cen_grav_len,  # 経路長（入口オフセット〜出口オフセットまでの重心軌跡）
-        "time_ms": time_ms,
+        "acc_dist": t.acc_dist,
+        "const_dist": t.const_dist,
+        "total_dist": t.total_dist,  # 経路長（入口オフセット〜出口オフセットまでの重心軌跡）
+        "time_ms": t.time_ms,
     }
 
     if cp:
-        pyperclip.copy(f"{speed}, {pri_offset}, {ang_acc}, {acc_dist}, {ang_vel_max}, {const_dist}, {post_offset}")
-    # 保存
+        pyperclip.copy(f"{speed}, {pri_offset}, {Low_AngAcl}, {t.acc_dist}, {low_AngVel}, {t.const_dist}, {post_offset}")
     trace_segments = lines
 
 # generate button (unchanged position)
@@ -732,7 +586,7 @@ fan_button = Button((label_x, fan_y, 140, 30), fan_label(), toggle_fan)
 buttons.append(fan_button)
 
 # 保存 / 読込ボタン（右パネル、計算結果の下）
-save_y = base_y + (len(params) + 1) * row_h + 144   # 計算結果の7行の下
+save_y = base_y + (len(params) + 1) * row_h + 162   # 計算結果の8行の下
 save_button = Button((label_x, save_y, 140, 34), "保存 (Ctrl+S)", save_params)
 load_button = Button((label_x + 150, save_y, 140, 34), "読込", load_params)
 buttons.extend([save_button, load_button])
