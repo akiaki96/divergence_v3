@@ -4,6 +4,7 @@
 #include <cstdio>
 #include "adachi_return.hpp"
 #include "app/maze_store.hpp"
+#include "app/search_lookahead.hpp"
 #include "app/wall_edge_log.hpp"
 #include "common/debug.hpp"
 #include "common/etc.hpp"
@@ -11,6 +12,7 @@
 #include "common/wall_sensor.hpp"
 #include "device/device_instance.hpp"
 #include "device/uart.hpp"
+#include "stm32f4xx_hal.h"
 
 namespace {
 using config::maze::CELL_MM;
@@ -97,6 +99,8 @@ struct SearchStep {
                           // 使えなかった・S90 でないときは FRONT_ERR_NONE。補正 δ は書き出すときに計算し直す
     float pos_target;     // [mm] 壁を読んだときの並進の目標位置（区画境界の READ_LEAD 手前に来たときの値）
     float pos_measured;   // [mm] そのときの実測（エンコーダ）。待つのはこちらで，差が追従遅れ
+    uint16_t prepare_us;  // [us] この壁を読む前（前の動作を積んだ直後）に8通りの壁でソルバーを回した時間
+    uint16_t take_us;     // [us] 壁を読んでから先読みの結果を取り出すまで（先読みがなければソルバーを呼んだ時間）
 };
 
 constexpr int16_t FRONT_ERR_NONE = INT16_MIN;
@@ -110,7 +114,8 @@ uint16_t g_step_count = 0;
 // 位置の2列は末尾に足している（replay.py は列を名前で読むので，知らない列は無視される）
 constexpr const char* STEP_COLUMNS[] = {"step", "x", "y", "dir", "left", "front", "right", "action",
                                         "returning", "ir_l", "ir_fl", "ir_fr", "ir_r",
-                                        "pos_target", "pos_measured", "front_err", "front_corr"};
+                                        "pos_target", "pos_measured", "front_err", "front_corr",
+                                        "prepare_us", "take_us"};
 constexpr uint32_t STEP_COLUMN_COUNT = sizeof(STEP_COLUMNS) / sizeof(STEP_COLUMNS[0]);
 
 enum class Stop : uint8_t {
@@ -150,20 +155,23 @@ void initTraceLog() {
     logger.setDuration(TRACE_MS);
 }
 
-// ソルバーが返した列のうち最初の動作（SET_* とその引数，READ_WALL を飛ばす）。
-// シミュレータの MazeSimulation._first_motion() と同じ
-uint8_t firstMotion(const uint8_vector& actions) {
-    for (std::size_t i = 0; i < actions.size(); ++i) {
-        switch (actions[i]) {
-        case SET_MOUSE_INFO: i += 3; break;
-        case SET_VISITED:    i += 2; break;
-        case SET_WALL:       i += 4; break;
-        case READ_WALL:
-        case ACT_NONE:       break;
-        default:             return actions[i];
-        }
-    }
-    return ACT_NONE;
+// 区間の計測に DWT のサイクルカウンタを使う（[us] で uint16_t に丸める）
+void startCycleCounter() {
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
+
+uint16_t elapsedUs(uint32_t start_cycles) {
+    uint32_t us = (DWT->CYCCNT - start_cycles) / (SystemCoreClock / 1000000u);
+    return static_cast<uint16_t>(us > UINT16_MAX ? UINT16_MAX : us);
+}
+
+// 次に読む壁の8通りでソルバーを先に回し，かかった時間 [us] を返す
+uint16_t prepareNext() {
+    uint32_t t0 = DWT->CYCCNT;
+    search_lookahead::prepare();
+    return elapsedUs(t0);
 }
 
 // 超信地旋回（angle は符号つき，正で左）。並進が止まっていること（直前の区間が速度0で終わる）
@@ -179,7 +187,7 @@ bool profileBroken() {
     return planProfile.rejectedCount() > 0 || planProfile.droppedCount() > 0;
 }
 
-// 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとにソルバーを呼ぶ
+// 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとに先読みしておいたソルバーの結果を取り出す
 Stop runSteps(const SearchPreset& p) {
     const float v = p.speed;
 
@@ -187,7 +195,7 @@ Stop runSteps(const SearchPreset& p) {
     solver_options.goal_x = p.goal_x;
     solver_options.goal_y = p.goal_y;
     uint8_vector first = adachi_return::solver_adachi_return_init();
-    if (firstMotion(first) != ACT_MOVE_FIRST_HALF_CELL) return Stop::unknownAction;
+    if (search_lookahead::firstMotion(first) != ACT_MOVE_FIRST_HALF_CELL) return Stop::unknownAction;
 
     float d_acc = accelDistance(p);
     if (planProfile.straight(v, d_acc) != SegmentResult::ok ||
@@ -196,6 +204,8 @@ Stop runSteps(const SearchPreset& p) {
     }
     float step_end = START_TO_EDGE;   // 今積んでいる1歩が終わる位置（並進の目標位置，区画境界）
     wallEdge.expect(step_end);
+    // 最初の区画 (0,1) で読む壁の8通りを，最初の半区画を走っている間に計算しておく
+    uint16_t prepare_us = prepareNext();
 
     while (true) {
         // 機体（実測）が区画境界の READ_LEAD 手前に来るまで待つ（今の1歩の残りが走っている間に次を積む）。
@@ -212,14 +222,17 @@ Stop runSteps(const SearchPreset& p) {
         bool front = wall::hasFront(s);
         bool right = wall::hasRight(s);
         MousePos at = mousePos;   // 壁を読んだ区画（ソルバーが次の区画へ進める前）
-        uint8_t action = firstMotion(adachi_return::solver_adachi_return(left, front, right));
+        // 先に計算しておいた8通りから，読んだ壁の結果を取り出す（ソルバーの状態もその1歩の後になる）
+        uint32_t t_take = DWT->CYCCNT;
+        uint8_t action = search_lookahead::take(left, front, right);
+        uint16_t take_us = elapsedUs(t_take);
 
         if (g_step_count >= config::search::MAX_STEPS) return Stop::tooManySteps;
         SearchStep& rec = g_steps[g_step_count++];
         rec = {at.x, at.y, at.dir,
                static_cast<uint8_t>((left ? 1 : 0) | (front ? 2 : 0) | (right ? 4 : 0)),
                action, static_cast<uint8_t>(adachi_return::is_returning() ? 1 : 0), {}, FRONT_ERR_NONE,
-               pos_target, pos_measured};
+               pos_target, pos_measured, prepare_us, take_us};
         for (uint8_t i = 0; i < wall::POSITION_COUNT; ++i) rec.ir[i] = s.value[i];
 
         switch (action) {
@@ -274,6 +287,9 @@ Stop runSteps(const SearchPreset& p) {
         default:
             return Stop::unknownAction;
         }
+
+        // 次の区画へ走っている間に，そこで読む壁の8通りでソルバーを回しておく
+        prepare_us = prepareNext();
     }
 }
 
@@ -292,6 +308,7 @@ void dumpSteps(const char* file, bool corrected) {
             static_cast<float>(r.ir[wall::front_right]), static_cast<float>(r.ir[wall::right]),
             r.pos_target, r.pos_measured,
             front_err, corrected ? front_correction::correction(front_err) : 0.f,
+            static_cast<float>(r.prepare_us), static_cast<float>(r.take_us),
         };
         uart_write(reinterpret_cast<const uint8_t*>(row), sizeof(row));
     }
@@ -345,6 +362,7 @@ void runSearch(const SearchPreset& preset) {
     wallEdge.reset();
     wallEdge.start(config::wall_edge::SEARCH_CORRECTION);
     g_step_count = 0;
+    startCycleCounter();
 
     ledBar16.set(0x0000);
     logger.start();

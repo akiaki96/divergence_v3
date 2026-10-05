@@ -10,6 +10,7 @@
 | `search_presets.json` | 探索のプリセット（速度・加速度・使うターンの集合・超信地旋回・壁の補正） | 手で |
 | `gen_search_presets.py` | `config/search_presets.hpp` を生成する。スラロームが設計されていなければビルドを止める | — |
 | `Core/Src/app/search.cpp` | 探索のループ（壁を読む → ソルバー → 動作を積む）とログ | — |
+| `Core/Src/app/search_lookahead.cpp` | ソルバーの先読み（次に読む壁の8通りで先に回し，読んだら結果を取り出す） | — |
 | `Core/Src/common/wall_sensor.cpp` | IRセンサーの位置の対応と壁の判定 | 対応がずれていたら |
 | `Core/Src/common/wall_control.cpp` | 直進中の横壁による向きの補正 | — |
 | `Core/Src/common/front_correction.cpp` | 前壁の距離による S90 の入口の補正（換算表は `ir_calibration.json` → `gen_front_distance.py`） | — |
@@ -75,7 +76,8 @@
      - `too many steps` … ログの行数（`MAX_STEPS`）を超えた
 3. **ログの受け取り**：止まったら機体を持ち上げて置く（`haltByAccZ`）と，`tools/main.py` が2つ保存する
    - `tools/log/search/<preset>.csv` … 壁を読むたびに1行（位置・壁・ソルバーの動作・帰り探索中か・IRの値，
-     読んだときの並進の目標位置 `pos_target` と実測 `pos_measured` [mm]。差が追従遅れ）
+     読んだときの並進の目標位置 `pos_target` と実測 `pos_measured` [mm]。差が追従遅れ。
+     `prepare_us` はその壁を読む前に8通りでソルバーを回した時間，`take_us` は読んでから結果を取り出すまでの時間 [us]）
    - `tools/log/search/<preset>_trace.csv` … 走行中の目標・実測の位置と角度，壁の補正（68s分を間引いて記録，約22Hz）
 
 ## 前壁の距離による S90 の入口の補正（[実験中]，`common/front_correction.hpp`）
@@ -142,6 +144,10 @@ python main.py --replay ../../tools/log/search/500.csv --maze-image maze_image/<
 - 横壁の補正は直進中（目標の角速度が0で，並進が `MIN_VELOCITY` より速い間）だけ効く。
   補正した角度は旋回の後も残る（旋回は相対角度で積むため）
 - 機体の実測の位置（エンコーダ）が区画境界の `READ_LEAD_MM` 手前に来たら壁を読み，その間に次の動作を積む
-  （目標位置で待つと，追従遅れのぶん実際より先で読んだことになる）。`READ_LEAD_MM` が短すぎると
-  ソルバーの計算が間に合わず `profile error` になる（500mm/sで10mmなら20ms）
+  （目標位置で待つと，追従遅れのぶん実際より先で読んだことになる）
+- ソルバーは先読みする（`app/search_lookahead.hpp`）。動作を積んだ直後に，次の区画で読む左・前・右の壁の
+  8通りすべてでソルバーを回して結果の状態を取っておき（`adachi::search_save/search_restore`），壁を読んだら
+  合う結果を戻すだけにする。ソルバーの計算は1歩を走る間（500mm/sで約300ms）に移るので，`READ_LEAD_MM` の
+  短さ（500mm/sで10mmなら20ms）には縛られない。8通りの計算が1歩の走行時間より長いと，読む位置で待たずに
+  遅れて読むことになる（ログの `prepare_us` で確かめる）
 - 探索のログは CCMRAM に置いている（スタートアップは CCMRAM を0にしないので，件数だけで有効な範囲を表す）

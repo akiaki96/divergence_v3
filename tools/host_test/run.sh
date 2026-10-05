@@ -20,3 +20,19 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     "$ROOT/Core/Src/common/front_correction.cpp" "$ROOT/tools/host_test/test_front_correction.cpp" \
     -o "$OUT/test_front_correction"
 "$OUT/test_front_correction"
+
+# 探索のソルバーの先読み（ソルバーはビルドと同じく external/micromouse_simulator/solver のソースをそのまま使う）
+SOLVER="$ROOT/external/micromouse_simulator/solver"
+SOLVER_INC=()
+for d in "$SOLVER"/algorithms/*/; do
+    [[ "$d" == */_template/ ]] || SOLVER_INC+=(-I "$d")
+done
+SOLVER_SRC=("$SOLVER"/core/*.cpp)
+for f in "$SOLVER"/algorithms/*/*.cpp; do
+    [[ "$f" == */_template/* ]] || SOLVER_SRC+=("$f")
+done
+c++ -std=c++20 -Wall -Wextra -O2 \
+    -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$SOLVER/core" "${SOLVER_INC[@]}" \
+    "${SOLVER_SRC[@]}" "$ROOT/Core/Src/app/search_lookahead.cpp" "$ROOT/tools/host_test/test_search_lookahead.cpp" \
+    -o "$OUT/test_search_lookahead"
+"$OUT/test_search_lookahead"
