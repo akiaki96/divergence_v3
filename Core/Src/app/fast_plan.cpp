@@ -1,6 +1,7 @@
 #include "app/fast_plan.hpp"
 
 #include <cmath>
+#include "common/trapezoid.hpp"
 
 namespace fast_plan {
 
@@ -9,9 +10,7 @@ namespace {
 using config::maze::CELL_MM;
 constexpr float HALF_MM = CELL_MM / 2.f;
 constexpr float DIAG_STEP_MM = HALF_MM * 1.41421356f;   // 斜めの1歩（辺の中点から隣の中点まで）
-
-// これより短い加速・減速の区間は作らない（PlanProfile は1tickに満たない区間を tooShort で弾く）
-constexpr float MIN_SEGMENT_MM = 5.f;
+static_assert(MAX_SEGMENTS_PER_STEP >= trapezoid::MAX_PARTS, "a straight step is split into trapezoid::MAX_PARTS");
 
 // ACT_S* / ACT_V90_* → プリセットのターンと向き。ターンでなければ false
 bool turnOf(uint8_t a, const RunPreset& p, const slalom::Param** turn, slalom::TurnDir* dir) {
@@ -124,42 +123,9 @@ uint8_t segments(const Steps& steps, std::size_t i, const RunPreset& p, Segment 
     const float v_in = startSpeed(i, p);
     const float v_out = endSpeed(steps, i, p);
     const float v_max = s.diagonal ? p.max_speed_dia : p.max_speed;
-    const float a = p.accel;
-    const float b = p.decel;
-
-    // 加速度 a で上げて減速度 b で下げ、ちょうど d 進む頂点の速度（三角）
-    float v_peak = std::sqrt((2.f * a * b * d + b * v_in * v_in + a * v_out * v_out) / (a + b));
-    float cruise = 0.f;
-    if (v_peak > v_max) {
-        v_peak = v_max;
-        cruise = d - (v_max * v_max - v_in * v_in) / (2.f * a) - (v_max * v_max - v_out * v_out) / (2.f * b);
-    }
-    // 始め・終わりの速度に届かない（d が短い）ときや、区間がごく短くなるときは、1区間で v_in → v_out
-    float d_acc = (v_peak * v_peak - v_in * v_in) / (2.f * a);
-    float d_dec = (v_peak * v_peak - v_out * v_out) / (2.f * b);
-    bool tiny_acc = d_acc < MIN_SEGMENT_MM && v_peak - v_in > 1.f;
-    bool tiny_dec = d_dec < MIN_SEGMENT_MM && v_peak - v_out > 1.f;
-    if (v_peak < v_in || v_peak < v_out || tiny_acc || tiny_dec) {
-        out[0] = Segment{nullptr, slalom::TurnDir::left, v_out, d};
-        return 1;
-    }
-
-    uint8_t n = 0;
-    if (d_acc >= MIN_SEGMENT_MM) out[n++] = Segment{nullptr, slalom::TurnDir::left, v_peak, d_acc};
-    else cruise += d_acc;   // 速度がほとんど変わらない加速は等速に含める
-    float d_dec_used = (d_dec >= MIN_SEGMENT_MM) ? d_dec : 0.f;
-    if (d_dec_used == 0.f) cruise += d_dec;
-    if (cruise >= MIN_SEGMENT_MM) {
-        out[n++] = Segment{nullptr, slalom::TurnDir::left, v_peak, cruise};
-    } else if (cruise > 0.f) {
-        // ごく短い等速は減速(なければ加速)の区間に含める
-        if (d_dec_used > 0.f) d_dec_used += cruise;
-        else if (n > 0) out[n - 1].distance += cruise;
-    }
-    if (d_dec_used > 0.f) out[n++] = Segment{nullptr, slalom::TurnDir::left, v_out, d_dec_used};
-    if (n == 0) out[n++] = Segment{nullptr, slalom::TurnDir::left, v_out, d};
-    // 等速だけ（v_in = v_peak = v_out）のときなどで終速を合わせる
-    out[n - 1].v_end = v_out;
+    trapezoid::Part parts[trapezoid::MAX_PARTS];
+    uint8_t n = trapezoid::split(d, v_in, v_out, v_max, p.accel, p.decel, parts);
+    for (uint8_t k = 0; k < n; ++k) out[k] = Segment{nullptr, slalom::TurnDir::left, parts[k].v_end, parts[k].distance};
     return n;
 }
 

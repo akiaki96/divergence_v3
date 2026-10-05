@@ -69,6 +69,11 @@ public:
     // stop()の後に積んだ区間は取り消されない
     void stop();
 
+    // stop()と同じく実行中の区間と積んである区間をすべて取り消すが，並進は今の目標速度から減速度decel[mm/s^2]で
+    // 0まで減速して止まる（減速の距離は v²/(2·decel)，目標位置はそこで保持）。回転の目標角速度・加速度は0にする。
+    // 直進中に急に止まりたいとき（探索で壁が地図と食い違ったときなど）に使う。止まったかは isIdle() で見る
+    void brake(float decel);
+
     // 積んだ区間がすべて終わり，取り消しの反映も済んでいるか
     bool isIdle() const;
 
@@ -168,6 +173,8 @@ private:
     // stop()の世代：メイン側がstop()で進め，割り込み側が反映したらapplied_generation_をそろえる
     std::atomic<uint32_t> generation_{0};
     volatile uint32_t applied_generation_ = 0;
+    // brake()の減速度（0ならstop()）。メイン側が世代を進める前に書き，割り込み側が世代の反映で読む
+    volatile float brake_decel_ = 0.f;
 
     // 計画上の速度（直前に積んだ区間の終速）。積むときの検査の初速に使う（メイン側だけ）
     float planned_vel_[2] = {0.f, 0.f};

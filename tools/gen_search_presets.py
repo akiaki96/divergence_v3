@@ -22,6 +22,8 @@ search_presets.json の形:
       "500": {
         "speed": 500,                     … 探索速度 [mm/s]（= ターンの速度）
         "accel": 3000,                    … 直線の加速度・減速度 [mm/s^2]
+        "straight_speed": 1000,           … 任意（省略で speed）。既知の区画が続く直進で加速する最高速度 [mm/s]
+                                            （区画の左・前・右の壁がすべて分かっていて，ソルバーの答えが決まっている区間）
         "turns": ["S90", "L90", "T180"],  … 使うターンの種類
         "pivot": {"omega": 360,           … 超信地旋回（行き止まりの180°）の最大角速度 [dps]
                   "alpha": 2500},         … 超信地旋回の角加速度 [dps/s]
@@ -54,7 +56,7 @@ from slalom_presets import PRESET_LIST, parse_speed_key
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["speed", "accel", "turns", "pivot"]
-OPTIONAL_KEYS = ["fan", "wall_control", "front_correction", "goal", "menu", "note"]
+OPTIONAL_KEYS = ["straight_speed", "fan", "wall_control", "front_correction", "goal", "menu", "note"]
 # "menu" の値 → 生成する配列の名前（menu/menu.hpp がそれぞれのメニューに並べる）
 MENU_ARRAYS = {"search": "PRESETS", "test": "TEST_PRESETS"}
 MAZE_SIZE = 16
@@ -82,6 +84,9 @@ def build_entries(presets, slalom_params):
             if float(preset[key]) <= 0.0:
                 raise GenError(f"{where}: {key} は正の値にしてください")
         speed = float(preset["speed"])
+        straight_speed = float(preset.get("straight_speed", speed))
+        if straight_speed < speed:
+            raise GenError(f"{where}: straight_speed は speed 以上にしてください（省略で speed＝加速しない）")
 
         pivot = preset["pivot"]
         if not isinstance(pivot, dict) or sorted(pivot) != sorted(PIVOT_KEYS):
@@ -144,6 +149,7 @@ def build_entries(presets, slalom_params):
             "goal": goal,
             "menu": menu,
             "values": preset,
+            "straight_speed": straight_speed,
         })
     if not entries:
         raise GenError("search_presets.json にプリセットがありません")
@@ -177,11 +183,12 @@ def render(entries):
                 + ("，前壁でS90の入口を補正" if e["front_correction"] else ""))
         goal_note = f"，ゴール ({e['goal'][0]}, {e['goal'][1]})" if e["goal"] else ""
         goal = f"{e['goal'][0]}, {e['goal'][1]}" if e["goal"] else "GOAL_X, GOAL_Y"
-        out.append(f"// {e['name']}: {v['speed']:g}mm/s，ターンは{labels}{wall}{goal_note}{note}")
+        straight = f"（既知の直進 {e['straight_speed']:g}mm/s）" if e["straight_speed"] > float(v["speed"]) else ""
+        out.append(f"// {e['name']}: {v['speed']:g}mm/s{straight}，ターンは{labels}{wall}{goal_note}{note}")
         if e["diag_ident"]:
             out.append(f"inline constexpr DiagonalTurns {e['diag_ident']} = {turn_list(e, DIAGONAL_TURNS)};")
         out.append(
-            f"inline constexpr SearchPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['speed'])}, {fmt(v['accel'])}, "
+            f"inline constexpr SearchPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['speed'])}, {fmt(e['straight_speed'])}, {fmt(v['accel'])}, "
             f"{turn_list(e, ORTHO_TURNS)}, {'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, "
             f"{{{fmt(e['pivot']['omega'])}, {fmt(e['pivot']['alpha'])}}}, "
             f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}, "

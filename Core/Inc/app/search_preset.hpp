@@ -32,6 +32,8 @@ struct PivotParam {
 struct SearchPreset {
     const char* name;                // メニューの表示とログのファイル名（例 "500"）
     float speed;                     // [mm/s] 探索速度（= ターンの速度）
+    float straight_speed;            // [mm/s] 既知の区画が続く直進で加速する最高速度（JSONで省略すると speed＝加速しない）。
+                                     // 加速・減速は accel。区間の始めと終わりは speed
     float accel;                     // [mm/s^2] 直線の加速度・減速度
     OrthoTurns turns;                // 区画に沿ったターン
     const DiagonalTurns* diagonal;   // 斜めのターン。nullptr なら斜めに入らない

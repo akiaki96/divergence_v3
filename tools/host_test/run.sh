@@ -21,6 +21,13 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     -o "$OUT/test_front_correction"
 "$OUT/test_front_correction"
 
+# 直線の台形（最短走行・探索の既知の直進・立て直しの後退）
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" \
+    "$ROOT/Core/Src/common/trapezoid.cpp" "$ROOT/tools/host_test/test_trapezoid.cpp" \
+    -o "$OUT/test_trapezoid"
+"$OUT/test_trapezoid"
+
 # 探索のソルバーの先読み（ソルバーはビルドと同じく external/micromouse_simulator/solver のソースをそのまま使う）
 SOLVER="$ROOT/external/micromouse_simulator/solver"
 SOLVER_INC=()

@@ -38,7 +38,15 @@ SegmentResult PlanProfile::setVelocityX(float velocity_x) {
 void PlanProfile::stop() {
     planned_vel_[0] = 0.f;
     planned_vel_[1] = 0.f;
+    brake_decel_ = 0.f;
     // 世代を進める：ISRは次のtickで実行中の区間を打ち切り，古い世代の区間を捨てる
+    generation_.fetch_add(1, std::memory_order_release);
+}
+
+void PlanProfile::brake(float decel) {
+    planned_vel_[0] = 0.f;
+    planned_vel_[1] = 0.f;
+    brake_decel_ = (decel > 0.f) ? decel : 0.f;
     generation_.fetch_add(1, std::memory_order_release);
 }
 
@@ -84,16 +92,35 @@ void PlanProfile::update() {
     advance(config::control::DT_S);
 }
 
-// stop()が世代を進めていたら，実行中の区間を打ち切って目標速度・加速度を0にする（目標位置はその場で保持）
+// stop()・brake()が世代を進めていたら，実行中の区間を打ち切って目標速度・加速度を0にする（目標位置はその場で保持）。
+// brake()なら並進だけは今の目標速度から0へ減速する区間を始める
 void PlanProfile::applyStop() {
     uint32_t generation = generation_.load(std::memory_order_acquire);
     if (generation == applied_generation_) return;
     applied_generation_ = generation;
     active_ = false;
+    float decel = brake_decel_;
+    float v0 = trans_.vel;
     trans_.vel = 0.f;
     trans_.acc = 0.f;
     rot_.vel = 0.f;
     rot_.acc = 0.f;
+    if (decel > 0.f && v0 != 0.f) {
+        float d = v0 * (v0 > 0.f ? v0 : -v0) / (2.f * decel);   // 符号は進む向き
+        float T = 2.f * d / v0;
+        if (T >= config::control::DT_S) {
+            trans_.vel = v0;
+            segment_.axis = &trans_;
+            segment_.t = 0.f;
+            segment_.x0 = trans_.pos;
+            segment_.v0 = v0;
+            segment_.a = -v0 / T;
+            segment_.T = T;
+            segment_.x_end = trans_.pos + d;
+            segment_.v_end = 0.f;
+            active_ = true;
+        }
+    }
 }
 
 // キューから次の要素を取り出す。速度のステップはその場で反映して続けて取り出し，

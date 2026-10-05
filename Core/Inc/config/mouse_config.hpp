@@ -248,6 +248,17 @@ inline constexpr uint8_t GOAL_X = 7;
 inline constexpr uint8_t GOAL_Y = 7;
 inline constexpr uint16_t MAX_STEPS = 2048;     // 壁を読む回数の上限（ログの行数。往復でも16×16なら足りる）
 inline constexpr float MIN_BATTERY_V = 7.4f;    // [V] これより低ければ走らない
+
+// 3辺とも既知の区画で読んだ壁が地図と食い違ったときの立て直し（app/search.hpp）：
+// 減速して止まり，1つ手前の区画の中央まで下がり，加速し直して同じ位置で壁を読み直す
+inline constexpr float BRAKE_DECEL = 8000.f;        // [mm/s^2] 止まるときの減速度（1000mm/sから約63mm）
+inline constexpr float BACK_SPEED = 200.f;          // [mm/s] 下がるときの最高速度
+inline constexpr float BACK_ACCEL = 1000.f;         // [mm/s^2] 下がるときの加速度・減速度
+inline constexpr uint32_t RECHECK_SETTLE_MS = 200;  // [ms] 止まった・下がった後に待つ時間
+inline constexpr uint8_t MAX_MISMATCH_LOG = 32;     // 食い違いを覚えておく件数（終わりに LOG で出す）
+// 既知の区間の直進を数える先読みにかけてよい時間（次の壁を読むまでの時間に対する割合）。
+// 超えたら数えるのをやめる（加速する区間が短くなるだけ）
+inline constexpr float CHAIN_BUDGET_RATIO = 0.4f;
 }
 
 namespace config::menu {
