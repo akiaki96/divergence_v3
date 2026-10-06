@@ -9,6 +9,7 @@
 #include "common/debug.hpp"
 #include "common/etc.hpp"
 #include "common/front_correction.hpp"
+#include "common/trapezoid.hpp"
 #include "common/wall_sensor.hpp"
 #include "device/device_instance.hpp"
 #include "device/uart.hpp"
@@ -64,7 +65,11 @@ constexpr bool presetRunnable(const SearchPreset& p) {
         && validateSegment(v, 0.f, HALF_MM, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok
         && validateSegment(0.f, v, HALF_MM, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok
         // 超信地旋回の180°に加速・減速が収まる
-        && p.pivot.alpha <= MAX_ALPHA && 2.f * pivotRamp(p.pivot) < 180.f;
+        && p.pivot.alpha <= MAX_ALPHA && 2.f * pivotRamp(p.pivot) < 180.f
+        // 既知の直進の加速：accel で上げ下げでき，最高速度から読んだ区画の中央より手前で止まれる（前壁に当たらない）
+        && p.straight_speed >= v && config::search::BRAKE_DECEL <= MAX_DECEL_X
+        && p.straight_speed * p.straight_speed / (2.f * config::search::BRAKE_DECEL) + config::search::READ_LEAD_MM
+               < HALF_MM;
 }
 
 constexpr bool allPresetsRunnable() {
@@ -91,9 +96,10 @@ static_assert(READ_LEAD > 0.f && READ_LEAD < HALF_MM, "config::search::READ_LEAD
 // ---- 壁を読むたびの記録（シミュレータの replay.py の LOG_COLUMNS と同じ列）----
 struct SearchStep {
     uint8_t x, y, dir;   // 壁を読んだときの mousePos（これから入る区画）
-    uint8_t walls;       // bit0: 左, bit1: 前, bit2: 右
+    uint8_t walls;       // bit0: 左, bit1: 前, bit2: 右（ソルバーに渡した壁）。bit4–6: センサーの壁（同じ並び）
     uint8_t action;      // ソルバーが返した動作（solver/core/action.h）
-    uint8_t returning;   // 帰り探索中か
+    uint8_t flags;       // bit0: 帰り探索中か, bit1: 地図の壁を使った, bit2: 読み直した後の読み,
+                         // bit3–6: この読みで積んだ直進の区画数（加速した区間。積まなかった読みは0）
     int16_t ir[wall::POSITION_COUNT];
     int16_t front_err;    // [0.1 mm] S90 を積むときの前壁の距離による前後のずれ（common/front_correction.hpp）。
                           // 使えなかった・S90 でないときは FRONT_ERR_NONE。補正 δ は書き出すときに計算し直す
@@ -104,6 +110,12 @@ struct SearchStep {
 };
 
 constexpr int16_t FRONT_ERR_NONE = INT16_MIN;
+constexpr uint8_t FLAG_RETURNING = 1u << 0;
+constexpr uint8_t FLAG_KNOWN = 1u << 1;
+constexpr uint8_t FLAG_RECHECKED = 1u << 2;
+constexpr uint8_t RUN_CELLS_SHIFT = 3;
+constexpr uint8_t RUN_CELLS_MASK = 0x0F;
+static_assert(MAZE_SIZE - 1 <= RUN_CELLS_MASK, "run cells must fit in SearchStep::flags");
 static_assert(sizeof(SearchStep) * config::search::MAX_STEPS <= 64 * 1024, "search step log exceeds CCMRAM");
 
 // CCMRAM（64KB，ほかに使っていない）に置く。スタートアップは CCMRAM を0にしないので，
@@ -115,7 +127,9 @@ uint16_t g_step_count = 0;
 constexpr const char* STEP_COLUMNS[] = {"step", "x", "y", "dir", "left", "front", "right", "action",
                                         "returning", "ir_l", "ir_fl", "ir_fr", "ir_r",
                                         "pos_target", "pos_measured", "front_err", "front_corr",
-                                        "prepare_us", "take_us"};
+                                        "prepare_us", "take_us",
+                                        "sensor_left", "sensor_front", "sensor_right", "known", "rechecked",
+                                        "run_cells"};
 constexpr uint32_t STEP_COLUMN_COUNT = sizeof(STEP_COLUMNS) / sizeof(STEP_COLUMNS[0]);
 
 enum class Stop : uint8_t {
@@ -125,6 +139,7 @@ enum class Stop : uint8_t {
     profileError,   // PlanProfile が区間を落とした，または読む位置の前に止まった
     tooManySteps,   // MAX_STEPS を超えた（ログが入らない）
     unknownAction,  // 探索では使わない動作が来た
+    planMismatch,   // 加速して積んだ区間の途中で，ソルバーが直進以外を返した（先読みと食い違った）
 };
 
 const char* stopName(Stop s) {
@@ -134,6 +149,7 @@ const char* stopName(Stop s) {
     case Stop::pushRejected:  return "segment rejected";
     case Stop::profileError:  return "profile error";
     case Stop::tooManySteps:  return "too many steps";
+    case Stop::planMismatch:  return "plan mismatch";
     default:                  return "unknown action";
     }
 }
@@ -167,10 +183,19 @@ uint16_t elapsedUs(uint32_t start_cycles) {
     return static_cast<uint16_t>(us > UINT16_MAX ? UINT16_MAX : us);
 }
 
-// 次に読む壁の8通りでソルバーを先に回し，かかった時間 [us] を返す
-uint16_t prepareNext() {
+uint32_t clockUs() {
+    return DWT->CYCCNT / (SystemCoreClock / 1000000u);
+}
+
+// 次に読む壁の仮定でソルバーを先に回し，かかった時間 [us] を返す。
+// chains なら既知の区画が続く直進も数える（次の壁を読むまでの時間の CHAIN_BUDGET_RATIO まで）
+uint16_t prepareNext(const SearchPreset& p, bool chains) {
+    search_lookahead::PrepareOptions o;
+    o.chains = chains;
+    o.budget_us = static_cast<uint32_t>(config::search::CHAIN_BUDGET_RATIO * CELL_MM / p.speed * 1e6f);
+    o.clock = clockUs;
     uint32_t t0 = DWT->CYCCNT;
-    search_lookahead::prepare();
+    search_lookahead::prepare(o);
     return elapsedUs(t0);
 }
 
@@ -187,9 +212,79 @@ bool profileBroken() {
     return planProfile.rejectedCount() > 0 || planProfile.droppedCount() > 0;
 }
 
+// 台形（trapezoid::split）を並進の区間として積む。sign が負なら後ろへ（速度・距離の符号を反転）
+bool pushTrapezoid(float d, float v_in, float v_out, float v_max, float accel, float sign) {
+    trapezoid::Part parts[trapezoid::MAX_PARTS];
+    uint8_t n = trapezoid::split(d, v_in, v_out, v_max, accel, accel, parts);
+    if (planProfile.freeSlots() < n) return false;
+    for (uint8_t k = 0; k < n; ++k) {
+        if (planProfile.straight(sign * parts[k].v_end, sign * parts[k].distance) != SegmentResult::ok) return false;
+    }
+    return true;
+}
+
+// ---- 地図と食い違った壁の記録（終わりに LOG で出す）----
+struct Mismatch {
+    uint16_t step;          // その区画の行の番号（読み直した後の読みの行）
+    uint8_t x, y, dir;
+    uint8_t map_walls;      // 地図の壁（bit0: 左, bit1: 前, bit2: 右）
+    uint8_t first_walls;    // 1回目のセンサーの壁
+    uint8_t second_walls;   // 読み直したセンサーの壁（まだなら 0xFF）
+    float speed;            // [mm/s] 1回目に読んだときの目標速度
+};
+Mismatch g_mismatches[config::search::MAX_MISMATCH_LOG];
+uint16_t g_mismatch_count = 0;     // 食い違いの回数（記録しきれなかった分も数える）
+uint16_t g_map_updates = 0;        // 読み直しても食い違い，センサーの壁で地図を書き換えた回数
+uint16_t g_runs = 0;               // 加速して積んだ区間の数
+uint16_t g_run_cells = 0;          // その区画数の合計
+
+// 3辺とも既知の区画で壁が地図と食い違った：止まって，1つ手前の区画の中央まで下がり，
+// そこから探索速度まで加速して同じ境界へ向かう（戻るとループが同じ読む位置で壁を読み直す）。
+// in_run：加速して積んだ区間の途中（その先まで積んである）か。
+//
+// 下がる先は今の境界 step_end の半区画手前。どの動作の後でも境界では区画の中心線の上にいて向きもそろっている
+// （直進・小回り90°の出口・行き止まりの後の半区画）ので，まっすぐ下がればその区画の中央に着く
+Stop recover(const SearchPreset& p, bool in_run, float step_end) {
+    using namespace config::search;
+    const float v = p.speed;
+    if (in_run) {
+        // 積んである加速区間を取り消し，今の速度から減速して止まる
+        planProfile.brake(BRAKE_DECEL);
+    } else if (planProfile.straight(0.f, v * v / (2.f * BRAKE_DECEL)) != SegmentResult::ok) {
+        // 今の1歩は境界で終わり，その先は積んでいないので，境界の先で止まる区間を後ろに積む
+        // （小回り90°の出口の途中でも回転を壊さない）
+        return Stop::pushRejected;
+    }
+    planProfile.waitUntilIdle();
+    if (profileBroken()) return Stop::profileError;
+
+    // 下がっている間は横壁の制御・壁切れの検出を止める（待っている境界 step_end は残るので教え直さない）
+    wallControl.enable(false);
+    wallEdge.stop();
+    HAL_Delay(RECHECK_SETTLE_MS);
+
+    float back = planProfile.getTargetPositionX() - (step_end - HALF_MM);
+    if (!(back > 0.f) || !pushTrapezoid(back, 0.f, 0.f, BACK_SPEED, BACK_ACCEL, -1.f)) return Stop::pushRejected;
+    planProfile.waitUntilIdle();
+    if (profileBroken()) return Stop::profileError;
+
+    // 止まっている間に，読み直す区画の8通りで先読みを作り直す（時間があるので既知の直進も数える）
+    search_lookahead::PrepareOptions o;
+    o.chains = true;
+    o.all = true;
+    search_lookahead::prepare(o);
+    HAL_Delay(RECHECK_SETTLE_MS);
+
+    wallControl.enable(p.wall_control);
+    wallEdge.start(config::wall_edge::SEARCH_CORRECTION);
+    if (planProfile.straight(v, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
+    return Stop::finished;   // 続けてよい
+}
+
 // 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとに先読みしておいたソルバーの結果を取り出す
 Stop runSteps(const SearchPreset& p) {
     const float v = p.speed;
+    const bool accelerate = p.straight_speed > v;
 
     solver_options_reset();
     solver_options.goal_x = p.goal_x;
@@ -204,8 +299,11 @@ Stop runSteps(const SearchPreset& p) {
     }
     float step_end = START_TO_EDGE;   // 今積んでいる1歩が終わる位置（並進の目標位置，区画境界）
     wallEdge.expect(step_end);
+    uint8_t committed = 0;    // 加速して積み済みで，動作を積まない読みの残り
+    bool rechecked = false;   // 今の区画は止まって読み直した後か
+    int16_t mismatch_slot = -1;   // 読み直した区画の g_mismatches の番号
     // 最初の区画 (0,1) で読む壁の8通りを，最初の半区画を走っている間に計算しておく
-    uint16_t prepare_us = prepareNext();
+    uint16_t prepare_us = prepareNext(p, accelerate);
 
     while (true) {
         // 機体（実測）が区画境界の READ_LEAD 手前に来るまで待つ（今の1歩の残りが走っている間に次を積む）。
@@ -218,30 +316,81 @@ Stop runSteps(const SearchPreset& p) {
         float pos_measured = odometry.positionX();
 
         wall::Snapshot s = wall::read();
-        bool left = wall::hasLeft(s);
-        bool front = wall::hasFront(s);
-        bool right = wall::hasRight(s);
+        const uint8_t sensor = search_lookahead::wallBits(wall::hasLeft(s), wall::hasFront(s), wall::hasRight(s));
+        // 3辺とも既知なら，探索は地図の壁を使う（先読みの既知の直進もこの約束で数えている）
+        bool map_l = false, map_f = false, map_r = false;
+        const bool known = search_lookahead::knownWalls(&map_l, &map_f, &map_r);
+        const uint8_t map = search_lookahead::wallBits(map_l, map_f, map_r);
         MousePos at = mousePos;   // 壁を読んだ区画（ソルバーが次の区画へ進める前）
-        // 先に計算しておいた8通りから，読んだ壁の結果を取り出す（ソルバーの状態もその1歩の後になる）
+
+        search_lookahead::WallDecision decision = search_lookahead::decide(known, map, sensor, rechecked);
+        if (decision == search_lookahead::WallDecision::recheck) {
+            if (g_mismatch_count < config::search::MAX_MISMATCH_LOG) {
+                mismatch_slot = static_cast<int16_t>(g_mismatch_count);
+                g_mismatches[mismatch_slot] = {g_step_count, at.x, at.y, at.dir, map, sensor, 0xFF,
+                                               planProfile.getTargetVelocityX()};
+            } else {
+                mismatch_slot = -1;
+            }
+            ++g_mismatch_count;
+            Stop r = recover(p, committed > 0, step_end);
+            if (r != Stop::finished) return r;
+            committed = 0;
+            rechecked = true;
+            continue;   // 同じ読む位置まで来たら読み直す
+        }
+        const bool use_map = (decision == search_lookahead::WallDecision::useMap);
+        const uint8_t walls = use_map ? map : sensor;
+        const bool left = (walls & 1) != 0;
+        const bool front = (walls & 2) != 0;
+        const bool right = (walls & 4) != 0;
+        if (rechecked) {
+            if (mismatch_slot >= 0) g_mismatches[mismatch_slot].second_walls = sensor;
+            if (!use_map) ++g_map_updates;   // センサーの壁で地図が書き換わる（search_step の set_wall）
+        }
+
+        // 先に計算しておいた仮定から，渡す壁の結果を取り出す（ソルバーの状態もその1歩の後になる）
         uint32_t t_take = DWT->CYCCNT;
         uint8_t action = search_lookahead::take(left, front, right);
         uint16_t take_us = elapsedUs(t_take);
 
         if (g_step_count >= config::search::MAX_STEPS) return Stop::tooManySteps;
         SearchStep& rec = g_steps[g_step_count++];
-        rec = {at.x, at.y, at.dir,
-               static_cast<uint8_t>((left ? 1 : 0) | (front ? 2 : 0) | (right ? 4 : 0)),
-               action, static_cast<uint8_t>(adachi_return::is_returning() ? 1 : 0), {}, FRONT_ERR_NONE,
+        uint8_t flags = static_cast<uint8_t>((adachi_return::is_returning() ? FLAG_RETURNING : 0) |
+                                             (use_map ? FLAG_KNOWN : 0) | (rechecked ? FLAG_RECHECKED : 0));
+        rec = {at.x, at.y, at.dir, static_cast<uint8_t>(walls | (sensor << 4)), action, flags, {}, FRONT_ERR_NONE,
                pos_target, pos_measured, prepare_us, take_us};
         for (uint8_t i = 0; i < wall::POSITION_COUNT; ++i) rec.ir[i] = s.value[i];
+        rechecked = false;
+
+        if (committed > 0) {
+            // 加速して積んだ区間の途中：動作は積まず，境界を進めるだけ（ソルバーの答えは直進のはず）
+            if (action != ACT_MOVE_1CELL) return Stop::planMismatch;
+            step_end += CELL_MM;
+            wallEdge.expect(step_end);
+            --committed;
+            prepare_us = prepareNext(p, accelerate && committed == 0);
+            continue;
+        }
 
         switch (action) {
-        case ACT_MOVE_1CELL:
+        case ACT_MOVE_1CELL: {
             if (front) return Stop::frontWall;
-            if (planProfile.straight(v, CELL_MM) != SegmentResult::ok) return Stop::pushRejected;
+            // 続く区画の壁が既知で直進が決まっていれば，その区画数を1本の台形で積む
+            uint8_t cells = accelerate ? search_lookahead::straightCells() : 1;
+            if (cells >= 2) {
+                if (!pushTrapezoid(cells * CELL_MM, v, v, p.straight_speed, p.accel, 1.f)) return Stop::pushRejected;
+                committed = static_cast<uint8_t>(cells - 1);
+                rec.flags = static_cast<uint8_t>(rec.flags | ((cells & RUN_CELLS_MASK) << RUN_CELLS_SHIFT));
+                ++g_runs;
+                g_run_cells = static_cast<uint16_t>(g_run_cells + cells);
+            } else if (planProfile.straight(v, CELL_MM) != SegmentResult::ok) {
+                return Stop::pushRejected;
+            }
             step_end += CELL_MM;
             wallEdge.expect(step_end);   // 直進で着く境界だけ（ターンの出口では壁切れを使わない）
             break;
+        }
         case ACT_TURN_LEFT_MOVE:
         case ACT_TURN_RIGHT_MOVE: {
             bool to_left = (action == ACT_TURN_LEFT_MOVE);
@@ -288,8 +437,9 @@ Stop runSteps(const SearchPreset& p) {
             return Stop::unknownAction;
         }
 
-        // 次の区画へ走っている間に，そこで読む壁の8通りでソルバーを回しておく
-        prepare_us = prepareNext();
+        // 次の区画へ走っている間に，そこで読む壁の仮定でソルバーを回しておく
+        // （加速して積んだ区間の中の読みは答えが決まっているので，直進を数えない）
+        prepare_us = prepareNext(p, accelerate && committed == 0);
     }
 }
 
@@ -303,12 +453,17 @@ void dumpSteps(const char* file, bool corrected) {
         float row[STEP_COLUMN_COUNT] = {
             static_cast<float>(i), static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.dir),
             static_cast<float>(r.walls & 1), static_cast<float>((r.walls >> 1) & 1),
-            static_cast<float>((r.walls >> 2) & 1), static_cast<float>(r.action), static_cast<float>(r.returning),
+            static_cast<float>((r.walls >> 2) & 1), static_cast<float>(r.action),
+            static_cast<float>(r.flags & FLAG_RETURNING),
             static_cast<float>(r.ir[wall::left]), static_cast<float>(r.ir[wall::front_left]),
             static_cast<float>(r.ir[wall::front_right]), static_cast<float>(r.ir[wall::right]),
             r.pos_target, r.pos_measured,
             front_err, corrected ? front_correction::correction(front_err) : 0.f,
             static_cast<float>(r.prepare_us), static_cast<float>(r.take_us),
+            static_cast<float>((r.walls >> 4) & 1), static_cast<float>((r.walls >> 5) & 1),
+            static_cast<float>((r.walls >> 6) & 1), static_cast<float>((r.flags & FLAG_KNOWN) ? 1 : 0),
+            static_cast<float>((r.flags & FLAG_RECHECKED) ? 1 : 0),
+            static_cast<float>((r.flags >> RUN_CELLS_SHIFT) & RUN_CELLS_MASK),
         };
         uart_write(reinterpret_cast<const uint8_t*>(row), sizeof(row));
     }
@@ -328,8 +483,8 @@ void runSearch(const SearchPreset& preset) {
     std::snprintf(g_log_name, sizeof(g_log_name), "%s", preset.name);
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
-    LOG("search %s: %.0f mm/s, turn %s, fan %s, wall control %s, front correction %s, goal (%u,%u)\r\n",
-        preset.name, preset.speed, preset.turns.s90->name, preset.fan ? "on" : "off",
+    LOG("search %s: %.0f mm/s (known straights %.0f mm/s), turn %s, fan %s, wall control %s, front correction %s, goal (%u,%u)\r\n",
+        preset.name, preset.speed, preset.straight_speed, preset.turns.s90->name, preset.fan ? "on" : "off",
         preset.wall_control ? "on" : "off", preset.front_correction ? "on" : "off", preset.goal_x, preset.goal_y);
 
     motorDriver.state = MotorDriverState::setDuty;
@@ -362,6 +517,10 @@ void runSearch(const SearchPreset& preset) {
     wallEdge.reset();
     wallEdge.start(config::wall_edge::SEARCH_CORRECTION);
     g_step_count = 0;
+    g_mismatch_count = 0;
+    g_map_updates = 0;
+    g_runs = 0;
+    g_run_cells = 0;
     startCycleCounter();
 
     ledBar16.set(0x0000);
@@ -406,6 +565,23 @@ void runSearch(const SearchPreset& preset) {
     LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
         static_cast<unsigned long>(wallEdge.eventCount()), config::wall_edge::SEARCH_CORRECTION ? "on" : "off",
         wallEdge.totalShift());
+    LOG("known straights: %u runs, %u cells; wall mismatches %u (map rewritten %u)\r\n", g_runs, g_run_cells,
+        g_mismatch_count, g_map_updates);
+    for (uint16_t i = 0; i < g_mismatch_count && i < config::search::MAX_MISMATCH_LOG; ++i) {
+        const Mismatch& m = g_mismatches[i];
+        // 壁は LFR の順に 1/0。読み直しの前に止まったときは second が "-"
+        auto bits = [](uint8_t w, char* out) {
+            if (w == 0xFF) { out[0] = out[1] = out[2] = '-'; }
+            else { out[0] = (w & 1) ? '1' : '0'; out[1] = (w & 2) ? '1' : '0'; out[2] = (w & 4) ? '1' : '0'; }
+            out[3] = '\0';
+        };
+        char mw[4], fw[4], sw[4];
+        bits(m.map_walls, mw);
+        bits(m.first_walls, fw);
+        bits(m.second_walls, sw);
+        LOG("  mismatch step %u (%u,%u) dir %u at %.0f mm/s: map %s, first %s, second %s\r\n", m.step, m.x, m.y,
+            m.dir, m.speed, mw, fw, sw);
+    }
     if (finished) {
         uint8_t bank = 0;
         const maze_store::Record* r = maze_store::latest(&bank);

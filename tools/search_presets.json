@@ -2,6 +2,7 @@
   "500": {
     "speed": 500,
     "accel": 3000,
+    "straight_speed": 1000,
     "turns": ["S90", "L90", "T180"],
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
@@ -10,6 +11,7 @@
   "500_fc": {
     "speed": 500,
     "accel": 3000,
+    "straight_speed": 1000,
     "turns": ["S90", "L90", "T180"],
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
@@ -70,5 +72,53 @@
     "goal": [0, 1],
     "menu": "test",
     "note": "試験用：スタート(0,0)から1区画先のゴール(0,1)へ行き，超信地旋回でスタートへ戻る"
+  },
+  "500_s800": {
+    "speed": 500,
+    "accel": 3000,
+    "straight_speed": 800,
+    "slalom": "500",
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "goal": [1, 0],
+    "menu": "test",
+    "note": "既知の直進の試験：組「500」のスラロームで 800mm/s まで加速する"
+  },
+  "500_s1000": {
+    "speed": 500,
+    "accel": 3000,
+    "straight_speed": 1000,
+    "slalom": "500",
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "goal": [1, 0],
+    "menu": "test",
+    "note": "既知の直進の試験：組「500」のスラロームで 1000mm/s まで加速する"
+  },
+  "500_s1100": {
+    "speed": 500,
+    "accel": 3000,
+    "straight_speed": 1100,
+    "slalom": "500",
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "goal": [1, 0],
+    "menu": "test",
+    "note": "既知の直進の試験：組「500」のスラロームで 1100mm/s まで加速する"
+  },
+  "700_s1100": {
+    "speed": 700,
+    "accel": 4000,
+    "straight_speed": 1100,
+    "slalom": "700",
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "goal": [1, 0],
+    "menu": "test",
+    "note": "既知の直進の試験：組「700」のスラロームで 1100mm/s まで加速する"
   }
 }

@@ -9,7 +9,7 @@ import json
 import datetime
 import pyperclip
 
-from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
+from slalom_presets import PRESET_LIST, make_speed_key, parse_slalom_key, slalom_key_label, slalom_key_order
 import slalom_sim
 
 PRESET_BY_KEY = {p.key: p for p in PRESET_LIST}
@@ -229,9 +229,11 @@ class Button:
 
 # (旧 TextBox クラスは残しておくが、右パネルの入力は NumericInput に統一)
 class TextBox:
-    def __init__(self, rect, text=""):
+    def __init__(self, rect, text="", allowed=None, max_len=32):
         self.rect = pygame.Rect(rect)
         self.text = text
+        self.allowed = allowed   # 入力できる文字（None なら何でも）
+        self.max_len = max_len
         self.active = False
         self.cursor_visible = True
         self.cursor_timer = 0.0
@@ -261,13 +263,15 @@ class TextBox:
                 # paste
                 try:
                     import pyperclip
-                    self.text += pyperclip.paste()
+                    pasted = pyperclip.paste()
+                    if self.allowed is not None:
+                        pasted = "".join(c for c in pasted if c in self.allowed)
+                    self.text = (self.text + pasted)[:self.max_len]
                 except:
                     pass
             else:
-                # allow numbers, dot, minus
                 char = ev.unicode
-                if char:
+                if char and (self.allowed is None or char in self.allowed) and len(self.text) < self.max_len:
                     self.text += char
 
 # --- simulation global defaults (set_angle_preset で上書きされる) ---
@@ -322,6 +326,7 @@ for i, key in enumerate(PRESETS):
 
 # --- パラメーター保存 / 読込 ---
 # 構造: { "小回り90°": { "500": { "Set_Speed": 500, ..., "result": {...}, "saved_at": "..." } } }
+# キーは "<速度>[_fan][_<組>]"（slalom_presets.py）。同じ速度・ファンで別の設計を試すときは「組」に名前を入れて保存する
 SAVE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "slalom_params.json")
 status_msg = ""
 last_result = {}
@@ -331,18 +336,18 @@ def preset_name(key):
     return PRESETS[key][0]
 
 def speed_key(speed):
-    # 500.0 -> "500"（ファンOFF）/ "500_fan"（ファンON）。ファンのON/OFFは別々に保存する
-    return make_speed_key(speed, fan_on)
+    # 500.0 -> "500"（ファンOFF）/ "500_fan"（ファンON）/ "500_b"（組 b）。ファンのON/OFF・組は別々に保存する。
+    # 組の名前が使えなければ ValueError
+    return make_speed_key(speed, fan_on, variant_box.text)
 
 def speed_label(key):
-    """保存済みの一覧用：500 / 500 fan"""
-    speed, fan = parse_speed_key(key)
-    return f"{speed:g}" + (" fan" if fan else "")
+    """保存済みの一覧用：500 / 500 fan / 500 b"""
+    return slalom_key_label(key)
 
 def entry_label(name, key):
-    """メッセージ用：大回り90° / 500mm/s ファンON"""
-    speed, fan = parse_speed_key(key)
-    return f"{name} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}"
+    """メッセージ用：大回り90° / 500mm/s ファンON / 組 b"""
+    speed, fan, variant = parse_slalom_key(key)
+    return f"{name} / {speed:g}mm/s ファン{'ON' if fan else 'OFF'}" + (f" / 組 {variant}" if variant else "")
 
 def read_save_file():
     if not os.path.exists(SAVE_PATH):
@@ -383,7 +388,11 @@ def save_params():
     entry["saved_at"] = datetime.datetime.now().isoformat(timespec="seconds")
 
     name = preset_name(current_preset)
-    spd = speed_key(entry["Set_Speed"])
+    try:
+        spd = speed_key(entry["Set_Speed"])
+    except ValueError as e:
+        status_msg = f"保存失敗: {e}"
+        return
     data = read_save_file()  # 他で編集された分を消さないよう保存直前に読み直す
     data.setdefault(name, {})[spd] = entry
     try:
@@ -397,7 +406,11 @@ def load_params(silent_if_missing=False):
     global status_msg, saved_data, fan_on
     saved_data = read_save_file()
     name = preset_name(current_preset)
-    spd = speed_key(inputs["Set_Speed"].get_value())
+    try:
+        spd = speed_key(inputs["Set_Speed"].get_value())
+    except ValueError as e:
+        status_msg = f"読込失敗: {e}"
+        return
     entry = saved_data.get(name, {}).get(spd)
     if entry is None:
         status_msg = "" if silent_if_missing else f"保存データなし: {entry_label(name, spd)}"
@@ -408,14 +421,14 @@ def load_params(silent_if_missing=False):
             inputs[key].set_value(entry[key])
         elif key in LOAD_DEFAULTS:
             inputs[key].set_value(LOAD_DEFAULTS[key])   # 以前の保存データに無い項目は既定値に戻す
-    fan_on = parse_speed_key(spd)[1]   # キーが決める（"_fan" ならON）
+    fan_on = parse_slalom_key(spd).fan   # キーが決める（"_fan" ならON）
     fan_button.text = fan_label()
     status_msg = f"読込: {entry_label(name, spd)}"
     on_generate()
 
 def saved_speeds_for_current():
     entries = saved_data.get(preset_name(current_preset), {})
-    return [speed_label(k) for k in sorted(entries.keys(), key=parse_speed_key)]
+    return [speed_label(k) for k in sorted(entries.keys(), key=slalom_key_order)]
 
 # DrawTrace will be called to render the trace onto a surface
 def parse_float(s, fallback=0.0):
@@ -584,6 +597,10 @@ for inp in inputs.values():
 fan_y = base_y + len(params) * row_h + 4
 fan_button = Button((label_x, fan_y, 140, 30), fan_label(), toggle_fan)
 buttons.append(fan_button)
+# スラロームの組の名前（空なら基本の組）。同じ速度・ファンで別の設計を "500_b" のように別に保存する
+variant_label_x = label_x + 150
+variant_box = TextBox((variant_label_x + 30, fan_y, 70, 30), allowed="abcdefghijklmnopqrstuvwxyz0123456789",
+                      max_len=8)
 
 # 保存 / 読込ボタン（右パネル、計算結果の下）
 save_y = base_y + (len(params) + 1) * row_h + 162   # 計算結果の8行の下
@@ -615,6 +632,7 @@ while running:
             b.handle_event(ev)
         for inp in inputs.values():
             inp.handle_event(ev)
+        variant_box.handle_event(ev)
 
     # draw UI frame
     screen.fill(BG)
@@ -632,6 +650,8 @@ while running:
     # draw numeric inputs (right panel)
     for name, inp in inputs.items():
         inp.draw(screen)
+    screen.blit(FONT.render("組", True, TEXT_COLOR), (variant_label_x, fan_y + 6))
+    variant_box.draw(screen)
 
     # draw labels (right panel) aligned with inputs
     title = BIGFONT.render("たーんしみゅれーた (pygame)", True, TEXT_COLOR)

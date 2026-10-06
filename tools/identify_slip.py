@@ -183,7 +183,7 @@ def suggest(params, fan, c_mm, k):
           f"書くには slalom_autotune.py refit --fan {'on' if fan else 'off'} --c {c_mm:.1f} --k {k:.4f} --write）")
     for p in PRESET_LIST:
         for key, e in sorted(params.get(p.label, {}).items(), key=lambda kv: parse_speed_key(kv[0])):
-            if key.endswith("_fan") != fan:
+            if parse_speed_key(key)[1] != fan:
                 continue
             try:
                 d = slalom_autotune.refit(p, e, c_mm, k)

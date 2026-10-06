@@ -21,6 +21,13 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     -o "$OUT/test_front_correction"
 "$OUT/test_front_correction"
 
+# 直線の台形（最短走行・探索の既知の直進・立て直しの後退）
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" \
+    "$ROOT/Core/Src/common/trapezoid.cpp" "$ROOT/tools/host_test/test_trapezoid.cpp" \
+    -o "$OUT/test_trapezoid"
+"$OUT/test_trapezoid"
+
 # 探索のソルバーの先読み（ソルバーはビルドと同じく external/micromouse_simulator/solver のソースをそのまま使う）
 SOLVER="$ROOT/external/micromouse_simulator/solver"
 SOLVER_INC=()
@@ -40,6 +47,7 @@ c++ -std=c++20 -Wall -Wextra -O2 \
 # 最短走行の手順（壁切れの補正に教える区画境界）。ACT_* と uint8_vector のためにソルバーの core を見る
 c++ -std=c++20 -Wall -Wextra -O1 \
     -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$SOLVER/core" \
-    "$ROOT/Core/Src/common/wall_edge.cpp" "$ROOT/Core/Src/app/fast_plan.cpp" "$ROOT/tools/host_test/test_fast_plan.cpp" \
+    "$ROOT/Core/Src/common/wall_edge.cpp" "$ROOT/Core/Src/common/trapezoid.cpp" "$ROOT/Core/Src/app/fast_plan.cpp" \
+    "$ROOT/tools/host_test/test_fast_plan.cpp" \
     -o "$OUT/test_fast_plan"
 "$OUT/test_fast_plan"

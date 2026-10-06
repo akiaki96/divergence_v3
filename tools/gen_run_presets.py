@@ -34,7 +34,7 @@ import re
 import sys
 
 from gen_slalom_params import GenError, cpp_ident, fmt, load_json
-from slalom_presets import PRESET_LIST, parse_speed_key
+from slalom_presets import PRESET_LIST, make_speed_key, slalom_key_order
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -79,9 +79,10 @@ def build_entries(presets, slalom_params):
         for cpp_name in kinds:
             turn = by_cpp_name[cpp_name]
             designed = slalom_params.get(turn.label, {})
-            if (speed, fan) not in map(parse_speed_key, designed):
+            # 最短走行は基本の組（"500" / "500_fan"）を使う
+            if make_speed_key(speed, fan) not in designed:
                 raise GenError(f"{where}: {turn.label} の {condition} は slalom_params.json に設計されていません"
-                               f"（設計済み: {', '.join(sorted(designed, key=parse_speed_key)) or 'なし'}）"
+                               f"（設計済み: {', '.join(sorted(designed, key=slalom_key_order)) or 'なし'}）"
                                + ("。斜めを使わないなら \"diagonal\": false" if cpp_name in DIAGONAL_TURNS else ""))
             resolved[cpp_name] = (turn.label, cpp_ident(turn.cpp_name, speed, fan))
 
