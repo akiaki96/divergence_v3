@@ -71,6 +71,7 @@
     "turns": ["S90", "L90", "T180"],
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
+    "goal": [1, 0],
     "menu": "test",
     "note": "既知の直進の試験：組「500」のスラロームで 800mm/s まで加速する"
   },
@@ -82,6 +83,7 @@
     "turns": ["S90", "L90", "T180"],
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
+    "goal": [1, 0],
     "menu": "test",
     "note": "既知の直進の試験：組「500」のスラロームで 1000mm/s まで加速する"
   },
@@ -93,6 +95,7 @@
     "turns": ["S90", "L90", "T180"],
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
+    "goal": [1, 0],
     "menu": "test",
     "note": "既知の直進の試験：組「500」のスラロームで 1100mm/s まで加速する"
   },
@@ -104,6 +107,7 @@
     "turns": ["S90", "L90", "T180"],
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
+    "goal": [1, 0],
     "menu": "test",
     "note": "既知の直進の試験：組「700」のスラロームで 1100mm/s まで加速する"
   }
