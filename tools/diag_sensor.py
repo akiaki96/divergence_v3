@@ -5,7 +5,8 @@
 方法（naophis「斜めの姿勢制御をするには」2018-12-08）：横の 45° センサー（ir_l / ir_r）の値が閾値を下回った
 ところ（壁・柱の切れ目）からの距離を横軸に，各センサーの値を並べると，同じ側の柱の周期 180√2 ≈ 254.6 mm
 ごとに同じ形になる。距離ごとの平均を表にして，走るときはその距離の値を目標にする。
-切れ目の近くは値が急に変わって不安定なので，ばらつきの大きい区間は「使わない」と印を付ける。
+切れ目の直後・直前は値が急に変わって不安定なので「使わない」と印を付ける（--guard で幅を変える）。
+同じ側の柱からの切れ目の位相は，左右の平均（前後のずれ）と左右の差の半分（横のずれ，左が正）に分けて出す。
 
 ログの列（test/diag_sensor_test.hpp）：diag_x（入45°の出口の基準点＝区画の辺の中点からの距離），target_diag_x，
 angle_error，ir_l / ir_fl / ir_fr / ir_r，since_l / since_r（機体の DiagEdge が数えた切れ目からの距離）。
@@ -138,8 +139,9 @@ def detect_edges(x, value, on, off, min_wall):
     return edges
 
 
-def since_from_edges(x, edges):
-    """各サンプルの，それより前の最後の切れ目からの距離（なければ NaN）"""
+def since_from_edges(x, edges, complete=False):
+    """各サンプルの，それより前の最後の切れ目からの距離（なければ NaN）。
+    complete なら最後の切れ目より後も NaN にする（切れ目と切れ目の間の周期だけ残す）"""
     out = np.full(len(x), np.nan)
     e = np.asarray(edges)
     if len(e) == 0:
@@ -147,6 +149,8 @@ def since_from_edges(x, edges):
     idx = np.searchsorted(e, x, side="right") - 1
     ok = idx >= 0
     out[ok] = x[ok] - e[idx[ok]]
+    if complete:
+        out[x > e[-1]] = np.nan
     return out
 
 
@@ -186,15 +190,14 @@ def make_table(since, value, bin_mm):
     return centers, mean, std, n
 
 
-def unstable_bins(mean, std, n, min_n, std_factor, slope_factor, bin_mm):
-    """使わない区間：サンプルが少ない，ばらつきが大きい，傾きが急（切れ目の近く）"""
-    good = n >= min_n
-    med_std = float(np.median(std[good])) if np.any(good) else 0.0
-    slope = np.abs(np.gradient(np.nan_to_num(mean, nan=0.0), bin_mm))
-    med_slope = float(np.median(slope[good])) if np.any(good) else 0.0
-    bad = ~good
-    bad |= std > max(std_factor * med_std, 5.0)
-    bad |= slope > max(slope_factor * med_slope, 5.0)
+def unstable_bins(centers, n, min_n, guard_after, guard_before):
+    """使わない区間：サンプルが少ない，切れ目の直後 guard_after mm と次の切れ目の直前 guard_before mm。
+    ばらつき・傾きでは決めない：壁に近づく区間（切れ目の手前）は値が急に増え，走行ごとの横のずれで
+    ばらつきも大きくなるが，横のずれへの感度が最も高い区間でもある（2026-10-06 の実機ログで，
+    走行ごとのばらつきを横のずれに換算すると 50〜235 mm で一定の約 4 mm）"""
+    bad = n < min_n
+    bad |= centers < guard_after
+    bad |= centers > PERIOD - guard_before
     return bad
 
 
@@ -231,13 +234,14 @@ def suggest_thresholds(values):
 
 # ---------------------------------------------------------------- 解析
 
-def analyze(runs, cfg, bin_mm=2.0, min_n=3, std_factor=2.5, slope_factor=4.0, quiet=False):
+def analyze(runs, cfg, bin_mm=2.0, min_n=3, guard_after=10.0, guard_before=15.0, quiet=False):
     def say(*a):
         if not quiet:
             print(*a)
 
     pooled = {s: ([], []) for s, _ in SENSORS}   # sensor → (since, value)
     phases = {s: [] for s in SIDES}              # side → [(file, phase)]
+    decomp = []                                  # 走行ごと (file, turn, 前後, 横)
     raw_side = {s: [] for s in SIDES}
     for run in runs:
         m = moving_mask(run)
@@ -255,7 +259,9 @@ def analyze(runs, cfg, bin_mm=2.0, min_n=3, std_factor=2.5, slope_factor=4.0, qu
             val = run[col][m]
             raw_side[side].append(val)
             edges = detect_edges(x, val, cfg["on"][side], cfg["off"][side], cfg["min_wall"])
-            since[side] = since_from_edges(x, edges)
+            # 表には切れ目と切れ目の間の周期だけを使う。最後の切れ目より後は，並べた壁の先を見ている
+            # （ビームの先に壁がなく値が落ちたまま）か，止まる前の減速で，周期の形にならない
+            since[side] = since_from_edges(x, edges, complete=True)
             p0 = pillar0(side, run["dir"])
             ph = [wrap(e - p0) for e in edges]
             phases[side].extend((run["name"], p) for p in ph)
@@ -274,6 +280,12 @@ def analyze(runs, cfg, bin_mm=2.0, min_n=3, std_factor=2.5, slope_factor=4.0, qu
                     say(f"     onboard DiagEdge: {len(ob)} edges, max |diff| to this detection {max(diff):.1f} mm")
                 elif ob or edges:
                     say(f"     onboard DiagEdge: {len(ob)} edges (thresholds differ from config::diag?)")
+        run_ph = {s: [p for f, p in phases[s] if f == run["name"]] for s in SIDES}
+        if run_ph["L"] and run_ph["R"]:
+            pl, pr = statistics.fmean(run_ph["L"]), statistics.fmean(run_ph["R"])
+            along, lat = (pl + pr) / 2.0, (pl - pr) / 2.0
+            decomp.append((run["name"], run["dir"], along, lat))
+            say(f"  along {along:+.1f} mm (mean of L and R phases), lateral {lat:+.1f} mm (left +, (L - R) / 2)")
         for col, side in SENSORS:
             pooled[col][0].append(since[side])
             pooled[col][1].append(run[col][m])
@@ -289,6 +301,19 @@ def analyze(runs, cfg, bin_mm=2.0, min_n=3, std_factor=2.5, slope_factor=4.0, qu
             say(f"  {side}: {ps[0]:+.1f} mm (1 edge)")
         else:
             say(f"  {side}: no edges (check the thresholds with --on/--off or the walls)")
+    # 横に d（左が正）ずれると，北（右へ入ったとき）を向く左のビームは柱を d 遅れて，右は d 早く過ぎる。
+    # 前後のずれ（距離の誤差）は左右とも同じ向きに動かす。左右の位相の差の半分が横，平均が前後
+    if decomp:
+        say("decomposed per run (lateral: left +; the inner side is the turn direction):")
+        alongs = [a for _, _, a, _ in decomp]
+        say(f"  along: mean {statistics.fmean(alongs):+.1f} mm, std {statistics.pstdev(alongs):.1f} mm ({len(alongs)} runs)"
+            "  <- the edge position itself; small std = usable reference")
+        for d in SIDES:
+            lats = [l for _, t, _, l in decomp if t == d]
+            if lats:
+                inward = statistics.fmean(lats) * (1.0 if d == "L" else -1.0)
+                say(f"  turn {d}: lateral mean {statistics.fmean(lats):+.1f} mm (std {statistics.pstdev(lats):.1f}),"
+                    f" {inward:+.1f} mm toward the inner side ({len(lats)} runs)")
 
     say("")
     say("suggested thresholds (5%..95% of the side sensor while moving; OFF at 40%, ON at 60%):")
@@ -308,7 +333,7 @@ def analyze(runs, cfg, bin_mm=2.0, min_n=3, std_factor=2.5, slope_factor=4.0, qu
         since_all = np.concatenate(pooled[col][0])
         value_all = np.concatenate(pooled[col][1])
         c, mean, std, n = make_table(since_all, value_all, bin_mm)
-        bad = unstable_bins(mean, std, n, min_n, std_factor, slope_factor, bin_mm)
+        bad = unstable_bins(c, n, min_n, guard_after, guard_before)
         tables[col] = {"edge_side": side, "since": c, "mean": mean, "std": std, "n": n, "unstable": bad,
                        "samples": (since_all, value_all)}
         say("")
@@ -323,7 +348,7 @@ def analyze(runs, cfg, bin_mm=2.0, min_n=3, std_factor=2.5, slope_factor=4.0, qu
             if n[i] > 0:
                 line.append(f"{c[i]:.0f}:{mean[i]:.0f}{'' if good[i] else '*'}")
         say("  " + " ".join(line) + "   (* = do not use)")
-    return {"phases": phases, "suggest": suggest, "tables": tables}
+    return {"phases": phases, "decomp": decomp, "suggest": suggest, "tables": tables}
 
 
 def write_json(result, cfg, bin_mm, path):
@@ -333,6 +358,8 @@ def write_json(result, cfg, bin_mm, path):
         "thresholds": cfg,
         "suggested_thresholds": result["suggest"],
         "edge_phase": {s: [p for _, p in result["phases"][s]] for s in SIDES},
+        "runs": [{"file": f, "turn": t, "along_mm": round(a, 2), "lateral_mm": round(l, 2)}
+                 for f, t, a, l in result["decomp"]],
         "tables": {},
     }
     for col, t in result["tables"].items():
@@ -513,6 +540,11 @@ def selftest():
     both = (tl["n"] > 0) & (tc["n"] > 0) & ~tc["unstable"]
     diff = float(np.nanmedian(tl["mean"][both] - tc["mean"][both]))
     check(diff > 0.0, f"5 mm to the left raises ir_l in the stable bins (median {diff:+.0f})")
+    lat0 = res["decomp"][0][3]
+    lat5 = res_l["decomp"][0][3]
+    check(abs(lat5 - lat0 - 5.0) < 1.0, f"5 mm to the left is decomposed as lateral {lat5 - lat0:+.2f} mm")
+    along_s = res_s["decomp"][0][2] - res["decomp"][0][2]
+    check(abs(along_s - 15.0) < 1.0, f"odometry +15 mm is decomposed as along {along_s:+.2f} mm")
 
     # ノイズ ±20（1σ）でも，ヒステリシスで切れ目は増えず，表のばらつきはノイズ程度
     noisy = [synth_run("R", 8, noise=20.0, rng=rng), synth_run("L", 8, noise=20.0, rng=rng)]
@@ -539,6 +571,8 @@ def main():
     ap.add_argument("--on", nargs=2, type=float, metavar=("LEFT", "RIGHT"), help="THRESH_ON (default config::diag)")
     ap.add_argument("--off", nargs=2, type=float, metavar=("LEFT", "RIGHT"), help="THRESH_OFF (default config::diag)")
     ap.add_argument("--bin", type=float, default=2.0, help="table bin [mm] (default 2)")
+    ap.add_argument("--guard", nargs=2, type=float, default=(10.0, 15.0), metavar=("AFTER", "BEFORE"),
+                    help="do not use the bins this close after / before an edge [mm] (default 10 15)")
     ap.add_argument("--out", default=os.path.join(TOOLS_DIR, "log", "diag", "reference.json"), help="table JSON")
     ap.add_argument("--plot", action="store_true", help="show the waveforms and the tables")
     ap.add_argument("--selftest", action="store_true", help="check the analysis on synthetic data (no robot)")
@@ -558,7 +592,7 @@ def main():
     print(f"thresholds: ON L {cfg['on']['L']:.0f} R {cfg['on']['R']:.0f}, OFF L {cfg['off']['L']:.0f} R {cfg['off']['R']:.0f}, "
           f"min wall {cfg['min_wall']:.0f} mm")
     runs = [load(f) for f in files]
-    result = analyze(runs, cfg, bin_mm=args.bin)
+    result = analyze(runs, cfg, bin_mm=args.bin, guard_after=args.guard[0], guard_before=args.guard[1])
     write_json(result, cfg, args.bin, args.out)
     if args.plot:
         plot(result, runs)
