@@ -314,6 +314,15 @@ def analyze(runs, cfg, bin_mm=2.0, min_n=3, guard_after=10.0, guard_before=15.0,
                 inward = statistics.fmean(lats) * (1.0 if d == "L" else -1.0)
                 say(f"  turn {d}: lateral mean {statistics.fmean(lats):+.1f} mm (std {statistics.pstdev(lats):.1f}),"
                     f" {inward:+.1f} mm toward the inner side ({len(lats)} runs)")
+        # 置き方の前後のずれ（後壁との隙間など）を除く：機体が北へ n ずれると，左右どちらへ入っても前後は +n/√2，
+        # 内側へは −n/√2。前後は（センサーの取り付けで決まる）全走行の平均に戻るはずなので，その差を内側に足し戻す。
+        # 置き方の東西のずれは前後と内側を同じ向きに動かすので除けない
+        ref = statistics.fmean(alongs)
+        for d in SIDES:
+            corr = [(l if d == "L" else -l) + (a - ref) for _, t, a, l in decomp if t == d]
+            if corr:
+                say(f"  turn {d}: {statistics.fmean(corr):+.1f} mm toward the inner side with the placement shift along "
+                    f"the start column removed (std {statistics.pstdev(corr):.1f})  <- the IN45 exit")
 
     say("")
     say("suggested thresholds (5%..95% of the side sensor while moving; OFF at 40%, ON at 60%):")
