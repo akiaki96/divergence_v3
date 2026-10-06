@@ -11,7 +11,11 @@
 // その記録のゴールまで、プリセットの速度で最短時間の経路を走り、ゴール区画で止まる。
 // 走る前に経路をすべて区間にして検査し（fast_plan::validate）、積めない区間があれば走らない。
 //
-// 走り終わったら機体を持ち上げて（haltByAccZ）待ち，置くと時系列のログ（fast/<preset>_trace）を送る
+// 入口が区画中央のターン（L90・T180・IN45・IN135）の手前の区画境界を WallEdge に教え，壁切れで並進の位置を合わせる
+// （プリセットの wall_edge。false でも壁切れは記録する）。
+//
+// 走り終わったら機体を持ち上げて（haltByAccZ）待ち，置くと壁切れの記録（fast/<preset>_edges）と
+// 時系列のログ（fast/<preset>_trace，edge_shift 列は補正の累計）を送る
 void runFastRun(const RunPreset& preset);
 
 // メニューから呼ぶ（config::run::PRESETS[I] で走る）

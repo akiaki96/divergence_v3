@@ -53,6 +53,16 @@
     "goal": [1, 0],
     "note": "試験用：スタート(0,0)からゴール(1,0)へ行き，スタートへ戻る"
   },
+  "500_fc_goal10": {
+    "speed": 500,
+    "accel": 3000,
+    "turns": ["S90", "L90", "T180"],
+    "pivot": {"omega": 360, "alpha": 2500},
+    "wall_control": true,
+    "front_correction": true,
+    "goal": [1, 0],
+    "note": "試験用：500_goal10 と同じで，S90 の入口を前壁の距離で補正する（500_goal10 と比べる用）"
+  },
   "500_goal01": {
     "speed": 500,
     "accel": 3000,

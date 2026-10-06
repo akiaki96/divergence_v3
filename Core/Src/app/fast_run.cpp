@@ -2,6 +2,7 @@
 #include <cstdio>
 #include "app/fast_plan.hpp"
 #include "app/maze_store.hpp"
+#include "app/wall_edge_log.hpp"
 #include "common/debug.hpp"
 #include "common/etc.hpp"
 #include "device/device_instance.hpp"
@@ -17,6 +18,11 @@ static_assert(START_TO_CENTER > 0.f, "the axle must start behind the center of t
 
 constexpr uint32_t TRACE_MS = 30000;   // [ms] 時系列のログの長さ
 constexpr uint32_t SETTLE_MS = 500;
+
+// [mm] 区画境界を WallEdge に教えるのは，実測の位置が境界のこれだけ手前に来てから。
+// 壁切れは境界の約 −91 mm（config::wall_edge::OFFSET_*）で検出するので，窓の幅を足しても間に合う。
+// 先に教えすぎると，WallEdge が同時に待てる境界（MAX_PENDING = 4）からあふれて古い境界が捨てられる
+constexpr float EDGE_FEED_LEAD_MM = 300.f;
 
 // ---- プリセットの検査（ビルド時）：ターンがターンの速度・同じファンの条件で設計されていて積める ----
 constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required) {
@@ -50,7 +56,14 @@ static_assert(allPresetsUsable(), "a run preset cannot run: check tools/run_pres
 // 経路の手順（スタックに置かない）
 fast_plan::Steps g_steps;
 
+// 壁切れの補正に教える区画境界（区画中央から入るターンの手前。fast_plan::edgeBoundaries）と，次に教える番号
+constexpr std::size_t MAX_EDGE_BOUNDARIES = 64;
+float g_edge_boundaries[MAX_EDGE_BOUNDARIES];
+std::size_t g_edge_count = 0;
+std::size_t g_edge_next = 0;
+
 char g_trace_name[32];
+char g_edge_name[32];
 
 void initTraceLog() {
     logger.initLoggedVal();
@@ -59,6 +72,7 @@ void initTraceLog() {
     logger.add<&PlanProfile::getTargetVelocityX>("target_velocity_x", planProfile);
     logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
     logger.add<&Odometry::angle>("current_angle", odometry);
+    logger.add<&WallEdge::totalShift>("edge_shift", wallEdge);
     logger.setDuration(TRACE_MS);
 }
 
@@ -140,6 +154,13 @@ bool plan(const RunPreset& p) {
     LOG("fast %s: %u steps, solver estimate %u ms, profile estimate %.0f ms\r\n", p.name,
         static_cast<unsigned>(g_steps.size()), time_based_dijkstra::last_path_time_ms(),
         1000.f * fast_plan::estimatedTime(g_steps, p));
+
+    g_edge_count = fast_plan::edgeBoundaries(g_steps, p, config::wall_edge::FAST_BOUNDARIES_PER_TURN,
+                                             g_edge_boundaries, MAX_EDGE_BOUNDARIES);
+    LOG("fast %s: wall edge %s, %u boundaries before the center-entry turns:", p.name,
+        p.wall_edge ? "correction" : "log only", static_cast<unsigned>(g_edge_count));
+    for (std::size_t i = 0; i < g_edge_count; ++i) LOG(" %.0f", g_edge_boundaries[i]);
+    LOG("\r\n");
     for (std::size_t i = 0; i < g_steps.size(); ++i) {
         const fast_plan::Step& s = g_steps[i];
         if (s.turn != nullptr) {
@@ -155,6 +176,15 @@ bool profileBroken() {
     return planProfile.rejectedCount() > 0 || planProfile.droppedCount() > 0;
 }
 
+// 実測の位置が近づいた区画境界を WallEdge に教える（待っている間に何度も呼ぶ）
+void feedEdges() {
+    while (g_edge_next < g_edge_count &&
+           odometry.positionX() >= g_edge_boundaries[g_edge_next] - EDGE_FEED_LEAD_MM) {
+        if (!wallEdge.expect(g_edge_boundaries[g_edge_next])) return;   // キューが一杯なら次に呼ばれたとき
+        ++g_edge_next;
+    }
+}
+
 // 手順を順に積む。キューの空きが1つの手順の区間ぶん（スラロームは最大5区間）あるまで待ってから積む
 bool runSteps(const RunPreset& p) {
     constexpr std::size_t SLALOM_SEGMENTS = 5;   // 入口オフセット・角速度の加速・等角速度・減速・出口オフセット
@@ -165,6 +195,7 @@ bool runSteps(const RunPreset& p) {
             std::size_t need = (seg[k].turn != nullptr) ? SLALOM_SEGMENTS : 1;
             while (planProfile.freeSlots() < need) {
                 if (profileBroken()) return false;
+                feedEdges();
             }
             SegmentResult r = (seg[k].turn != nullptr) ? slalom::push(planProfile, *seg[k].turn, seg[k].dir)
                                                        : planProfile.straight(seg[k].v_end, seg[k].distance);
@@ -180,6 +211,7 @@ bool runSteps(const RunPreset& p) {
 
 void runFastRun(const RunPreset& preset) {
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
+    std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
     LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
         preset.name, preset.turn_speed, preset.max_speed, preset.max_speed_dia, preset.accel, preset.decel,
         preset.diagonal ? "on" : "off", preset.fan ? "on" : "off");
@@ -214,6 +246,10 @@ void runFastRun(const RunPreset& preset) {
     planProfile.reset();
     wallControl.reset();
     wallControl.enable(false);   // 横壁の補正は使わない（斜めでは横壁を読めない）
+    // 壁切れ：区画中央から入るターン（大回り・入45°・入135°）の手前の境界だけ教える（教えていない壁切れは記録だけ）。プリセットが false なら補正しない
+    wallEdge.reset();
+    wallEdge.start(preset.wall_edge);
+    g_edge_next = 0;
 
     ledBar16.set(0x0000);
     logger.start();
@@ -222,22 +258,26 @@ void runFastRun(const RunPreset& preset) {
 
     bool ok = runSteps(preset);
     if (ok) {
-        planProfile.waitUntilIdle();
+        while (!planProfile.isIdle() && !profileBroken()) feedEdges();   // 最後の手順の境界も教える
         HAL_Delay(SETTLE_MS);
     }
     ok = ok && !profileBroken();
     planProfile.stop();
     fan.stop();
+    wallEdge.stop();
     logger.stop();
     motorDriver.setBreak();
 
     LOG("fast %s: %s (rejected %lu, dropped %lu)\r\n", preset.name, ok ? "finished" : "stopped",
         static_cast<unsigned long>(planProfile.rejectedCount()), static_cast<unsigned long>(planProfile.droppedCount()));
+    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
+        static_cast<unsigned long>(wallEdge.eventCount()), preset.wall_edge ? "on" : "off", wallEdge.totalShift());
     if (!ok) blinkRefused();
 
     HAL_Delay(500);
     ledBar16.set(0xFFFF);
     haltByAccZ();
+    wall_edge_log::dump("fast", g_edge_name);
     logger.dump();
     ledBar16.set(0x0000);
 }

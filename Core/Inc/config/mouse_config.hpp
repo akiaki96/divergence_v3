@@ -180,8 +180,16 @@ inline constexpr int16_t THRESH_FRONT_RIGHT = 205;
 inline constexpr int16_t REF_LEFT = 744;
 inline constexpr int16_t REF_RIGHT = 694;
 
-inline constexpr float KP = 0.02f;              // [dps/count] 中心線からのずれ（センサー値の差）→ 補正の角速度
-inline constexpr float MAX_OMEGA = 90.f;        // [dps] 補正の角速度の上限
+// 補正のゲインは並進の目標速度 v に比例させる（KP = KP_PER_VELOCITY·v）。
+// 横ずれ y [mm]・壁に対する向き θ [rad] で error ≈ KS·(y + L·θ)（横のセンサーは車軸の約 L 先の壁を見るので，
+// 向きも効く。これが減衰になる）。走った距離 x で書くと y'' + G·L·y' + G·y = 0，G = KP·KS·(π/180)/v。
+// KP ∝ v なら G が一定で，速度によらず同じ距離で収束する。
+// 2026-10-06 探索のトレース（275区間）から KS ≈ 31〜32 count/mm，L ≈ 80〜120 mm（壁切れの OFFSET −91 とも合う）。
+// 2% 収束 ≈ 4/(G·L/2) を 270 mm（1.5区画）にして G = 2.96e-4 /mm²，ζ ≈ 0.86（tools/wall_control_design.py）。
+// 前の固定 KP = 0.02 は 500 mm/s で KP_PER_VELOCITY ≈ 4e-5 相当（収束に約 3.7 m）
+inline constexpr float KP_PER_VELOCITY = 5.5e-4f;   // [dps/count per mm/s] 中心線からのずれ（センサー値の差）→ 補正の角速度
+// 補正の角速度の上限も v に比例させる（曲率の上限。500 mm/s で前と同じ 90 dps）
+inline constexpr float MAX_OMEGA_PER_VELOCITY = 0.18f;   // [dps per mm/s]
 inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いとき（停止・超信地旋回）は補正しない
 }
 
@@ -216,6 +224,10 @@ inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いと�
 // 探索で補正をかけるか。false でも壁切れは検出してログ（search/<preset>_edges）に残す。
 // 2026-10-03 探索で挙動を見るため true にした（R8）。おかしければ false に戻すと記録だけになる
 inline constexpr bool SEARCH_CORRECTION = true;
+
+// 最短走行（app/fast_run.cpp）：入口が区画中央のターン（L90・T180・IN45・IN135）の手前の区画境界をいくつ教えるか。
+// 直前の境界で横壁が切れなくても，その1つ前で合わせられるように2つ。補正をかけるかはプリセットの "wall_edge"
+inline constexpr int FAST_BOUNDARIES_PER_TURN = 2;
 }
 
 // 前壁の距離による S90 の入口の補正（common/front_correction.hpp）。探索で S90 を積むとき，読み位置
@@ -227,10 +239,12 @@ inline constexpr bool SEARCH_CORRECTION = true;
 // 2026-10-05 既存の探索ログでは e の σ≈11 mm，その後の壁切れのずれとの相関はほぼ 0（1回の読みではノイズが大きい）。
 // 大きなずれだけを小さくするよう，不感帯と上限をつけている。tools/front_correction.py でログから確かめる
 namespace config::front_correction {
-// [mm] 読み位置での前壁の距離（換算表の値）の基準。[要調整] 探索4走行の「直進の後」に S90 を積んだ読み
-// （前壁あり 79 回）の中央値。Device → IR → Front check（wall）が静止で測った候補を出す
-inline constexpr float REF_LEFT_MM = 198.5f;
-inline constexpr float REF_RIGHT_MM = 204.9f;
+// [mm] 読み位置での前壁の距離（換算表の値）の基準。Device → IR → Front check（wall）が静止で測った候補を出す。
+// 2026-10-05 ゴール (1,0) の探索5走行の step 0（スタートから1区画目の読み。直後の壁切れのずれ約 2 mm で，
+// 本当のずれはほぼ 0）の平均：FL 186.6〜187.3，FR 194.0〜195.9。前の値 198.5 / 204.9（前の迷路の探索ログの
+// 「直進の後」の中央値）では step 0 で e ≈ −10 mm と出て，補正が負側にかかりすぎていた
+inline constexpr float REF_LEFT_MM = 187.3f;
+inline constexpr float REF_RIGHT_MM = 195.2f;
 // [mm] 換算した距離がこの範囲にあるときだけ使う（両方とも）。読み位置の前壁は約 184 mm
 inline constexpr float MIN_DISTANCE_MM = 140.f;
 inline constexpr float MAX_DISTANCE_MM = 260.f;

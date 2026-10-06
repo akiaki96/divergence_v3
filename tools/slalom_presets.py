@@ -5,8 +5,9 @@
 #   小回り90°: 区画境界(壁の中央)から入り，1区画内で曲がって隣の境界から出る
 #   大回り90°: 区画中央から曲がり始め，斜め隣の区画中央で曲がり終える
 #
-# exit_offset は，入口の基準点から出口の基準点までの変位 (dx, dy) [mm]（右旋回，external/micromouse_simulator の
-# action.json の折れ線と同じ）。デザイナーの「出口のずれ」と identify_slip.py が使う。斜めのターンは未設定（None）
+# path は，入口の基準点を (0, 0) とした基準の折れ線 [mm]（右旋回，external/micromouse_simulator の action.json と
+# maze_logic.py の半区画の格子：直進1歩が90mm，斜めは (90, 90)）。最後の点が出口の基準点（exit_offset）。
+# デザイナーの「出口のずれ」，identify_slip.py，slalom_autotune.py が使う。通り抜ける区画境界には壁がない（slalom_sim.obstacles）
 #
 # entry / exit は，入口・出口の基準点（オフセットの起点・終点）が区画のどこにあるか：
 #   "edge"   … 区画境界（壁の中央）
@@ -28,23 +29,36 @@ class Preset:
     cpp_name: str     # 生成ヘッダの識別子（config::slalom::Turn の列挙子と定数名の接頭辞）
     entry: str
     exit: str
-    exit_offset: tuple | None = None
+    path: tuple
 
     @property
     def angle(self) -> float:
         return self.fin_angle - self.ini_angle
 
+    @property
+    def exit_offset(self) -> tuple:
+        """入口の基準点から出口の基準点までの変位 (dx, dy) [mm]"""
+        return self.path[-1]
 
-# 斜めのターンの直線側（in45/in135の入口，out45/out135の出口）は，試験が斜め側で未対応になるため未使用（要確認）
+
+# 斜めの入口・出口は，壁の中央（区画境界の中点）を通る斜めの線の上にある
 PRESET_LIST = [
-    Preset("s90",    "小回り90°", 0.0, 180.0,  0.0,  90.0, "S90",    "edge",   "edge",   (90.0, 90.0)),     # ACT_TURN_*_MOVE
-    Preset("l90",    "大回り90°", 0.0,  90.0,  0.0,  90.0, "L90",    "center", "center", (180.0, 180.0)),   # ACT_S90_*
-    Preset("180",    "180°",      0.0,  90.0,  0.0, 180.0, "T180",   "center", "center", (180.0, 0.0)),     # ACT_S180_*
-    Preset("in45",   "入45°",     0.0,  90.0,  0.0,  45.0, "IN45",   "center", "diag"),
-    Preset("out45",  "出45°",     0.0, 180.0, 45.0,  90.0, "OUT45",  "diag",   "center"),
-    Preset("v90",    "V90°",      0.0, 180.0, 45.0, 135.0, "V90",    "diag",   "diag"),
-    Preset("in135",  "入135°",    0.0,  90.0,  0.0, 135.0, "IN135",  "center", "diag"),
-    Preset("out135", "出135°",    0.0, 180.0, 45.0, 180.0, "OUT135", "diag",   "center"),
+    Preset("s90",    "小回り90°", 0.0, 180.0,  0.0,  90.0, "S90",    "edge",   "edge",
+           ((0, 0), (0, 90), (90, 90))),                           # ACT_TURN_*_MOVE
+    Preset("l90",    "大回り90°", 0.0,  90.0,  0.0,  90.0, "L90",    "center", "center",
+           ((0, 0), (0, 180), (180, 180))),                        # ACT_S90_*
+    Preset("180",    "180°",      0.0,  90.0,  0.0, 180.0, "T180",   "center", "center",
+           ((0, 0), (0, 180), (180, 180), (180, 0))),              # ACT_S180_*
+    Preset("in45",   "入45°",     0.0,  90.0,  0.0,  45.0, "IN45",   "center", "diag",
+           ((0, 0), (0, 90), (90, 180))),                          # ACT_S45_in_*
+    Preset("out45",  "出45°",     0.0, 180.0, 45.0,  90.0, "OUT45",  "diag",   "center",
+           ((0, 0), (90, 90), (180, 90))),                         # ACT_S45_out_*
+    Preset("v90",    "V90°",      0.0, 180.0, 45.0, 135.0, "V90",    "diag",   "diag",
+           ((0, 0), (90, 90), (180, 0))),                          # ACT_V90_*
+    Preset("in135",  "入135°",    0.0,  90.0,  0.0, 135.0, "IN135",  "center", "diag",
+           ((0, 0), (0, 180), (90, 180), (180, 90))),              # ACT_S135_in_*
+    Preset("out135", "出135°",    0.0, 180.0, 45.0, 180.0, "OUT135", "diag",   "center",
+           ((0, 0), (90, 90), (180, 90), (180, -90))),             # ACT_S135_out_*
 ]
 
 PRESET_BY_LABEL = {p.label: p for p in PRESET_LIST}

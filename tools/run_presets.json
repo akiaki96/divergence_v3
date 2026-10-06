@@ -6,6 +6,7 @@
     "accel": 3000,
     "decel": 3000,
     "diagonal": false,
+    "wall_edge": true,
     "note": "最初に試す：縦横の直線と大回り90°・180°だけ"
   },
   "500_dia": {
@@ -15,6 +16,7 @@
     "accel": 3000,
     "decel": 3000,
     "diagonal": true,
+    "wall_edge": true,
     "note": "斜めあり（斜めのターンは実機で未試験）"
   }
 }

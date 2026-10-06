@@ -43,3 +43,11 @@ c++ -std=c++20 -Wall -Wextra -O2 \
     "${SOLVER_SRC[@]}" "$ROOT/Core/Src/app/search_lookahead.cpp" "$ROOT/tools/host_test/test_search_lookahead.cpp" \
     -o "$OUT/test_search_lookahead"
 "$OUT/test_search_lookahead"
+
+# 最短走行の手順（壁切れの補正に教える区画境界）。ACT_* と uint8_vector のためにソルバーの core を見る
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$SOLVER/core" \
+    "$ROOT/Core/Src/common/wall_edge.cpp" "$ROOT/Core/Src/common/trapezoid.cpp" "$ROOT/Core/Src/app/fast_plan.cpp" \
+    "$ROOT/tools/host_test/test_fast_plan.cpp" \
+    -o "$OUT/test_fast_plan"
+"$OUT/test_fast_plan"
