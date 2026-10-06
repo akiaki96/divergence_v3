@@ -381,31 +381,37 @@ void runSearch(const SearchPreset& preset) {
     logger.stop();
     motorDriver.setBreak();
 
-    LOG("search %s: %s after %u wall reads (rejected %lu, dropped %lu)\r\n", preset.name, stopName(stop),
-        g_step_count, static_cast<unsigned long>(planProfile.rejectedCount()),
-        static_cast<unsigned long>(planProfile.droppedCount()));
-    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
-        static_cast<unsigned long>(wallEdge.eventCount()), config::wall_edge::SEARCH_CORRECTION ? "on" : "off",
-        wallEdge.totalShift());
-    if (stop != Stop::finished) {
+    // 結果は機体を持ち上げた後（haltByAccZ の後）に UART へ出す。止まった直後はまだ床の上で，
+    // 持ち上げて置くまで受け手がいない／つないでいないことがあるので，ここでは LED の合図だけにする
+    bool finished = (stop == Stop::finished);
+    maze_store::Result saved = maze_store::Result::ok;
+    if (!finished) {
         blinkRefused();
     } else {
         // スタートまで戻った迷路だけ保存する（途中で止まったときは壁の誤読があり得るので残さない）。
         // 消去・書き込みで1〜2s CPU が止まるので，モーターを止めた後に行う
         ledBar16.set(0xFFFF);
-        maze_store::Result saved = maze_store::save(
-            maze_store::capture(preset.goal_x, preset.goal_y, true));
+        saved = maze_store::save(maze_store::capture(preset.goal_x, preset.goal_y, true));
         ledBar16.set(0x0000);
-        uint8_t bank = 0;
-        const maze_store::Record* r = maze_store::latest(&bank);
-        LOG("maze save: %s (bank %c, sequence %lu)\r\n", maze_store::resultName(saved), 'A' + bank,
-            static_cast<unsigned long>(r != nullptr ? r->sequence : 0));
         if (saved != maze_store::Result::ok) blinkRefused();
     }
 
     HAL_Delay(500);
     ledBar16.set(0xFFFF);
     haltByAccZ();
+
+    LOG("search %s: %s after %u wall reads (rejected %lu, dropped %lu)\r\n", preset.name, stopName(stop),
+        g_step_count, static_cast<unsigned long>(planProfile.rejectedCount()),
+        static_cast<unsigned long>(planProfile.droppedCount()));
+    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
+        static_cast<unsigned long>(wallEdge.eventCount()), config::wall_edge::SEARCH_CORRECTION ? "on" : "off",
+        wallEdge.totalShift());
+    if (finished) {
+        uint8_t bank = 0;
+        const maze_store::Record* r = maze_store::latest(&bank);
+        LOG("maze save: %s (bank %c, sequence %lu)\r\n", maze_store::resultName(saved), 'A' + bank,
+            static_cast<unsigned long>(r != nullptr ? r->sequence : 0));
+    }
     dumpSteps(g_log_name, preset.front_correction);
     wall_edge_log::dump("search", g_edge_name);
     logger.dump();

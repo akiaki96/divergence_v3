@@ -50,12 +50,6 @@ void runClosedLoopTest(const ClosedLoopTest& test) {
     test.profile();   // 区間を積むだけで戻る
     planProfile.waitUntilIdle();   // 積んだ区間がすべて終わるまで待つ
 
-    if (planProfile.rejectedCount() > 0 || planProfile.droppedCount() > 0) {
-        LOG("plan profile: %lu segments rejected, %lu dropped\r\n",
-            static_cast<unsigned long>(planProfile.rejectedCount()),
-            static_cast<unsigned long>(planProfile.droppedCount()));
-    }
-
     HAL_Delay(test.settle_ms);
     planProfile.stop();
     logger.stop();
@@ -64,6 +58,12 @@ void runClosedLoopTest(const ClosedLoopTest& test) {
     HAL_Delay(500);
     ledBar16.set(0xFFFF);
     haltByAccZ();
+    // 区間が積めなかった・落ちたことは，持ち上げた後に UART へ出す
+    if (planProfile.rejectedCount() > 0 || planProfile.droppedCount() > 0) {
+        LOG("plan profile: %lu segments rejected, %lu dropped\r\n",
+            static_cast<unsigned long>(planProfile.rejectedCount()),
+            static_cast<unsigned long>(planProfile.droppedCount()));
+    }
     logger.dump();
     ledBar16.set(0x0000);
 }

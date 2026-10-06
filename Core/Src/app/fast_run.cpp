@@ -1,4 +1,5 @@
 #include "app/fast_run.hpp"
+#include <cstdint>
 #include <cstdio>
 #include "app/fast_plan.hpp"
 #include "app/maze_store.hpp"
@@ -185,10 +186,16 @@ void feedEdges() {
     }
 }
 
+// 積めなかった手順とその理由（走行中は UART に出さず，持ち上げた後に出す）
+constexpr std::size_t NO_REJECT = SIZE_MAX;
+std::size_t g_reject_step = NO_REJECT;
+SegmentResult g_reject_result = SegmentResult::ok;
+
 // 手順を順に積む。キューの空きが1つの手順の区間ぶん（スラロームは最大5区間）あるまで待ってから積む
 bool runSteps(const RunPreset& p) {
     constexpr std::size_t SLALOM_SEGMENTS = 5;   // 入口オフセット・角速度の加速・等角速度・減速・出口オフセット
     fast_plan::Segment seg[fast_plan::MAX_SEGMENTS_PER_STEP];
+    g_reject_step = NO_REJECT;
     for (std::size_t i = 0; i < g_steps.size(); ++i) {
         uint8_t n = fast_plan::segments(g_steps, i, p, seg);
         for (uint8_t k = 0; k < n; ++k) {
@@ -200,7 +207,8 @@ bool runSteps(const RunPreset& p) {
             SegmentResult r = (seg[k].turn != nullptr) ? slalom::push(planProfile, *seg[k].turn, seg[k].dir)
                                                        : planProfile.straight(seg[k].v_end, seg[k].distance);
             if (r != SegmentResult::ok) {
-                LOG("fast %s: step %u rejected: %s\r\n", p.name, static_cast<unsigned>(i), slalom::resultName(r));
+                g_reject_step = i;
+                g_reject_result = r;
                 return false;
             }
         }
@@ -268,15 +276,21 @@ void runFastRun(const RunPreset& preset) {
     logger.stop();
     motorDriver.setBreak();
 
-    LOG("fast %s: %s (rejected %lu, dropped %lu)\r\n", preset.name, ok ? "finished" : "stopped",
-        static_cast<unsigned long>(planProfile.rejectedCount()), static_cast<unsigned long>(planProfile.droppedCount()));
-    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
-        static_cast<unsigned long>(wallEdge.eventCount()), preset.wall_edge ? "on" : "off", wallEdge.totalShift());
+    // 結果は機体を持ち上げた後（haltByAccZ の後）に UART へ出す（runSearch と同じ）
     if (!ok) blinkRefused();
 
     HAL_Delay(500);
     ledBar16.set(0xFFFF);
     haltByAccZ();
+
+    if (g_reject_step != NO_REJECT) {
+        LOG("fast %s: step %u rejected: %s\r\n", preset.name, static_cast<unsigned>(g_reject_step),
+            slalom::resultName(g_reject_result));
+    }
+    LOG("fast %s: %s (rejected %lu, dropped %lu)\r\n", preset.name, ok ? "finished" : "stopped",
+        static_cast<unsigned long>(planProfile.rejectedCount()), static_cast<unsigned long>(planProfile.droppedCount()));
+    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
+        static_cast<unsigned long>(wallEdge.eventCount()), preset.wall_edge ? "on" : "off", wallEdge.totalShift());
     wall_edge_log::dump("fast", g_edge_name);
     logger.dump();
     ledBar16.set(0x0000);
