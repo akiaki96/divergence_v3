@@ -17,8 +17,8 @@
     "500": {
       "base_saved_at": "2026-10-03T03:39:11",
       "delta_left": { "Set_pri_offset": 8.5, "Set_post_offset": -6.0 },
-      "delta_right": { "Set_pri_offset": 12.5, "Set_post_offset": -9.0 },
-      "note": "斜めの直線が内側へ 左6.0 / 右8.9 mm ずれていた（Device→IR→Diagonal 9回，tools/DIAGONAL.md）。pre +δ で外側へ δ/√2，post −δ/√2 で前後は変えない。ファンOFF"
+      "delta_right": { "Set_pri_offset": 18.0, "Set_post_offset": -13.0 },
+      "note": "斜めの直線が内側へ 左6.0 / 右8.9 mm ずれていた（Device→IR→Diagonal 9回，tools/DIAGONAL.md）。pre +δ で外側へ δ/√2，post −δ/√2 で前後は変えない。R7 1回目で左 +0.7（合格），右 +3.8 残り → 右に pre +5.5 / post −4.0 を追加。ファンOFF"
     }
   }
 }
