@@ -59,6 +59,19 @@ enum class WallDecision : uint8_t {
 };
 WallDecision decide(bool known, uint8_t map_walls, uint8_t sensor_walls, bool rechecked);
 
+// 前壁を読み落として直進を選んだ歩のやり直し。直前の take() が直進で，ソルバーは次の区画（mousePos）に
+// 進んでいるとき，mousePos を1区画戻して（向きはそのまま），その区画の壁を前壁ありで渡し直し，最初の動作を返す
+// （その区画で読んだ left・right と，読み落とした前壁。地図の前壁も有りに書き換わる）。
+// prepare() の結果は使えなくなる（呼んだ後に prepare() し直す）
+uint8_t redoWithFrontWall(bool left, bool right);
+
+// 3辺とも既知の区画で，読み直しても地図と食い違ったセンサーの壁 sensor_walls が，同じ向きのまま1区画先・
+// 1区画手前の区画の地図の壁と一致するか（その区画も3辺とも既知のときだけ）。機体が実際は1区画ずれた所にいる
+// （自己位置を見失った）手がかり。両方と一致することもある（廊下はどこも 101）ので，別々に返す
+constexpr uint8_t SHIFT_AHEAD = 1;    // 1区画先と一致
+constexpr uint8_t SHIFT_BEHIND = 2;   // 1区画手前と一致
+uint8_t shiftMatch(uint8_t sensor_walls);
+
 // 壁の組の番号（bit0: 左, bit1: 前, bit2: 右。探索のログの walls 列と同じ）
 constexpr uint8_t wallBits(bool left, bool front, bool right) {
     return static_cast<uint8_t>((left ? 1 : 0) | (front ? 2 : 0) | (right ? 4 : 0));

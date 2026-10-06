@@ -38,6 +38,10 @@ public:
     // 止めて記録・待ちの境界を消す。ISR が update() を呼んでいない間か，active() でない間に呼ぶ
     void reset();
 
+    // 待ちの区画境界だけを消す（記録は残す）。ISR が update() を呼んでいない間か，active() でない間に呼ぶ。
+    // 探索で前壁の読み落としに気づいて区画の中で止まり，教えた境界を通らなくなったときに使う
+    void dropPending();
+
     // 検出を始める。correct が false なら記録だけ。window は対応づけの幅 [mm]（既定 config::wall_edge::WINDOW_MM）
     void start(bool correct, float window_mm);
     void start(bool correct);

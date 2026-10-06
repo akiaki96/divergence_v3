@@ -34,6 +34,29 @@ float frontRightMm(float value) {
                          value);
 }
 
+namespace {
+float nearMm(const Point* table, std::size_t count, float value) {
+    if (count > 0 && value > table[0].value) return table[0].mm;
+    return tableDistance(table, count, value);
+}
+} // namespace
+
+float frontLeftNearMm(float value) {
+    return nearMm(config::front_distance::FRONT_LEFT, std::size(config::front_distance::FRONT_LEFT), value);
+}
+
+float frontRightNearMm(float value) {
+    return nearMm(config::front_distance::FRONT_RIGHT, std::size(config::front_distance::FRONT_RIGHT), value);
+}
+
+bool bothCloserThan(float value_left, float value_right, float near_mm) {
+    return frontLeftNearMm(value_left) < near_mm && frontRightNearMm(value_right) < near_mm;   // NaN は false
+}
+
+float frontWallMm(float value_left, float value_right) {
+    return 0.5f * (frontLeftNearMm(value_left) + frontRightNearMm(value_right));
+}
+
 float estimateError(float value_left, float value_right, float past_read) {
     float left = frontLeftMm(value_left);
     float right = frontRightMm(value_right);

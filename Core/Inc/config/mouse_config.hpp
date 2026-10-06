@@ -273,6 +273,23 @@ inline constexpr uint8_t MAX_MISMATCH_LOG = 32;     // 食い違いを覚えて�
 // 既知の区間の直進を数える先読みにかけてよい時間（次の壁を読むまでの時間に対する割合）。
 // 超えたら数えるのをやめる（加速する区間が短くなるだけ）
 inline constexpr float CHAIN_BUDGET_RATIO = 0.4f;
+
+// 前壁の読み落とし（app/search.hpp）：直進を選んだ歩で，次に壁を読むまでの間に前左・前右の両方が
+// MISSED_WALL_NEAR_MM より近く見えたら，読んだ区画の先の境界に壁があったのに読み落としたとみなして急停止する。
+// 止まってから前壁の距離（静止の換算表）を測り，その境界の壁の予想距離 + MISSED_WALL_CONFIRM_MM より近ければ
+// 壁ありと確かめて，区画の中央へ寄せ，前壁ありでソルバーをやり直す（曲がる・戻るは超信地旋回で）。
+// 遠ければ誤検出として同じ読む位置へ向かい直す。
+// 2026-10-06 これまでの探索ログの「直進の後の読み」で，両方の距離（換算表）の大きい方は：
+// 読み落とし（次の読みで壁にぶつかりかけていた）12件で 82〜103 mm，それ以外は 123 mm（古い 700_1）と 141 mm 以上。
+// 走行中は値が弱く出て遠めになるので，実際の壁はこれより近い（700_s1100_4 の step 13→14 から 20〜50 mm）
+inline constexpr float MISSED_WALL_NEAR_MM = 130.f;   // [mm] 換算表の距離（車軸から前の壁の面）
+inline constexpr float MISSED_WALL_DECEL = 1.5f * config::profile_limit::G;   // [mm/s^2] 急停止（700mm/sから約17mm）
+inline constexpr float MISSED_WALL_CONFIRM_MM = 90.f;   // [mm] 半区画。これより遠ければ次の境界より先の壁
+// 自己位置のずれ（app/search.hpp）：読み直しても地図と食い違った壁が，同じ向きで1区画先（または手前）の区画の
+// 地図と続けて一致した回数（先・手前それぞれ）がこれに達したら，自己位置を見失ったとして探索を止める。
+// 1回でも疑わしい間は迷路を保存しない（地図と一致した読みで疑いを解く）
+inline constexpr uint8_t SHIFT_VOTES_TO_STOP = 2;
+inline constexpr uint8_t MAX_MISSED_WALL_LOG = 8;   // 前壁の読み落としを覚えておく件数（終わりに LOG で出す）
 }
 
 // 探索中の迷路の保存（app/maze_store の journal）。ゴールに着いた後，途中で止まっても最短走行できるように

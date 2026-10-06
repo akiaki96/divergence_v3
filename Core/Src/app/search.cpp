@@ -19,6 +19,7 @@
 
 namespace {
 using config::maze::CELL_MM;
+using config::maze::WALL_HALF_MM;
 constexpr float HALF_MM = CELL_MM / 2.f;
 
 // 置いた位置（車軸）からスタート区画の前の境界まで。ソルバーの ACT_MOVE_FIRST_HALF_CELL にあたる
@@ -193,6 +194,7 @@ enum class Stop : uint8_t {
     tooManySteps,   // MAX_STEPS を超えた（ログが入らない）
     unknownAction,  // 探索では使わない動作が来た
     planMismatch,   // 加速して積んだ区間の途中で，ソルバーが直進以外を返した（先読みと食い違った）
+    positionLost,   // 読み直しても地図と食い違う壁が，1区画ずれた区画の地図と続けて一致した（自己位置を見失った）
 };
 
 const char* stopName(Stop s) {
@@ -203,6 +205,7 @@ const char* stopName(Stop s) {
     case Stop::profileError:  return "profile error";
     case Stop::tooManySteps:  return "too many steps";
     case Stop::planMismatch:  return "plan mismatch";
+    case Stop::positionLost:  return "position lost";
     default:                  return "unknown action";
     }
 }
@@ -291,6 +294,33 @@ uint16_t g_map_updates = 0;        // 読み直しても食い違い，センサ
 uint16_t g_runs = 0;               // 加速して積んだ区間の数
 uint16_t g_run_cells = 0;          // その区画数の合計
 
+// ---- 前壁の読み落とし（config::search::MISSED_WALL_*）----
+struct MissedWall {
+    uint16_t step;              // 読み落とした歩の行の番号
+    uint8_t x, y, dir;          // その区画（読み落とした前壁はこの区画の前）
+    bool confirmed;             // 止まって測った前壁の距離で，壁ありと確かめた（false は誤検出として走り直した）
+    int16_t trigger_fl, trigger_fr;   // 気づいたときの前左・前右の値
+    int16_t still_fl, still_fr;       // 止まってからの値
+    float speed;                // [mm/s] 気づいたときの目標速度
+    float past_read;            // [mm] 気づいた実測位置が，読み落とした読みの位置から進んだ量
+    float distance;             // [mm] 止まってから測った前壁の距離（換算表。NaN は表より遠い）
+    float expected;             // [mm] 読み落とした境界に壁があるときの，止まった位置からの予想距離
+    uint8_t action;             // やり直したソルバーの動作（誤検出なら ACT_NONE）
+};
+MissedWall g_missed[config::search::MAX_MISSED_WALL_LOG];
+uint16_t g_missed_count = 0;   // 気づいた回数（記録しきれなかった分も数える）
+
+// ---- 自己位置のずれの疑い（config::search::SHIFT_VOTES_TO_STOP）----
+// 読み直しても食い違った壁が1区画先・手前の地図と，続けて読んだ区画で一致した回数（一致しなかった側と，
+// そうでない読みで0に戻す）。hold_save は一致してから地図と一致する読みが来るまで（迷路を保存しない）
+struct ShiftSuspect {
+    uint8_t ahead = 0;
+    uint8_t behind = 0;
+    bool hold_save = false;
+};
+ShiftSuspect g_shift;
+uint16_t g_shift_total = 0;   // 一致した回数の合計（ログ用）
+
 // 3辺とも既知の区画で壁が地図と食い違った：止まって，1つ手前の区画の中央まで下がり，
 // そこから探索速度まで加速して同じ境界へ向かう（戻るとループが同じ読む位置で壁を読み直す）。
 // in_run：加速して積んだ区間の途中（その先まで積んである）か。
@@ -334,6 +364,111 @@ Stop recover(const SearchPreset& p, bool in_run, float step_end) {
     return Stop::finished;   // 続けてよい
 }
 
+// 前壁の読み落とし：直進を選んだ歩の後，次の読む位置（境界 step_end の READ_LEAD 手前）に着く前に前左・前右の
+// 両方が近く見えた（trigger）。急停止して前壁の距離を測り，境界 step_end に壁があると確かめたら，読んだ区画の中央へ
+// 寄せ，前壁ありでソルバーをやり直して，超信地旋回で曲がる（戻る）。壁がなければ誤検出として同じ読む位置へ向かい直す。
+// step_end・committed は書き換える。Stop::finished なら探索を続ける（ACT_FINISH のときは done も true）。
+// wall_found は壁ありと確かめたか（false なら同じ直進の続き）
+Stop handleMissedWall(const SearchPreset& p, const wall::Snapshot& trigger, float* step_end, uint8_t* committed,
+                      bool* done, bool* wall_found) {
+    using namespace config::search;
+    const float v = p.speed;
+    MissedWall m{};
+    const SearchStep& last = g_steps[g_step_count - 1];   // 読み落とした歩（直進を選んだ）
+    m.step = static_cast<uint16_t>(g_step_count - 1);
+    m.x = last.x;
+    m.y = last.y;
+    m.dir = last.dir;
+    m.trigger_fl = trigger.value[wall::front_left];
+    m.trigger_fr = trigger.value[wall::front_right];
+    m.speed = planProfile.getTargetVelocityX();
+    m.past_read = odometry.positionX() - last.pos_measured;
+    m.action = ACT_NONE;
+
+    // 積んである区間（加速した直進の残りも）を取り消して止まる。壁の制御・壁切れは止め，教えた境界も消す
+    planProfile.brake(MISSED_WALL_DECEL);
+    planProfile.waitUntilIdle();
+    if (profileBroken()) return Stop::profileError;
+    *committed = 0;
+    wallControl.enable(false);
+    wallEdge.stop();
+    wallEdge.dropPending();
+    HAL_Delay(RECHECK_SETTLE_MS);
+
+    wall::Snapshot s = wall::read();
+    m.still_fl = s.value[wall::front_left];
+    m.still_fr = s.value[wall::front_right];
+    const float here = planProfile.getTargetPositionX();
+    m.distance = front_correction::frontWallMm(s.value[wall::front_left], s.value[wall::front_right]);
+    m.expected = *step_end - here - WALL_HALF_MM;
+    m.confirmed = m.distance < m.expected + MISSED_WALL_CONFIRM_MM;   // NaN（表より遠い）は false
+    *wall_found = m.confirmed;
+    auto log = [&m]() {
+        if (g_missed_count < MAX_MISSED_WALL_LOG) g_missed[g_missed_count] = m;
+        ++g_missed_count;
+    };
+
+    if (!m.confirmed) {
+        // 誤検出：読んだ区画の中央へ戻り（進み），同じ読む位置へ向かい直す（壁切れの境界は教え直す）
+        log();
+        float move = (*step_end - HALF_MM) - here;
+        if (std::fabs(move) > 1.f && !pushTrapezoid(std::fabs(move), 0.f, 0.f, BACK_SPEED, BACK_ACCEL,
+                                                    move > 0.f ? 1.f : -1.f)) {
+            return Stop::pushRejected;
+        }
+        planProfile.waitUntilIdle();
+        if (profileBroken()) return Stop::profileError;
+        HAL_Delay(RECHECK_SETTLE_MS);
+        wallControl.enable(p.wall_control);
+        wallEdge.expect(*step_end);
+        wallEdge.start(config::wall_edge::SEARCH_CORRECTION);
+        if (planProfile.straight(v, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
+        return Stop::finished;
+    }
+
+    // 壁あり：前壁の距離で読んだ区画の中央（前壁の面から半区画 − 壁の厚さの半分）へ寄せる（前後のずれも消える）
+    float move = m.distance - (HALF_MM - WALL_HALF_MM);
+    if (std::fabs(move) > 1.f && !pushTrapezoid(std::fabs(move), 0.f, 0.f, BACK_SPEED, BACK_ACCEL,
+                                                move > 0.f ? 1.f : -1.f)) {
+        return Stop::pushRejected;
+    }
+    planProfile.waitUntilIdle();
+    if (profileBroken()) return Stop::profileError;
+    const float center = planProfile.getTargetPositionX();
+
+    // 読み落とした区画で，左右はその歩の壁・前は壁ありとしてソルバーをやり直す（地図の前壁も有りになる）
+    const bool left = (last.walls & 1) != 0;
+    const bool right = (last.walls & 4) != 0;
+    const uint8_t action = search_lookahead::redoWithFrontWall(left, right);
+    m.action = action;
+    log();
+    if (g_step_count < MAX_STEPS) {
+        SearchStep& rec = g_steps[g_step_count++];
+        const uint8_t sensor = search_lookahead::wallBits(wall::hasLeft(s), wall::hasFront(s), wall::hasRight(s));
+        rec = {last.x, last.y, last.dir, static_cast<uint8_t>(search_lookahead::wallBits(left, true, right) |
+                                                              (sensor << 4)),
+               action, static_cast<uint8_t>(adachi_return::is_returning() ? FLAG_RETURNING : 0), {}, FRONT_ERR_NONE,
+               planProfile.getTargetPositionX(), odometry.positionX(), 0, 0};
+        for (uint8_t i = 0; i < wall::POSITION_COUNT; ++i) rec.ir[i] = s.value[i];
+    }
+
+    // 区画の中央にいるので，曲がる・戻るは超信地旋回の後に半区画で境界へ（行き止まりの後と同じく境界は教えない）
+    float angle = 0.f;
+    switch (action) {
+    case ACT_TURN_LEFT_MOVE:  angle = 90.f; break;
+    case ACT_TURN_RIGHT_MOVE: angle = -90.f; break;
+    case ACT_TURN_BACK:       angle = 180.f; break;
+    case ACT_FINISH:          *done = true; return Stop::finished;   // スタート区画の中央で止まっている
+    default:                  return Stop::frontWall;
+    }
+    HAL_Delay(RECHECK_SETTLE_MS);
+    wallControl.enable(p.wall_control);
+    wallEdge.start(config::wall_edge::SEARCH_CORRECTION);
+    if (!pivot(p.pivot, angle) || planProfile.straight(v, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
+    *step_end = center + HALF_MM;   // 旋回では経路に沿った距離は変わらない
+    return Stop::finished;
+}
+
 // 止まって書くとき（config::maze_save::WHILE_RUNNING = false）：区画中央まで減速して止まり，迷路を書く。
 // 呼んだ後は速度0から積み直す。saved には保存を始めたか（迷路が変わらず見送れば false）を返す
 bool stopAndSave(bool* saved) {
@@ -368,6 +503,7 @@ Stop runSteps(const SearchPreset& p) {
     uint8_t committed = 0;    // 加速して積み済みで，動作を積まない読みの残り
     bool rechecked = false;   // 今の区画は止まって読み直した後か
     int16_t mismatch_slot = -1;   // 読み直した区画の g_mismatches の番号
+    bool watch_front = false;     // 直進を選んだ歩の後：次の読む位置までに前壁が近く見えたら読み落とし
     // 最初の区画 (0,1) で読む壁の8通りを，最初の半区画を走っている間に計算しておく
     uint16_t prepare_us = prepareNext(p, accelerate);
 
@@ -376,9 +512,30 @@ Stop runSteps(const SearchPreset& p) {
         // 目標位置で待つと，追従遅れのぶん実際の機体より先で壁を読んだことになる。
         // 実測も目標も経路に沿った距離（超信地旋回では変わらない）で，step_end と同じ座標
         // 待っている間に，積んである迷路を1語ずつフラッシュに書く（config::maze_save::WHILE_RUNNING）
+        bool missed = false;
+        wall::Snapshot trigger{};
         while (odometry.positionX() < step_end - READ_LEAD) {
             if (profileBroken() || planProfile.isIdle()) return Stop::profileError;
             stepSave();
+            if (watch_front) {
+                trigger = wall::read();
+                if (front_correction::bothCloserThan(trigger.value[wall::front_left],
+                                                     trigger.value[wall::front_right],
+                                                     config::search::MISSED_WALL_NEAR_MM)) {
+                    missed = true;
+                    break;
+                }
+            }
+        }
+        if (missed) {
+            bool done = false, wall_found = false;
+            Stop r = handleMissedWall(p, trigger, &step_end, &committed, &done, &wall_found);
+            if (r != Stop::finished || done) return r;
+            // 誤検出なら同じ読む位置へ向かい直すが，同じ所でまた止まり続けないよう，この歩はもう見張らない
+            watch_front = false;
+            rechecked = false;
+            if (wall_found) prepare_us = prepareNext(p, accelerate);   // ソルバーをやり直したので先読みし直す
+            continue;
         }
         float pos_target = planProfile.getTargetPositionX();
         float pos_measured = odometry.positionX();
@@ -414,8 +571,30 @@ Stop runSteps(const SearchPreset& p) {
         const bool right = (walls & 4) != 0;
         if (rechecked) {
             if (mismatch_slot >= 0) g_mismatches[mismatch_slot].second_walls = sensor;
-            if (!use_map) ++g_map_updates;   // センサーの壁で地図が書き換わる（search_step の set_wall）
+            if (!use_map) {
+                // 読み直しても食い違う壁が1区画ずれた区画の地図と一致するなら，自己位置がずれている疑い。
+                // 同じ向きに続けて一致したら止まる（地図を書き換える前に。その後の迷路は保存しない）
+                const uint8_t m = search_lookahead::shiftMatch(sensor);
+                g_shift.ahead = (m & search_lookahead::SHIFT_AHEAD) ? g_shift.ahead + 1 : 0;
+                g_shift.behind = (m & search_lookahead::SHIFT_BEHIND) ? g_shift.behind + 1 : 0;
+                if (m != 0) {
+                    ++g_shift_total;
+                    g_shift.hold_save = true;
+                }
+                if (g_shift.ahead >= config::search::SHIFT_VOTES_TO_STOP ||
+                    g_shift.behind >= config::search::SHIFT_VOTES_TO_STOP) {
+                    planProfile.brake(config::search::BRAKE_DECEL);
+                    planProfile.waitUntilIdle();
+                    return Stop::positionLost;
+                }
+                ++g_map_updates;   // センサーの壁で地図が書き換わる（search_step の set_wall）
+            }
         }
+        if (!rechecked || use_map) {   // 続けて一致しなかった
+            g_shift.ahead = 0;
+            g_shift.behind = 0;
+        }
+        if (use_map) g_shift.hold_save = false;   // 地図と一致した：位置は合っている
 
         // 先に計算しておいた仮定から，渡す壁の結果を取り出す（ソルバーの状態もその1歩の後になる）
         uint32_t t_take = DWT->CYCCNT;
@@ -433,6 +612,7 @@ Stop runSteps(const SearchPreset& p) {
 
         // 加速した区間の中の読みも1歩と数える（保存を積むのは，その区間を抜けて動作を積む歩）
         updateSaveDue();
+        watch_front = (action == ACT_MOVE_1CELL);
         if (committed > 0) {
             // 加速して積んだ区間の途中：動作は積まず，境界を進めるだけ（ソルバーの答えは直進のはず）
             if (action != ACT_MOVE_1CELL) return Stop::planMismatch;
@@ -444,7 +624,7 @@ Stop runSteps(const SearchPreset& p) {
         }
 
         // 止まって書くなら，直進・行き止まりの歩で区画中央に止まって書く（ターンの歩なら次の機会へ）
-        bool stop_to_save = !config::maze_save::WHILE_RUNNING && g_save.due &&
+        bool stop_to_save = !config::maze_save::WHILE_RUNNING && g_save.due && !g_shift.hold_save &&
                             (action == ACT_MOVE_1CELL || action == ACT_TURN_BACK);
 
         switch (action) {
@@ -527,7 +707,8 @@ Stop runSteps(const SearchPreset& p) {
         prepare_us = prepareNext(p, accelerate && committed == 0);
         // 走りながら書くなら，ここで迷路を積み，次の壁を読むまでの待ちで1語ずつ書く。前の記録を書き終えて
         // いなければ次の歩に回す（prepare() はソルバーの状態を元に戻すので，積むのはこの歩の後の迷路）
-        if (config::maze_save::WHILE_RUNNING && g_save.due && !maze_store::journal::busy() && queueSave()) {
+        if (config::maze_save::WHILE_RUNNING && g_save.due && !g_shift.hold_save && !maze_store::journal::busy() &&
+            queueSave()) {
             rec.flags |= FLAG_SAVED;
         }
     }
@@ -623,6 +804,9 @@ void runSearch(const SearchPreset& preset) {
     g_map_updates = 0;
     g_runs = 0;
     g_run_cells = 0;
+    g_missed_count = 0;
+    g_shift = ShiftSuspect{};
+    g_shift_total = 0;
     startCycleCounter();
     control_timing::reset();
 
@@ -685,6 +869,15 @@ void runSearch(const SearchPreset& preset) {
         bits(m.second_walls, sw);
         LOG("  mismatch step %u (%u,%u) dir %u at %.0f mm/s: map %s, first %s, second %s\r\n", m.step, m.x, m.y,
             m.dir, m.speed, mw, fw, sw);
+    }
+    LOG("missed front walls: %u; position shift matches %u (ahead %u, behind %u in a row at the end)\r\n",
+        g_missed_count, g_shift_total, g_shift.ahead, g_shift.behind);
+    for (uint16_t i = 0; i < g_missed_count && i < config::search::MAX_MISSED_WALL_LOG; ++i) {
+        const MissedWall& m = g_missed[i];
+        LOG("  missed wall step %u (%u,%u) dir %u at %.0f mm/s, %.0f mm past read: FL/FR %d/%d, still %d/%d, "
+            "front %.1f mm (expected %.1f) -> %s, action %u\r\n",
+            m.step, m.x, m.y, m.dir, m.speed, m.past_read, m.trigger_fl, m.trigger_fr, m.still_fl, m.still_fr,
+            m.distance, m.expected, m.confirmed ? "wall" : "no wall", m.action);
     }
     uint8_t bank = 0;
     const maze_store::Record* r = maze_store::latest(&bank);

@@ -25,6 +25,11 @@ void WallEdge::reset() {
     total_shift_ = 0.f;
 }
 
+void WallEdge::dropPending() {
+    queue_.clear();
+    pending_count_ = 0;
+}
+
 void WallEdge::start(bool correct, float window_mm) {
     correct_ = correct;
     window_ = window_mm;

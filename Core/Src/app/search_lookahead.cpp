@@ -64,18 +64,55 @@ uint8_t firstMotion(const uint8_vector& actions) {
     return ACT_NONE;
 }
 
-bool knownWalls(bool* left, bool* front, bool* right) {
-    if (mousePos.x >= MAZE_SIZE || mousePos.y >= MAZE_SIZE) return false;
-    AbsDir dir = static_cast<AbsDir>(mousePos.dir);
+namespace {
+// 区画 (x, y) を向き dir から見た左・前・右の壁がすべて既知なら，その組（wallBits）を返す。未知・迷路の外なら -1
+int knownBitsAt(int x, int y, AbsDir dir) {
+    if (x < 0 || y < 0 || x >= MAZE_SIZE || y >= MAZE_SIZE) return -1;
     const RelDir rel[3] = {Rl90, R0, Rr90};
-    bool* out[3] = {left, front, right};
+    int bits = 0;
     for (int i = 0; i < 3; ++i) {
         AbsDir d = relToAbsDir(dir, rel[i]);
-        bool one = get_wall_abs(&wallone, mousePos.x, mousePos.y, d);
-        if (one != get_wall_abs(&wallzero, mousePos.x, mousePos.y, d)) return false;
-        *out[i] = one;
+        bool one = get_wall_abs(&wallone, x, y, d);
+        if (one != get_wall_abs(&wallzero, x, y, d)) return -1;
+        if (one) bits |= 1 << i;
     }
+    return bits;
+}
+
+// 東西南北（Est, Nth, Wst, Sth）へ1区画進む向きの x・y。斜めは使わない
+void step(AbsDir dir, int* dx, int* dy) {
+    *dx = (dir == Est) ? 1 : (dir == Wst) ? -1 : 0;
+    *dy = (dir == Nth) ? 1 : (dir == Sth) ? -1 : 0;
+}
+} // namespace
+
+bool knownWalls(bool* left, bool* front, bool* right) {
+    int bits = knownBitsAt(mousePos.x, mousePos.y, static_cast<AbsDir>(mousePos.dir));
+    if (bits < 0) return false;
+    *left = (bits & 1) != 0;
+    *front = (bits & 2) != 0;
+    *right = (bits & 4) != 0;
     return true;
+}
+
+uint8_t redoWithFrontWall(bool left, bool right) {
+    int dx, dy;
+    step(static_cast<AbsDir>(mousePos.dir), &dx, &dy);
+    mousePos.x = static_cast<uint8_t>(mousePos.x - dx);
+    mousePos.y = static_cast<uint8_t>(mousePos.y - dy);
+    g_ready = false;
+    g_taken_straight = 0;
+    return firstMotion(adachi_return::solver_adachi_return(left, true, right));
+}
+
+uint8_t shiftMatch(uint8_t sensor_walls) {
+    AbsDir dir = static_cast<AbsDir>(mousePos.dir);
+    int dx, dy;
+    step(dir, &dx, &dy);
+    uint8_t m = 0;
+    if (knownBitsAt(mousePos.x + dx, mousePos.y + dy, dir) == sensor_walls) m |= SHIFT_AHEAD;
+    if (knownBitsAt(mousePos.x - dx, mousePos.y - dy, dir) == sensor_walls) m |= SHIFT_BEHIND;
+    return m;
 }
 
 void prepare(const PrepareOptions& options) {

@@ -58,3 +58,11 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     "$SOLVER"/core/*.cpp "$ROOT/Core/Src/app/maze_store.cpp" "$ROOT/tools/host_test/test_maze_store.cpp" \
     -o "$OUT/test_maze_store"
 "$OUT/test_maze_store"
+
+# 前壁の読み落とし・自己位置のずれの手がかり（700_s1100_4 の再現）。ソルバー・先読み・換算表を使う
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$OUT/generated" -I "$SOLVER/core" "${SOLVER_INC[@]}" \
+    "${SOLVER_SRC[@]}" "$ROOT/Core/Src/app/search_lookahead.cpp" "$ROOT/Core/Src/common/front_correction.cpp" \
+    "$ROOT/tools/host_test/test_position_loss.cpp" \
+    -o "$OUT/test_position_loss"
+"$OUT/test_position_loss"

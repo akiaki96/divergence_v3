@@ -19,6 +19,18 @@ float tableDistance(const config::front_distance::Point* table, std::size_t coun
 float frontLeftMm(float value);
 float frontRightMm(float value);
 
+// 表より近い（値が表の最大より大きい）ときは表の最も近い距離を返す（表より遠ければ NaN のまま）。
+// 前壁にかなり近いときの判定に使う（近すぎて表の外に出ても「近い」とわかる）
+float frontLeftNearMm(float value);
+float frontRightNearMm(float value);
+
+// 前左・前右の両方が near_mm より近いか。真正面の壁なら両方が近くなる（片方だけ近いのは斜めの壁や柱）
+bool bothCloserThan(float value_left, float value_right, float near_mm);
+
+// 前壁までの距離（frontLeftNearMm・frontRightNearMm の平均）。どちらかが表より遠ければ NaN。
+// 換算表は静止で測ったものなので，止まってから使う（走行中は値が弱く出て遠めになる）
+float frontWallMm(float value_left, float value_right);
+
 // 読み位置での前後のずれ e [mm]（正：機体は実際は後ろにいる）。
 // value_* は前左・前右の値，past_read は実測位置が読む位置（境界 − READ_LEAD）を過ぎた量 [mm]。
 // どちらかの距離が config::front_correction の範囲の外なら NaN
