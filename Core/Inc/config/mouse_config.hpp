@@ -222,6 +222,24 @@ inline constexpr bool SEARCH_CORRECTION = true;
 inline constexpr int FAST_BOUNDARIES_PER_TURN = 2;
 }
 
+// 斜めの直線の柱・壁の切れ目（common/diag_edge.hpp，試験は test/diag_sensor_test.hpp，手順は tools/DIAGONAL.md）。
+// 斜めの直線（区画の辺の中点を結ぶ線）では，柱が経路から 90/√2 ≈ 63.6 mm 横に，内側・外側が交互に
+// 90√2 ≈ 127.3 mm おきに並ぶ（同じ側の柱は 180√2 ≈ 254.6 mm おき）。
+// 横のセンサー（irL / irR，前へ約45°）は斜めの直線では迷路の縦横の向きを向き，前の壁の面が柱で切れるところで値が下がる
+namespace config::diag {
+inline constexpr float PITCH_MM = 127.27922f;                 // [mm] 90√2：辺の中点（＝柱の並び）の間隔
+inline constexpr float PILLAR_PERIOD_MM = 2.f * PITCH_MM;     // [mm] 同じ側の柱の間隔
+inline constexpr float PILLAR_LATERAL_MM = 63.63961f;         // [mm] 90/√2：経路から柱の中心まで
+
+// 切れ目とみなす値（ヒステリシス）。切れ目の位置は OFF を下回った位置（tick 間を補間）。
+// [要調整] 仮の値（config::wall_edge と同じ）。Device → IR → Diagonal のログから tools/diag_sensor.py が出す提案値を入れる
+inline constexpr int16_t THRESH_ON_LEFT = 350;
+inline constexpr int16_t THRESH_OFF_LEFT = 250;
+inline constexpr int16_t THRESH_ON_RIGHT = 350;
+inline constexpr int16_t THRESH_OFF_RIGHT = 250;
+inline constexpr float MIN_WALL_MM = 10.f;   // [mm] これより短く見えた壁の後の切れ目は使わない（ノイズ）
+}
+
 // 前壁の距離による S90 の入口の補正（common/front_correction.hpp）。探索で S90 を積むとき，読み位置
 // （区画境界の config::search::READ_LEAD_MM 手前）で前壁があれば，前左・前右の値を換算表
 // （tools/ir_calibration.json → config/front_distance_table.hpp）で距離にして，基準 REF_* とのずれ e を求める。

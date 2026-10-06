@@ -31,3 +31,4 @@ Logger logger;
 
 WallControl wallControl;
 WallEdge wallEdge;
+DiagEdge diagEdge;
