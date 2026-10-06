@@ -2,9 +2,11 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include "adachi.hpp"
 #include "adachi_return.hpp"
 #include "app/maze_store.hpp"
 #include "app/search_lookahead.hpp"
+#include "app/update.hpp"
 #include "app/wall_edge_log.hpp"
 #include "common/debug.hpp"
 #include "common/etc.hpp"
@@ -99,7 +101,8 @@ struct SearchStep {
     uint8_t walls;       // bit0: 左, bit1: 前, bit2: 右（ソルバーに渡した壁）。bit4–6: センサーの壁（同じ並び）
     uint8_t action;      // ソルバーが返した動作（solver/core/action.h）
     uint8_t flags;       // bit0: 帰り探索中か, bit1: 地図の壁を使った, bit2: 読み直した後の読み,
-                         // bit3–6: この読みで積んだ直進の区画数（加速した区間。積まなかった読みは0）
+                         // bit3–6: この読みで積んだ直進の区画数（加速した区間。積まなかった読みは0），
+                         // bit7: この歩で迷路の保存を始めた（maze_store::journal に積んだ）
     int16_t ir[wall::POSITION_COUNT];
     int16_t front_err;    // [0.1 mm] S90 を積むときの前壁の距離による前後のずれ（common/front_correction.hpp）。
                           // 使えなかった・S90 でないときは FRONT_ERR_NONE。補正 δ は書き出すときに計算し直す
@@ -116,6 +119,7 @@ constexpr uint8_t FLAG_RECHECKED = 1u << 2;
 constexpr uint8_t RUN_CELLS_SHIFT = 3;
 constexpr uint8_t RUN_CELLS_MASK = 0x0F;
 static_assert(MAZE_SIZE - 1 <= RUN_CELLS_MASK, "run cells must fit in SearchStep::flags");
+constexpr uint8_t FLAG_SAVED = 1u << 7;
 static_assert(sizeof(SearchStep) * config::search::MAX_STEPS <= 64 * 1024, "search step log exceeds CCMRAM");
 
 // CCMRAM（64KB，ほかに使っていない）に置く。スタートアップは CCMRAM を0にしないので，
@@ -129,8 +133,57 @@ constexpr const char* STEP_COLUMNS[] = {"step", "x", "y", "dir", "left", "front"
                                         "pos_target", "pos_measured", "front_err", "front_corr",
                                         "prepare_us", "take_us",
                                         "sensor_left", "sensor_front", "sensor_right", "known", "rechecked",
-                                        "run_cells"};
+                                        "run_cells", "saved"};
 constexpr uint32_t STEP_COLUMN_COUNT = sizeof(STEP_COLUMNS) / sizeof(STEP_COLUMNS[0]);
+
+// ---- 走行中の迷路の保存（config::maze_save）----
+struct MazeSave {
+    uint8_t goal_x, goal_y;
+    bool goal_reached = false;   // ゴールに着いた（帰り探索か，最短経路の確定の探索に入った）
+    bool due = false;            // 次の機会に保存する
+    uint16_t since = 0;          // 前に保存（または保存を見送り）してからの歩数
+    uint16_t skipped = 0;        // 迷路が前の保存と同じで見送った回数
+    uint16_t refused = 0;        // journal が受け付けなかった（面が一杯・open できなかった）回数
+    uint32_t max_word_us = 0;    // 走行中に1語書くのにかかった最大 [us]（CPU が止まった時間）
+};
+MazeSave g_save;
+
+// 1歩終えるごとに呼ぶ。ゴールに着いた歩で1回，その後は EVERY_STEPS 歩ごとに保存の機会にする
+void updateSaveDue() {
+    if (!adachi::search_returning() && !adachi::search_confirming()) return;
+    if (!g_save.goal_reached) {
+        g_save.goal_reached = true;
+        g_save.due = true;
+    } else if (++g_save.since >= config::maze_save::EVERY_STEPS) {
+        g_save.due = true;
+    }
+}
+
+// 今のソルバーの迷路を journal に積む（書くのは step()/flush()）。積んだら true
+bool queueSave() {
+    g_save.due = false;
+    g_save.since = 0;
+    maze_store::Record r = maze_store::capture(g_save.goal_x, g_save.goal_y, false);
+    const maze_store::Record* prev = maze_store::journal::last();
+    if (prev != nullptr && maze_store::sameMaze(*prev, r)) {
+        ++g_save.skipped;
+        return false;
+    }
+    if (!maze_store::journal::append(r)) {
+        ++g_save.refused;
+        return false;
+    }
+    return true;
+}
+
+// 走行中に1語だけ書く（CPU が止まる時間を測る）
+void stepSave() {
+    if (!maze_store::journal::busy()) return;
+    uint32_t t0 = DWT->CYCCNT;
+    maze_store::journal::step(1);
+    uint32_t us = (DWT->CYCCNT - t0) / (SystemCoreClock / 1000000u);
+    if (us > g_save.max_word_us) g_save.max_word_us = us;
+}
 
 enum class Stop : uint8_t {
     finished,       // スタートに戻った（正常）
@@ -281,6 +334,19 @@ Stop recover(const SearchPreset& p, bool in_run, float step_end) {
     return Stop::finished;   // 続けてよい
 }
 
+// 止まって書くとき（config::maze_save::WHILE_RUNNING = false）：区画中央まで減速して止まり，迷路を書く。
+// 呼んだ後は速度0から積み直す。saved には保存を始めたか（迷路が変わらず見送れば false）を返す
+bool stopAndSave(bool* saved) {
+    if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok) return false;
+    while (!planProfile.isIdle()) {
+        if (profileBroken()) return false;
+    }
+    // 止まっていても制御の割り込みは回っているので，1語ずつ書く（まとめて書くと最大 4.5ms 割り込みが止まる）
+    *saved = queueSave();
+    while (maze_store::journal::busy()) stepSave();
+    return true;
+}
+
 // 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとに先読みしておいたソルバーの結果を取り出す
 Stop runSteps(const SearchPreset& p) {
     const float v = p.speed;
@@ -309,8 +375,10 @@ Stop runSteps(const SearchPreset& p) {
         // 機体（実測）が区画境界の READ_LEAD 手前に来るまで待つ（今の1歩の残りが走っている間に次を積む）。
         // 目標位置で待つと，追従遅れのぶん実際の機体より先で壁を読んだことになる。
         // 実測も目標も経路に沿った距離（超信地旋回では変わらない）で，step_end と同じ座標
+        // 待っている間に，積んである迷路を1語ずつフラッシュに書く（config::maze_save::WHILE_RUNNING）
         while (odometry.positionX() < step_end - READ_LEAD) {
             if (profileBroken() || planProfile.isIdle()) return Stop::profileError;
+            stepSave();
         }
         float pos_target = planProfile.getTargetPositionX();
         float pos_measured = odometry.positionX();
@@ -363,6 +431,8 @@ Stop runSteps(const SearchPreset& p) {
         for (uint8_t i = 0; i < wall::POSITION_COUNT; ++i) rec.ir[i] = s.value[i];
         rechecked = false;
 
+        // 加速した区間の中の読みも1歩と数える（保存を積むのは，その区間を抜けて動作を積む歩）
+        updateSaveDue();
         if (committed > 0) {
             // 加速して積んだ区間の途中：動作は積まず，境界を進めるだけ（ソルバーの答えは直進のはず）
             if (action != ACT_MOVE_1CELL) return Stop::planMismatch;
@@ -373,12 +443,21 @@ Stop runSteps(const SearchPreset& p) {
             continue;
         }
 
+        // 止まって書くなら，直進・行き止まりの歩で区画中央に止まって書く（ターンの歩なら次の機会へ）
+        bool stop_to_save = !config::maze_save::WHILE_RUNNING && g_save.due &&
+                            (action == ACT_MOVE_1CELL || action == ACT_TURN_BACK);
+
         switch (action) {
         case ACT_MOVE_1CELL: {
             if (front) return Stop::frontWall;
-            // 続く区画の壁が既知で直進が決まっていれば，その区画数を1本の台形で積む
-            uint8_t cells = accelerate ? search_lookahead::straightCells() : 1;
-            if (cells >= 2) {
+            // 続く区画の壁が既知で直進が決まっていれば，その区画数を1本の台形で積む（止まって書く歩は加速しない）
+            uint8_t cells = (accelerate && !stop_to_save) ? search_lookahead::straightCells() : 1;
+            if (stop_to_save) {
+                bool saved = false;
+                if (!stopAndSave(&saved)) return Stop::pushRejected;
+                if (saved) rec.flags |= FLAG_SAVED;
+                if (planProfile.straight(v, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
+            } else if (cells >= 2) {
                 if (!pushTrapezoid(cells * CELL_MM, v, v, p.straight_speed, p.accel, 1.f)) return Stop::pushRejected;
                 committed = static_cast<uint8_t>(cells - 1);
                 rec.flags = static_cast<uint8_t>(rec.flags | ((cells & RUN_CELLS_MASK) << RUN_CELLS_SHIFT));
@@ -419,9 +498,15 @@ Stop runSteps(const SearchPreset& p) {
             break;
         }
         case ACT_TURN_BACK:
-            // 区画中央で止まり，その場で180°回って，来た境界へ戻る
-            if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok || !pivot(p.pivot, 180.f) ||
-                planProfile.straight(v, HALF_MM) != SegmentResult::ok) {
+            // 区画中央で止まり，その場で180°回って，来た境界へ戻る（止まって書くなら，止まったところで書く）
+            if (stop_to_save) {
+                bool saved = false;
+                if (!stopAndSave(&saved)) return Stop::pushRejected;
+                if (saved) rec.flags |= FLAG_SAVED;
+            } else if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok) {
+                return Stop::pushRejected;
+            }
+            if (!pivot(p.pivot, 180.f) || planProfile.straight(v, HALF_MM) != SegmentResult::ok) {
                 return Stop::pushRejected;
             }
             step_end += CELL_MM;
@@ -440,6 +525,11 @@ Stop runSteps(const SearchPreset& p) {
         // 次の区画へ走っている間に，そこで読む壁の仮定でソルバーを回しておく
         // （加速して積んだ区間の中の読みは答えが決まっているので，直進を数えない）
         prepare_us = prepareNext(p, accelerate && committed == 0);
+        // 走りながら書くなら，ここで迷路を積み，次の壁を読むまでの待ちで1語ずつ書く。前の記録を書き終えて
+        // いなければ次の歩に回す（prepare() はソルバーの状態を元に戻すので，積むのはこの歩の後の迷路）
+        if (config::maze_save::WHILE_RUNNING && g_save.due && !maze_store::journal::busy() && queueSave()) {
+            rec.flags |= FLAG_SAVED;
+        }
     }
 }
 
@@ -464,6 +554,7 @@ void dumpSteps(const char* file, bool corrected) {
             static_cast<float>((r.walls >> 6) & 1), static_cast<float>((r.flags & FLAG_KNOWN) ? 1 : 0),
             static_cast<float>((r.flags & FLAG_RECHECKED) ? 1 : 0),
             static_cast<float>((r.flags >> RUN_CELLS_SHIFT) & RUN_CELLS_MASK),
+            static_cast<float>((r.flags & FLAG_SAVED) ? 1 : 0),
         };
         uart_write(reinterpret_cast<const uint8_t*>(row), sizeof(row));
     }
@@ -496,6 +587,17 @@ void runSearch(const SearchPreset& preset) {
         return;
     }
 
+    // 迷路を追記する面を用意する。空きが足りなければ面を消す（1〜2s CPU が止まる。止まっている今のうちに）
+    g_save = MazeSave{};
+    g_save.goal_x = preset.goal_x;
+    g_save.goal_y = preset.goal_y;
+    bool erased = false;
+    ledBar16.set(0xFFFF);
+    maze_store::Result opened = maze_store::journal::open(config::maze_save::RESERVE_SLOTS, &erased);
+    ledBar16.set(0x0000);
+    LOG("maze journal: %s%s, %lu free slots\r\n", maze_store::resultName(opened), erased ? " (bank erased)" : "",
+        static_cast<unsigned long>(maze_store::journal::freeSlots()));
+
     // IMU校正はファンを回す前に行う（振動がジャイロのオフセット推定に乗らないように。runClosedLoopTest と同じ）
     imu.calibrate();
     HAL_Delay(1100);
@@ -522,6 +624,7 @@ void runSearch(const SearchPreset& preset) {
     g_runs = 0;
     g_run_cells = 0;
     startCycleCounter();
+    control_timing::reset();
 
     ledBar16.set(0x0000);
     logger.start();
@@ -541,19 +644,20 @@ void runSearch(const SearchPreset& preset) {
     motorDriver.setBreak();
 
     // 結果は機体を持ち上げた後（haltByAccZ の後）に UART へ出す。止まった直後はまだ床の上で，
-    // 持ち上げて置くまで受け手がいない／つないでいないことがあるので，ここでは LED の合図だけにする
-    bool finished = (stop == Stop::finished);
-    maze_store::Result saved = maze_store::Result::ok;
-    if (!finished) {
-        blinkRefused();
-    } else {
-        // スタートまで戻った迷路だけ保存する（途中で止まったときは壁の誤読があり得るので残さない）。
-        // 消去・書き込みで1〜2s CPU が止まるので，モーターを止めた後に行う
+    // 持ち上げて置くまで受け手がいない／つないでいないことがあるので，ここでは保存と LED の合図だけにする
+    // 書きかけの記録を書き終える（モーターは止めてある）。途中で止まったときは，ゴールの後に保存した
+    // 最後の迷路が最短走行で使われる（止まった歩は壁の誤読があり得るので，その後の迷路は保存しない）
+    uint32_t gap_us = control_timing::maxGapUs();
+    maze_store::Result pending = maze_store::journal::flush();
+    if (stop == Stop::finished) {
+        // スタートまで戻った迷路を「探索し終えた」として保存する。面が一杯などで積めなければ，面を消して書く
         ledBar16.set(0xFFFF);
-        saved = maze_store::save(maze_store::capture(preset.goal_x, preset.goal_y, true));
+        maze_store::Record done = maze_store::capture(preset.goal_x, preset.goal_y, true);
+        pending = maze_store::journal::append(done) ? maze_store::journal::flush() : maze_store::save(done);
         ledBar16.set(0x0000);
-        if (saved != maze_store::Result::ok) blinkRefused();
     }
+    maze_store::journal::close();
+    if (stop != Stop::finished || pending != maze_store::Result::ok) blinkRefused();
 
     HAL_Delay(500);
     ledBar16.set(0xFFFF);
@@ -582,12 +686,15 @@ void runSearch(const SearchPreset& preset) {
         LOG("  mismatch step %u (%u,%u) dir %u at %.0f mm/s: map %s, first %s, second %s\r\n", m.step, m.x, m.y,
             m.dir, m.speed, mw, fw, sw);
     }
-    if (finished) {
-        uint8_t bank = 0;
-        const maze_store::Record* r = maze_store::latest(&bank);
-        LOG("maze save: %s (bank %c, sequence %lu)\r\n", maze_store::resultName(saved), 'A' + bank,
-            static_cast<unsigned long>(r != nullptr ? r->sequence : 0));
-    }
+    uint8_t bank = 0;
+    const maze_store::Record* r = maze_store::latest(&bank);
+    LOG("maze save: %s, latest bank %c sequence %lu %s; %lu records (%lu failed, %u unchanged, %u refused), "
+        "word max %lu us, control gap max %lu us\r\n",
+        maze_store::resultName(pending), 'A' + bank, static_cast<unsigned long>(r != nullptr ? r->sequence : 0),
+        r == nullptr ? "-" : ((r->flags & maze_store::FLAG_COMPLETE) ? "complete" : "partial"),
+        static_cast<unsigned long>(maze_store::journal::appendedCount()),
+        static_cast<unsigned long>(maze_store::journal::failedCount()), g_save.skipped, g_save.refused,
+        static_cast<unsigned long>(g_save.max_word_us), static_cast<unsigned long>(gap_us));
     dumpSteps(g_log_name, preset.front_correction);
     wall_edge_log::dump("search", g_edge_name);
     logger.dump();

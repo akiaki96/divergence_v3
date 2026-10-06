@@ -51,3 +51,10 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     "$ROOT/tools/host_test/test_fast_plan.cpp" \
     -o "$OUT/test_fast_plan"
 "$OUT/test_fast_plan"
+
+# 迷路の保存（走行中の追記）。フラッシュは試験の中の偽物。capture/applyToSolver のためにソルバーの core を使う
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$SOLVER/core" \
+    "$SOLVER"/core/*.cpp "$ROOT/Core/Src/app/maze_store.cpp" "$ROOT/tools/host_test/test_maze_store.cpp" \
+    -o "$OUT/test_maze_store"
+"$OUT/test_maze_store"
