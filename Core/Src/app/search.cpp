@@ -486,12 +486,8 @@ void runSearch(const SearchPreset& preset) {
     logger.stop();
     motorDriver.setBreak();
 
-    LOG("search %s: %s after %u wall reads (rejected %lu, dropped %lu)\r\n", preset.name, stopName(stop),
-        g_step_count, static_cast<unsigned long>(planProfile.rejectedCount()),
-        static_cast<unsigned long>(planProfile.droppedCount()));
-    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
-        static_cast<unsigned long>(wallEdge.eventCount()), config::wall_edge::SEARCH_CORRECTION ? "on" : "off",
-        wallEdge.totalShift());
+    // 結果は機体を持ち上げた後（haltByAccZ の後）に UART へ出す。止まった直後はまだ床の上で，
+    // 持ち上げて置くまで受け手がいない／つないでいないことがあるので，ここでは保存と LED の合図だけにする
     // 書きかけの記録を書き終える（モーターは止めてある）。途中で止まったときは，ゴールの後に保存した
     // 最後の迷路が最短走行で使われる（止まった歩は壁の誤読があり得るので，その後の迷路は保存しない）
     uint32_t gap_us = control_timing::maxGapUs();
@@ -503,6 +499,19 @@ void runSearch(const SearchPreset& preset) {
         pending = maze_store::journal::append(done) ? maze_store::journal::flush() : maze_store::save(done);
         ledBar16.set(0x0000);
     }
+    maze_store::journal::close();
+    if (stop != Stop::finished || pending != maze_store::Result::ok) blinkRefused();
+
+    HAL_Delay(500);
+    ledBar16.set(0xFFFF);
+    haltByAccZ();
+
+    LOG("search %s: %s after %u wall reads (rejected %lu, dropped %lu)\r\n", preset.name, stopName(stop),
+        g_step_count, static_cast<unsigned long>(planProfile.rejectedCount()),
+        static_cast<unsigned long>(planProfile.droppedCount()));
+    LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
+        static_cast<unsigned long>(wallEdge.eventCount()), config::wall_edge::SEARCH_CORRECTION ? "on" : "off",
+        wallEdge.totalShift());
     uint8_t bank = 0;
     const maze_store::Record* r = maze_store::latest(&bank);
     LOG("maze save: %s, latest bank %c sequence %lu %s; %lu records (%lu failed, %u unchanged, %u refused), "
@@ -512,12 +521,6 @@ void runSearch(const SearchPreset& preset) {
         static_cast<unsigned long>(maze_store::journal::appendedCount()),
         static_cast<unsigned long>(maze_store::journal::failedCount()), g_save.skipped, g_save.refused,
         static_cast<unsigned long>(g_save.max_word_us), static_cast<unsigned long>(gap_us));
-    maze_store::journal::close();
-    if (stop != Stop::finished || pending != maze_store::Result::ok) blinkRefused();
-
-    HAL_Delay(500);
-    ledBar16.set(0xFFFF);
-    haltByAccZ();
     dumpSteps(g_log_name, preset.front_correction);
     wall_edge_log::dump("search", g_edge_name);
     logger.dump();
