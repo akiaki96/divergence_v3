@@ -180,8 +180,16 @@ inline constexpr int16_t THRESH_FRONT_RIGHT = 205;
 inline constexpr int16_t REF_LEFT = 744;
 inline constexpr int16_t REF_RIGHT = 694;
 
-inline constexpr float KP = 0.02f;              // [dps/count] 中心線からのずれ（センサー値の差）→ 補正の角速度
-inline constexpr float MAX_OMEGA = 90.f;        // [dps] 補正の角速度の上限
+// 補正のゲインは並進の目標速度 v に比例させる（KP = KP_PER_VELOCITY·v）。
+// 横ずれ y [mm]・壁に対する向き θ [rad] で error ≈ KS·(y + L·θ)（横のセンサーは車軸の約 L 先の壁を見るので，
+// 向きも効く。これが減衰になる）。走った距離 x で書くと y'' + G·L·y' + G·y = 0，G = KP·KS·(π/180)/v。
+// KP ∝ v なら G が一定で，速度によらず同じ距離で収束する。
+// 2026-10-06 探索のトレース（275区間）から KS ≈ 31〜32 count/mm，L ≈ 80〜120 mm（壁切れの OFFSET −91 とも合う）。
+// 2% 収束 ≈ 4/(G·L/2) を 270 mm（1.5区画）にして G = 2.96e-4 /mm²，ζ ≈ 0.86（tools/wall_control_design.py）。
+// 前の固定 KP = 0.02 は 500 mm/s で KP_PER_VELOCITY ≈ 4e-5 相当（収束に約 3.7 m）
+inline constexpr float KP_PER_VELOCITY = 5.5e-4f;   // [dps/count per mm/s] 中心線からのずれ（センサー値の差）→ 補正の角速度
+// 補正の角速度の上限も v に比例させる（曲率の上限。500 mm/s で前と同じ 90 dps）
+inline constexpr float MAX_OMEGA_PER_VELOCITY = 0.18f;   // [dps per mm/s]
 inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いとき（停止・超信地旋回）は補正しない
 }
 

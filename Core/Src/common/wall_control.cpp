@@ -24,8 +24,10 @@ AxisReference WallControl::apply(const AxisReference& rot, float omega_target, f
         } else if (wall::hasRight(s)) {
             error = -2.f * error_right;
         }
-        // 左に寄っていれば右へ（角速度は左旋回が正）
-        omega_ = std::clamp(-config::wall::KP * error, -config::wall::MAX_OMEGA, config::wall::MAX_OMEGA);
+        // 左に寄っていれば右へ（角速度は左旋回が正）。ゲインと上限は速度に比例（距離での応答を速度によらずそろえる）
+        float kp = config::wall::KP_PER_VELOCITY * v_target;
+        float max_omega = config::wall::MAX_OMEGA_PER_VELOCITY * v_target;
+        omega_ = std::clamp(-kp * error, -max_omega, max_omega);
         offset_deg_ += omega_ * config::control::DT_S;
     }
     return {rot.pos + offset_deg_, rot.vel + omega_, rot.acc};
