@@ -31,24 +31,50 @@ constexpr float EDGE_FEED_LEAD_MM = 300.f;
 constexpr uint16_t S90_DISABLED_MS = 30000;
 
 // ---- プリセットの検査（ビルド時）：ターンがターンの速度・同じファンの条件で設計されていて積める ----
-constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required) {
+constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required, float speed) {
     if (t == nullptr) return !required;
-    return t->speed == p.turn_speed && t->fan == p.fan && slalom::validate(*t) == SegmentResult::ok;
+    return t->speed == speed && t->fan == p.fan && slalom::validate(*t) == SegmentResult::ok;
+}
+constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required) {
+    return turnUsable(t, p, required, p.turn_speed);
+}
+
+// S90 と他のターンの間の直線は最短で半区画。そこで2つの速度の間を加速・減速しきれるか（gen_run_presets.py と同じ検査）
+constexpr bool speedsBridgeable(const RunPreset& p) {
+    float dv2 = p.turn_speed * p.turn_speed - p.s90_speed * p.s90_speed;
+    float lim = 2.f * ((p.accel < p.decel) ? p.accel : p.decel) * (config::maze::CELL_MM / 2.f);
+    return dv2 <= lim && -dv2 <= lim;
 }
 
 constexpr bool presetUsable(const RunPreset& p) {
     // 小回り90°は斜めなしなら必須（ジグザグを曲がる），斜めありなら任意
     const slalom::Param* s90 = p.turns.s90;
-    bool ok = turnUsable(s90, p, p.diagonal == nullptr)
+    // S90 の速度を他のターンと変えてよいのは斜めなしのときだけ（斜めのターンとのつながりは確かめていない）
+    bool ok = turnUsable(s90, p, p.diagonal == nullptr, p.s90_speed)
            && (s90 == nullptr || (s90->entry == slalom::Anchor::edge && s90->exit == slalom::Anchor::edge))
+           && (p.s90_speed == p.turn_speed || (p.diagonal == nullptr && speedsBridgeable(p)))
            && turnUsable(p.turns.l90, p, true) && turnUsable(p.turns.t180, p, true)
-           && p.max_speed >= p.turn_speed && p.max_speed_dia >= p.turn_speed
+           && p.max_speed >= p.turn_speed && p.max_speed >= p.s90_speed && p.max_speed_dia >= p.turn_speed
            && p.accel > 0.f && p.accel <= config::profile_limit::MAX_ACCEL_X
            && p.decel > 0.f && p.decel <= config::profile_limit::MAX_DECEL_X;
     if (p.diagonal != nullptr) {
         const DiagonalTurns& d = *p.diagonal;
         ok = ok && turnUsable(d.in45, p, true) && turnUsable(d.out45, p, true) && turnUsable(d.v90, p, true)
                 && turnUsable(d.in135, p, true) && turnUsable(d.out135, p, true);
+    }
+    // スタート用のターン：start_speed で設計されていて，置いた位置から最初の区画中央までで start_speed まで加速できる
+    if (p.start_speed > 0.f) {
+        ok = ok && p.start_speed < p.turn_speed && p.start_turns.s90 == nullptr
+                && p.start_speed * p.start_speed <= 2.f * config::profile_limit::MAX_ACCEL_X * START_TO_CENTER
+                && turnUsable(p.start_turns.l90, p, true, p.start_speed)
+                && turnUsable(p.start_turns.t180, p, true, p.start_speed)
+                && ((p.diagonal == nullptr) == (p.start_diagonal == nullptr));
+        if (p.start_diagonal != nullptr) {
+            const DiagonalTurns& d = *p.start_diagonal;
+            const float v = p.start_speed;
+            ok = ok && turnUsable(d.in45, p, true, v) && turnUsable(d.out45, p, true, v) && turnUsable(d.v90, p, true, v)
+                    && turnUsable(d.in135, p, true, v) && turnUsable(d.out135, p, true, v);
+        }
     }
     return ok;
 }
@@ -139,6 +165,11 @@ bool plan(const RunPreset& p) {
     }
     if (p.turns.s90 == nullptr) {
         solver_options.turn_ms[TURN_S90] = S90_DISABLED_MS;   // 小回り90°を使わない（ジグザグは斜めで走る）
+    } else if (p.s90_speed != p.turn_speed) {
+        // コスト表は turn_speed で作るので，小回り90°だけ自分の速度で時間を見積もり直す
+        // （S90 の前後の半区画の直線は turn_speed のままの近似）
+        float ms = 1000.f * prof.turn_dist[TURN_S90] / p.s90_speed;
+        solver_options.turn_ms[TURN_S90] = static_cast<uint16_t>((ms < 60000.f) ? ms + 0.5f : 60000.f);
     }
 
     // 既知の壁だけで（wallone：未知は壁）最短時間の経路を求める
@@ -230,8 +261,8 @@ bool runSteps(const RunPreset& p) {
 void runFastRun(const RunPreset& preset) {
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
-    LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
-        preset.name, preset.turn_speed, preset.max_speed, preset.max_speed_dia, preset.accel, preset.decel,
+    LOG("fast %s: turn %.0f / s90 %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
+        preset.name, preset.turn_speed, preset.s90_speed, preset.max_speed, preset.max_speed_dia, preset.accel, preset.decel,
         preset.diagonal ? "on" : "off", preset.fan ? "on" : "off");
 
     motorDriver.state = MotorDriverState::setDuty;

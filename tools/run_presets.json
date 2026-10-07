@@ -89,6 +89,18 @@
     "wall_edge": true,
     "note": "2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
   },
+  "1200_s900": {
+    "turn_speed": 1200,
+    "s90_speed": 900,
+    "max_speed": 2000,
+    "max_speed_dia": 1200,
+    "accel": 4000,
+    "decel": 4000,
+    "diagonal": false,
+    "wall_edge": true,
+    "note": "大回り90°・180° 1200mm/s，小回り90° 900mm/s（半区画で 900↔1200 に 3500mm/s^2 要る）。実機で未試験。スタート直後に加速しきれないときは 900mm/s のターンに置き換える",
+    "start_speed": 900
+  },
   "900_dia": {
     "turn_speed": 900,
     "max_speed": 1500,
@@ -107,7 +119,8 @@
     "decel": 3000,
     "diagonal": true,
     "wall_edge": true,
-    "note": "斜めあり，小回り90°なし（1200mm/s の S90 は設計できない）。2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。斜めの直線はターンの速度と同じ"
+    "note": "斜めあり，小回り90°なし（1200mm/s の S90 は設計できない）。2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。斜めの直線はターンの速度と同じ。スタート直後に加速しきれないときは 900mm/s のターンに置き換える",
+    "start_speed": 900
   },
   "300_fan": {
     "turn_speed": 300,
@@ -186,6 +199,32 @@
     "wall_edge": true,
     "note": "ファンON，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
   },
+  "1200_fan_s900": {
+    "turn_speed": 1200,
+    "s90_speed": 900,
+    "max_speed": 2000,
+    "max_speed_dia": 1200,
+    "accel": 4000,
+    "decel": 4000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，大回り90°・180° 1200mm/s，小回り90° 900mm/s。実機で未試験。スタート直後に加速しきれないときは 900mm/s のターンに置き換える",
+    "start_speed": 900
+  },
+  "1500_fan_s900": {
+    "turn_speed": 1500,
+    "s90_speed": 900,
+    "max_speed": 2000,
+    "max_speed_dia": 1500,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，大回り90°・180° 1500mm/s，小回り90° 900mm/s（半区画で 900↔1500 に 8000mm/s^2 要る）。実機で未試験。スタート直後に加速しきれないときは 900mm/s のターンに置き換える",
+    "start_speed": 900
+  },
   "900_fan_dia": {
     "turn_speed": 900,
     "max_speed": 1500,
@@ -206,6 +245,7 @@
     "diagonal": true,
     "fan": true,
     "wall_edge": true,
-    "note": "ファンON，斜めあり，小回り90°なし（1200mm/s の S90 は設計できない）。2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。斜めの直線はターンの速度と同じ"
+    "note": "ファンON，斜めあり，小回り90°なし（1200mm/s の S90 は設計できない）。2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。斜めの直線はターンの速度と同じ。スタート直後に加速しきれないときは 900mm/s のターンに置き換える",
+    "start_speed": 900
   }
 }

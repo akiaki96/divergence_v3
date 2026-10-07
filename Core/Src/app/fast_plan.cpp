@@ -51,12 +51,49 @@ Error addStraight(Steps* out, bool diagonal, float distance) {
     return Error::none;
 }
 
-// 手順 i の直線の始めと終わりの速度
-float startSpeed(std::size_t i, const RunPreset& p) {
-    return (i == 0) ? 0.f : p.turn_speed;
+// スタート用のターン（RunPreset::start_turns / start_diagonal）のうち，turn と同じ種類のもの。無ければ nullptr
+const slalom::Param* startVariant(const slalom::Param* turn, const RunPreset& p) {
+    if (turn == p.turns.l90) return p.start_turns.l90;
+    if (turn == p.turns.t180) return p.start_turns.t180;
+    const DiagonalTurns* d = p.diagonal;
+    const DiagonalTurns* sd = p.start_diagonal;
+    if (d != nullptr && sd != nullptr) {
+        if (turn == d->in45) return sd->in45;
+        if (turn == d->out45) return sd->out45;
+        if (turn == d->v90) return sd->v90;
+        if (turn == d->in135) return sd->in135;
+        if (turn == d->out135) return sd->out135;
+    }
+    return nullptr;
+}
+
+// スタート直後：最初の直線で最初のターンの速度まで加速しきれない（preset の accel を超える）なら，
+// 最初のターンと，直線を挟まずに続くターンを start_speed の同じ種類に置き換える（速度一定のスラロームが続くので全部そろえる）
+void slowStart(Steps* out, const RunPreset& p) {
+    if (p.start_speed <= 0.f || out->size() < 2) return;
+    const Step& first = out->front();
+    const Step& next = (*out)[1];
+    if (first.turn != nullptr || next.turn == nullptr) return;
+    const float v = next.turn->speed;
+    if (v <= p.start_speed || v * v <= 2.f * p.accel * first.distance) return;
+    for (std::size_t k = 1; k < out->size() && (*out)[k].turn != nullptr; ++k) {
+        const slalom::Param* slow = startVariant((*out)[k].turn, p);
+        if (slow == nullptr) return;   // 置き換えられない種類が来たらそこまで（validate が弾けば走らない）
+        (*out)[k].turn = slow;
+    }
+}
+
+// 手順 i の直線の始めと終わりの速度：隣のターンの速度（ターンごとに違ってよい。最初と最後は0）。
+// 直線どうしは build() でつなぐので，直線の隣はターンか端
+float startSpeed(const Steps& steps, std::size_t i, const RunPreset& p) {
+    if (i == 0) return 0.f;
+    const slalom::Param* t = steps[i - 1].turn;
+    return (t != nullptr) ? t->speed : p.turn_speed;
 }
 float endSpeed(const Steps& steps, std::size_t i, const RunPreset& p) {
-    return (i + 1 == steps.size()) ? 0.f : p.turn_speed;
+    if (i + 1 == steps.size()) return 0.f;
+    const slalom::Param* t = steps[i + 1].turn;
+    return (t != nullptr) ? t->speed : p.turn_speed;
 }
 
 } // namespace
@@ -104,10 +141,12 @@ Error build(const uint8_vector& actions, const RunPreset& p, float start_offset,
         }
     }
 
+    slowStart(out, p);
+
     // 終わり: 経路はゴール区画の中央で終わる。直線ならそこで止まり（台形の終速0）、
     // ターンならターンの速度のまま中央に着くので、止まれる距離だけ進んで止まる
     if (out->back().turn != nullptr) {
-        float v = p.turn_speed;
+        float v = out->back().turn->speed;
         Error e = addStraight(out, false, v * v / (2.f * p.decel));
         if (e != Error::none) return e;
     }
@@ -122,7 +161,7 @@ uint8_t segments(const Steps& steps, std::size_t i, const RunPreset& p, Segment 
     }
 
     const float d = s.distance;
-    const float v_in = startSpeed(i, p);
+    const float v_in = startSpeed(steps, i, p);
     const float v_out = endSpeed(steps, i, p);
     const float v_max = s.diagonal ? p.max_speed_dia : p.max_speed;
     trapezoid::Part parts[trapezoid::MAX_PARTS];
