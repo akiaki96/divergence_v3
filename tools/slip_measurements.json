@@ -1,20 +1,154 @@
 {
   "runs": [
-    {"log": "slalom/L90_500_right.csv", "outward": 10, "longitudinal": -8, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
-    {"log": "slalom/S90_500_right.csv", "outward": 10, "longitudinal": -12, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
-    {"log": "slalom/T180_500_right.csv", "outward": 1, "longitudinal": -22, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
-    {"log": "slalom/L90_700_right_1.csv", "outward": 13, "longitudinal": -8, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
-    {"log": "slalom/S90_700_right.csv", "outward": 15, "longitudinal": -10, "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"},
-    {"log": "slalom/S90_500_FAN_right.csv", "outward": 4.5, "longitudinal": 6, "note": "2026-10-05, fan_duty=0.2"},
-    {"log": "slalom/L90_500_FAN_right.csv", "outward": 0, "longitudinal": 0, "note": "2026-10-05, fan_duty=0.2"},
-    {"log": "slalom/T180_500_FAN_right.csv", "outward": -8, "longitudinal": -6, "note": "2026-10-05, fan_duty=0.2"},
-    {"log": "slalom/S90_700_FAN_right.csv", "outward": -2, "longitudinal": 8, "note": "2026-10-05, fan_duty=0.2"},
-    {"log": "slalom/L90_700_FAN_right.csv", "outward": -5, "longitudinal": 9, "note": "2026-10-05, fan_duty=0.2"},
-    {"log": "slalom/T180_700_FAN_right.csv", "outward": -5, "longitudinal": 12, "note": "2026-10-05, fan_duty=0.2"},
-
-    {"log": "slalom/S90_900_FAN_right.csv", "outward": 13.5, "longitudinal": -10, "note": "2026-10-05, fan_duty=0.2"},
-    {"log": "slalom/L90_900_FAN_right.csv", "outward": 2, "longitudinal": 0, "note": "2026-10-05, fan_duty=0.2"},
-    {"log": "slalom/T180_900_FAN_right.csv", "outward": -4, "longitudinal": -12, "note": "2026-10-05, fan_duty=0.2"}
-
+    {
+      "log": "slalom/L90_500_right.csv",
+      "outward": 10,
+      "longitudinal": -8,
+      "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"
+    },
+    {
+      "log": "slalom/S90_500_right.csv",
+      "outward": 10,
+      "longitudinal": -12,
+      "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"
+    },
+    {
+      "log": "slalom/T180_500_right.csv",
+      "outward": 1,
+      "longitudinal": -22,
+      "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"
+    },
+    {
+      "log": "slalom/L90_700_right_1.csv",
+      "outward": 13,
+      "longitudinal": -8,
+      "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"
+    },
+    {
+      "log": "slalom/S90_700_right.csv",
+      "outward": 15,
+      "longitudinal": -10,
+      "note": "2026-10-02 ファンOFF，BACK_TO_AXLE_MM=42"
+    },
+    {
+      "log": "slalom/S90_500_FAN_right.csv",
+      "outward": 4.5,
+      "longitudinal": 6,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/L90_500_FAN_right.csv",
+      "outward": 0,
+      "longitudinal": 0,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/T180_500_FAN_right.csv",
+      "outward": -8,
+      "longitudinal": -6,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/S90_700_FAN_right.csv",
+      "outward": -2,
+      "longitudinal": 8,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/L90_700_FAN_right.csv",
+      "outward": -5,
+      "longitudinal": 9,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/T180_700_FAN_right.csv",
+      "outward": -5,
+      "longitudinal": 12,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/S90_900_FAN_right.csv",
+      "outward": 13.5,
+      "longitudinal": -10,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/L90_900_FAN_right.csv",
+      "outward": 2,
+      "longitudinal": 0,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/T180_900_FAN_right.csv",
+      "outward": -4,
+      "longitudinal": -12,
+      "note": "2026-10-05, fan_duty=0.2"
+    },
+    {
+      "log": "slalom/S90_300_left.csv",
+      "outward": -13,
+      "longitudinal": 10.5,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/L90_300_left.csv",
+      "outward": -15,
+      "longitudinal": 13,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/T180_300_left.csv",
+      "outward": -5,
+      "longitudinal": 30,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/S90_500_left_1.csv",
+      "outward": -11,
+      "longitudinal": 12,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/L90_500_left_1.csv",
+      "outward": -15,
+      "longitudinal": 10,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/S90_700_left_1.csv",
+      "outward": -1,
+      "longitudinal": 5,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/L90_700_left_1.csv",
+      "outward": -12,
+      "longitudinal": 11,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/S90_900_left.csv",
+      "outward": 21,
+      "longitudinal": -4,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）。横加速度 1.9G でグリップの限界（モデルの残差 +24/-8）"
+    },
+    {
+      "log": "slalom/L90_900_left.csv",
+      "outward": -10,
+      "longitudinal": 8,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/T180_900_left.csv",
+      "outward": -3,
+      "longitudinal": 9,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/L90_1200_left.csv",
+      "outward": 5,
+      "longitudinal": 1,
+      "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    }
   ]
 }

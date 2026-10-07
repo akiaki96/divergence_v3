@@ -320,6 +320,46 @@ def selected(args, params):
             yield p, key, e, seed_key
 
 
+# delta に書けるキーと Design の属性（gen_slalom_params.DELTA_KEYS と同じ4つ）
+SIDE_DELTA_KEYS = (("Set_low_AngVel", "omega"), ("Set_Low_AngAcl", "alpha"),
+                   ("Set_pri_offset", "pre"), ("Set_post_offset", "post"))
+
+
+def write_side_deltas(results, args):
+    """--side：その向きを設計し直した値と今の設計の差を slalom_tuning.json の delta_<side> に書く。
+    両方向の delta があれば，それを引いた残りを書く（その向きの値 = 設計値 + delta + delta_<side> = 設計し直した値）。
+    設計値（slalom_params.json）とその saved_at は変えないので，もう一方の向きは今のまま"""
+    tuning = load_json(TUNING_PATH)
+    field = f"delta_{args.side}"
+    note = f"{datetime.date.today().isoformat()} slalom_autotune refit --side {args.side}（c={args.c}, K={args.k}）"
+    written, skipped = 0, []
+    for p, key, e, d in results:
+        tune = tuning.setdefault(p.label, {}).setdefault(key, {})
+        if tune.get("base_saved_at") not in (None, e.get("saved_at")):
+            skipped.append(f"{p.label} / {key}（今の差分が古い設計に対するもの）")
+            continue
+        tune["base_saved_at"] = e.get("saved_at")
+        both = tune.get("delta", {})
+        delta = {}
+        for k, attr in SIDE_DELTA_KEYS:
+            v = round(float(getattr(d, attr)) - float(e[k]) - float(both.get(k, 0.0)), 2) + 0.0
+            if v != 0.0:
+                delta[k] = v
+        tune[field] = delta
+        old = tune.get("note", "")
+        tune["note"] = note if not old else (old if note in old else f"{old} / {note}")
+        written += 1
+    tmp = TUNING_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(tuning, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(tmp, TUNING_PATH)
+    print(f"\n{written} 件の {field} を slalom_tuning.json に書きました（slalom_params.json は変えていません）")
+    for s_ in skipped:
+        print(f"  書かなかった: {s_}")
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0],
                                  formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
@@ -338,13 +378,18 @@ def main():
     ap.add_argument("--create", action="store_true",
                     help="--speed のうち slalom_params.json に無い速度のエントリを作る（種は同じターンの近い速度，"
                          "無ければ既定の初期値で optimize のみ）")
-    ap.add_argument("--write", action="store_true", help="slalom_params.json に書く")
+    ap.add_argument("--side", choices=["left", "right"],
+                    help="refit: その向きの旋回だけを設計し直し，slalom_params.json は変えずに slalom_tuning.json の "
+                         "delta_<side> に書く（左右で滑りが違うとき。もう一方の向きは今の設計のまま）")
+    ap.add_argument("--write", action="store_true", help="slalom_params.json（--side なら slalom_tuning.json）に書く")
     args = ap.parse_args()
 
     if (args.c is not None or args.k is not None) and args.fan == "all":
         ap.error("--c / --k はファンの有無で違うので，--fan off か --fan on と一緒に指定する")
     if args.create and not args.speed:
         ap.error("--create は作る速度を --speed で指定する")
+    if args.side and (args.mode != "refit" or args.create):
+        ap.error("--side は refit で使う（--create とは一緒に使えない）")
     alpha_max = min(args.alpha_max or MAX_ALPHA, MAX_ALPHA, MAX_ALPHA_DECEL)
 
     params = load_json(PARAMS_PATH)
@@ -387,12 +432,15 @@ def main():
         if not problems:
             results.append((p, key, e, new))
 
+    target = f"slalom_tuning.json の delta_{args.side}" if args.side else "slalom_params.json"
     if not args.write:
-        print(f"\n{len(results)} 件を書けます（--write で slalom_params.json に書く）")
+        print(f"\n{len(results)} 件を書けます（--write で {target} に書く）")
         return 0
     if not results:
         print("書くものがありません")
         return 1
+    if args.side:
+        return write_side_deltas(results, args)
 
     data = load_json(PARAMS_PATH)   # 他で編集された分を消さないよう，書く直前に読み直す
     tuning = load_json(TUNING_PATH)

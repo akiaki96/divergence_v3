@@ -156,6 +156,9 @@ CMakeがビルドのたびに，JSONか生成スクリプトが変わってい�
   optimize は ω・α を探し直すので，結果は種によらない。設計できない（✗）ものは作らない。例：
   `python3 tools/slalom_autotune.py optimize --fan on --c 0.7 --k 0.0071 --speed 300 600 900 1200 1500 1800 2100 --create --write`
 - 横加速度（v·ω）の上限はまだ無い。高速では数Gになる設計も出るので，実機では低速から順に試す
+- **左右で滑りが違うとき**：`refit --side left`（または `right`）で，その向きだけを設計し直し，`slalom_params.json` は変えずに
+  `slalom_tuning.json` の `delta_left` / `delta_right` に差を書く（両方向の `delta` があれば，それを引いた残り）。もう一方の向きは今の設計のまま。
+  例：`python3 tools/slalom_autotune.py refit --fan off --c 0 --k 0.0061 --side left --turn S90 L90 T180 --write`
 - refit・optimize とも，書く前にファームウェアの `slalom::validate()` と同じ検査をする（0 でない直線・角速度の区間が
   1制御周期 `DT_S` 以上，α ≤ `MAX_ALPHA`，等角速度の区間が1制御周期以上）。通らないものは書かない
   （通らない設計を書くと，探索・最短走行のプリセットの `static_assert` でビルドが止まる）

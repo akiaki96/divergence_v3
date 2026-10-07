@@ -2,15 +2,170 @@
   "小回り90°": {
     "700": {
       "base_saved_at": "2026-10-03T03:41:51",
-      "delta_left": { "Set_post_offset": 3.2 },
-      "note": "左旋回で post が3.2mm短い。ファンOFF"
+      "delta_left": {
+        "Set_pri_offset": 6.2,
+        "Set_post_offset": -8.5
+      },
+      "note": "左旋回で post が3.2mm短い。ファンOFF / 2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "300": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_pri_offset": 9.28,
+        "Set_post_offset": -10.72
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "500": {
+      "base_saved_at": "2026-10-03T03:33:09",
+      "delta_left": {
+        "Set_pri_offset": 7.3,
+        "Set_post_offset": -10.6
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "600": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_pri_offset": 7.68,
+        "Set_post_offset": -9.05
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "900": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_pri_offset": 4.96,
+        "Set_post_offset": -6.33
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
     }
   },
   "大回り90°": {
     "500": {
       "base_saved_at": "2026-10-03T03:34:06",
-      "delta": { "Set_post_offset": -1.8 },
-      "note": "右旋回で post が1.8mm長い。ファンOFF"
+      "delta": {
+        "Set_post_offset": -1.8
+      },
+      "note": "右旋回で post が1.8mm長い。ファンOFF / 2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）",
+      "delta_left": {
+        "Set_pri_offset": 8.6,
+        "Set_post_offset": -7.6
+      }
+    },
+    "300": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_pri_offset": 9.68,
+        "Set_post_offset": -10.42
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "600": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_pri_offset": 8.03,
+        "Set_post_offset": -8.75
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "700": {
+      "base_saved_at": "2026-10-03T03:44:59",
+      "delta_left": {
+        "Set_pri_offset": 6.3,
+        "Set_post_offset": -7.9
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "900": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_pri_offset": 5.36,
+        "Set_post_offset": -5.91
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "1200": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_pri_offset": 1.74,
+        "Set_post_offset": -1.93
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    }
+  },
+  "180°": {
+    "500": {
+      "base_saved_at": "2026-10-03T17:01:56",
+      "delta_left": {
+        "Set_low_AngVel": 0.9,
+        "Set_Low_AngAcl": 5.0,
+        "Set_post_offset": 2.8
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "600": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_low_AngVel": 2.2,
+        "Set_Low_AngAcl": 24.0,
+        "Set_post_offset": -16.98
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "700": {
+      "base_saved_at": "2026-10-03T03:45:29",
+      "delta_left": {
+        "Set_low_AngVel": 2.9,
+        "Set_Low_AngAcl": 24.0,
+        "Set_post_offset": -15.3
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "900": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_low_AngVel": 2.6,
+        "Set_Low_AngAcl": 43.0,
+        "Set_post_offset": -11.99
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "1200": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_low_AngVel": 2.6,
+        "Set_Low_AngAcl": 55.0,
+        "Set_post_offset": -3.62
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "1500": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_low_AngVel": -2.4,
+        "Set_Low_AngAcl": -63.0,
+        "Set_post_offset": 7.12
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "1800": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_low_AngVel": -18.3,
+        "Set_Low_AngAcl": -552.0,
+        "Set_post_offset": 18.43
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
+    },
+    "2100": {
+      "base_saved_at": "2026-10-07T11:06:19",
+      "delta_left": {
+        "Set_low_AngVel": -53.7,
+        "Set_Low_AngAcl": -1142.0,
+        "Set_post_offset": 32.67
+      },
+      "note": "2026-10-07 slalom_autotune refit --side left（c=0.0, K=0.0061）"
     }
   }
 }
