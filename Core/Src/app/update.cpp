@@ -45,15 +45,18 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
                                           planProfile.getTargetVelocityX(), planProfile.getTargetOmega());
             if (shift != 0.f) odometry.shiftPositionX(shift);
         }
-        // 斜めの直線の切れ目からの距離（有効なときだけ。補正はしない）
+        // 斜めの直線の切れ目からの距離（有効なときだけ）
+        wall::Snapshot side = wall::read();
         if (diagEdge.active()) {
-            wall::Snapshot ws = wall::read();
-            diagEdge.update(ws.value[wall::left], ws.value[wall::right], odometry.positionX());
+            diagEdge.update(side.value[wall::left], side.value[wall::right], odometry.positionX());
         }
         // 横壁の補正を回転の目標に足す（直進中で有効なときだけ。それ以外はそのまま）
         AxisReference rot_ref = wallControl.apply(
             planProfile.rotReference(), planProfile.getTargetOmega(), planProfile.getTargetVelocityX()
         );
+        // 斜めの直線では切れ目からの距離の表で向きを補正する（教えた斜めの直線の中で有効なときだけ）
+        rot_ref = diagControl.apply(rot_ref, planProfile.getTargetOmega(), planProfile.getTargetVelocityX(),
+                                    odometry.positionX(), side.value[wall::left], side.value[wall::right], diagEdge);
         motorDriver.update(
             planProfile.transReference(), odometry.translation(),
             rot_ref, odometry.rotation()

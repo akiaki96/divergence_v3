@@ -28,7 +28,8 @@ void Menu::buildTree() {
             ir_.setChildren(std::array{&ir_wall_check_, &ir_front_check_, &ir_wall_edge_, &ir_diag_, &ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
                 ir_front_check_.setChildren(std::array{&front_check_wall_, &front_check_no_wall_, &front_check_show_, &front_check_reset_});
                 ir_wall_edge_.setChildren(std::array{&wall_edge_calib_300_, &wall_edge_calib_500_, &wall_edge_calib_700_, &wall_edge_verify_500_, &wall_edge_inject_500_});
-                ir_diag_.setChildren(std::array{&diag_left_n4_, &diag_right_n4_, &diag_left_n8_, &diag_right_n8_});
+                ir_diag_.setChildren(std::array{&diag_left_n4_, &diag_right_n4_, &diag_left_n8_, &diag_right_n8_,
+                                                &diag_left_ctrl_, &diag_right_ctrl_, &diag_left_inj_, &diag_right_inj_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_, &imu_gyro_fan_, &imu_acc_fan_});
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &plan_profile_, &plan_rotation_, &rotation_});

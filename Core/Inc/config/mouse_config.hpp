@@ -253,6 +253,38 @@ inline constexpr int16_t THRESH_OFF_RIGHT = 250;
 inline constexpr float MIN_WALL_MM = 10.f;   // [mm] これより短く見えた壁の後の切れ目は使わない（ノイズ）
 }
 
+// 斜めの直線の向きの補正（common/diag_control.hpp，表は tools/diag_table.json → config/diag_table.hpp，
+// 手順は tools/DIAGONAL.md）。切れ目からの距離 since で表の基準値・感度を引き，横のセンサーの値から横のずれ y [mm]
+// （左が正）を出す。両側が読めれば (左の寄り − 右の寄り)/2，片側ならその側だけ。
+// 表は柱の両側に壁がある並べ方（A）で取ったので，実際の迷路では壁が抜けると値は下がる側にしかずれない。
+// そこで「MAX_AWAY_MM より離れた」と読めた側は壁が抜けているとみなして使わない（壁の抜けで壁の側へ寄せない）。
+//
+// y を距離 FILTER_MM でならし，向きの目標を「斜めの直線に入ったときの向き + 積分 − KP·y」にする（横のずれ → 向き）。
+// 角度の制御が向きを追うので，横は y' = θ（走った距離あたり）で，KP だけなら距離 1/KP で指数的に戻る（振動しない）。
+// 入口の向きのずれ θ0 は積分 KI が打ち消す（KP だけだと y = θ0/KP が残る）。y'' + KP·y' + KI·y = 0（rad で）なので ζ = KP/(2√KI) = 1 にした。
+// [要調整] 実機で未試験。表は 500 mm/s の入45° の直後（並べ方 A）だけから作った
+namespace config::diag_control {
+inline constexpr float FILTER_MM = 20.f;           // [mm] 横のずれをならす距離（一次遅れ）
+// [mm] 読めない区間（切れ目の直後 約 36 mm と直前 約 15 mm）はこの距離まで最後の値を保つ。それより長く読めなければ
+// FILTER_MM で 0 へ戻す（向きは入ったとき＋積分へ戻る）
+inline constexpr float HOLD_MM = 60.f;
+// 斜めの直線は短いことが多い（2〜6 区間 = 254〜764 mm）ので，戻る距離は 120 mm にした
+inline constexpr float KP_DEG_PER_MM = 0.477f;     // [deg/mm] 横のずれ → 向き（1/KP = 120 mm で戻る）
+inline constexpr float KI_DEG_PER_MM2 = 9.9e-4f;   // [deg/mm^2] 横のずれの積分（走った距離で）→ 向き。ζ ≈ 1
+inline constexpr float MAX_INTEGRAL_DEG = 2.f;     // [deg] 積分の上限
+inline constexpr float MAX_LATERAL_MM = 8.f;       // [mm] 片側の寄りの上限（外れ値）
+// [mm] 片側で「これより離れた」と読めたら，その側の壁が抜けているとみなして使わない。
+// 表の走行間のばらつきは横に換算して約 3 mm（R4）。壁が抜けると値は数十 mm ぶん下がる
+inline constexpr float MAX_AWAY_MM = 4.f;
+// 向きの目標の変わる速さの上限も v に比例（config::wall と同じ。500 mm/s で 90 dps）
+inline constexpr float MAX_OMEGA_PER_VELOCITY = 0.18f;   // [dps per mm/s]
+inline constexpr float MIN_VELOCITY = 100.f;             // [mm/s] これより遅いときは補正しない
+// [mm] 斜めの直線の始まりのこれだけ手前からの切れ目を使う。入45°の外側の最初の切れ目は旋回の終わり
+// （出口の基準点の約 −59 mm）の直後に出る（R2）。それより前の切れ目（旋回の前の縦横の壁）は使わない
+inline constexpr float EDGE_BEFORE_MM = 70.f;
+inline constexpr uint8_t MAX_RANGES = 32;      // 1回の走行で覚えておける斜めの直線の数
+}
+
 // 前壁の距離による S90 の入口の補正（common/front_correction.hpp）。探索で S90 を積むとき，読み位置
 // （区画境界の config::search::READ_LEAD_MM 手前）で前壁があれば，前左・前右の値を換算表
 // （tools/ir_calibration.json → config/front_distance_table.hpp）で距離にして，基準 REF_* とのずれ e を求める。

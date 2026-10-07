@@ -44,6 +44,7 @@ SIDES = ("L", "R")
 SENSORS = (("ir_l", "L"), ("ir_fl", "L"), ("ir_fr", "R"), ("ir_r", "R"))
 MIN_VELOCITY = 100.0              # [mm/s] これより遅いところ（止まる前後）は使わない
 MAX_ANGLE_ERROR = 2.0             # [deg] これより向きがずれた走行は表の質が落ちる（警告）
+CONTROL_RUN = re.compile(r"_(ctrl|inj)(_\d+)?\.csv$")   # 斜めの姿勢制御をかけた走行（表には使わない）
 
 
 # ---------------------------------------------------------------- 設定
@@ -95,6 +96,24 @@ def load(path):
     run["name"] = os.path.basename(path)
     run["dir"] = turn_dir(run["name"])
     return run
+
+
+def control_summary(runs):
+    """機体の DiagControl の列（diag_lat / diag_offset）があれば，斜めの直線の前半・後半の横のずれの推定と補正を出す"""
+    rows = [r for r in runs if "diag_lat" in r]
+    if not rows:
+        return
+    print("\nonboard DiagControl (diag_lat: lateral estimate, left +; diag_offset: heading added) on the diagonal:")
+    for r in rows:
+        x, lat, off = r["diag_x"], r["diag_lat"], r["diag_offset"]
+        end = float(np.nanmax(x))
+        def mean(lo, hi, v):
+            m = (x >= lo) & (x < hi) & np.isfinite(v)
+            return float(np.mean(v[m])) if m.any() else math.nan
+        q = end / 4.0
+        lats = " ".join(f"{mean(i * q, (i + 1) * q, lat):+5.1f}" for i in range(4))
+        print(f"  {r['name']}: diag_lat by quarter {lats} mm, diag_offset end {float(off[np.isfinite(off)][-1]):+.2f} deg"
+              f" (max |{float(np.nanmax(np.abs(off))):.2f}|)")
 
 
 def moving_mask(run):
@@ -590,7 +609,9 @@ def main():
     if args.selftest:
         sys.exit(0 if selftest() else 1)
 
-    files = args.files or sorted(f for f in glob.glob(DEFAULT_GLOB) if not f.endswith("reference.json"))
+    # 既定では表のデータだけ（補正をかけた走行 *_ctrl / *_inj は，ファイルを指定したときだけ）
+    files = args.files or sorted(f for f in glob.glob(DEFAULT_GLOB)
+                                 if not f.endswith("reference.json") and not CONTROL_RUN.search(os.path.basename(f)))
     if not files:
         raise SystemExit(f"no logs ({DEFAULT_GLOB})")
     cfg = read_config()
@@ -602,7 +623,11 @@ def main():
           f"min wall {cfg['min_wall']:.0f} mm")
     runs = [load(f) for f in files]
     result = analyze(runs, cfg, bin_mm=args.bin, guard_after=args.guard[0], guard_before=args.guard[1])
-    write_json(result, cfg, args.bin, args.out)
+    control_summary(runs)
+    if any(CONTROL_RUN.search(r["name"]) for r in runs):
+        print("(control runs given: reference.json not written; the tables above include the corrections)")
+    else:
+        write_json(result, cfg, args.bin, args.out)
     if args.plot:
         plot(result, runs)
 

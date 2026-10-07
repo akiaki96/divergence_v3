@@ -284,4 +284,23 @@ std::size_t edgeBoundaries(const Steps& steps, const RunPreset& /*p*/, int per_t
     return n;
 }
 
+std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max) {
+    std::size_t n = 0;
+    float x = 0.f;   // 手順 i の始めの位置
+    for (std::size_t i = 0; i < steps.size(); ++i) {
+        const Step& s = steps[i];
+        if (s.turn != nullptr) {
+            x += slalom::totalDistance(*s.turn, s.dir);
+            continue;
+        }
+        if (s.diagonal && s.distance > 0.f && n < max) {
+            x0[n] = x;
+            x1[n] = x + s.distance;
+            ++n;
+        }
+        x += s.distance;
+    }
+    return n;
+}
+
 } // namespace fast_plan

@@ -85,4 +85,9 @@ float estimatedTime(const Steps& steps, const RunPreset& p);
 // 位置は経路に沿った距離で，置いた位置が 0（Odometry::positionX と同じ座標）。小さい順に out に入れ，数を返す
 std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, float* out, std::size_t max);
 
+// 斜めの直線の位置の範囲（斜めの姿勢制御 common/diag_control.hpp に教える）。前のターンの出口の基準点から
+// 次のターンの入口の基準点まで（スラロームの入口・出口のオフセットは含まない）。座標は edgeBoundaries と同じ。
+// 小さい順に x0[i], x1[i] へ入れ，数を返す（max を超えた分は入れない）
+std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max);
+
 } // namespace fast_plan

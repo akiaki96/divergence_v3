@@ -95,10 +95,14 @@ float g_edge_boundaries[MAX_EDGE_BOUNDARIES];
 std::size_t g_edge_count = 0;
 std::size_t g_edge_next = 0;
 
+// 斜めの直線の範囲（斜めの姿勢制御 DiagControl に教える。fast_plan::diagonalRanges）
+DiagControl::Range g_diag_ranges[DiagControl::MAX_RANGES];
+uint8_t g_diag_count = 0;
+
 char g_trace_name[32];
 char g_edge_name[32];
 
-void initTraceLog() {
+void initTraceLog(bool diagonal) {
     logger.initLoggedVal();
     logger.add<&PlanProfile::getTargetPositionX>("target_distance_x", planProfile);
     logger.add<&Odometry::positionX>("current_distance_x", odometry);
@@ -106,6 +110,10 @@ void initTraceLog() {
     logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
     logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&WallEdge::totalShift>("edge_shift", wallEdge);
+    if (diagonal) {
+        logger.add<&DiagControl::lateral>("diag_lat", diagControl);
+        logger.add<&DiagControl::offset>("diag_offset", diagControl);
+    }
     logger.setDuration(TRACE_MS);
 }
 
@@ -169,6 +177,18 @@ bool plan(const RunPreset& p) {
         p.wall_edge ? "correction" : "log only", static_cast<unsigned>(g_edge_count));
     for (std::size_t i = 0; i < g_edge_count; ++i) LOG(" %.0f", g_edge_boundaries[i]);
     LOG("\r\n");
+
+    float x0[DiagControl::MAX_RANGES];
+    float x1[DiagControl::MAX_RANGES];
+    std::size_t nd = fast_plan::diagonalRanges(g_steps, x0, x1, DiagControl::MAX_RANGES);
+    g_diag_count = static_cast<uint8_t>(nd);
+    for (uint8_t i = 0; i < g_diag_count; ++i) g_diag_ranges[i] = {x0[i], x1[i]};
+    if (p.diagonal) {
+        LOG("fast %s: diagonal control %s, %u diagonal straights:", p.name, p.diag_control ? "on" : "log only",
+            static_cast<unsigned>(g_diag_count));
+        for (uint8_t i = 0; i < g_diag_count; ++i) LOG(" %.0f-%.0f", g_diag_ranges[i].x0, g_diag_ranges[i].x1);
+        LOG("\r\n");
+    }
     for (std::size_t i = 0; i < g_steps.size(); ++i) {
         const fast_plan::Step& s = g_steps[i];
         if (s.turn != nullptr) {
@@ -256,7 +276,7 @@ void runFastRun(const RunPreset& preset) {
     // ここから先は runSearch と同じ準備（IMU校正：ファンを回すなら，回して定常になってから）
     calibrateImuForRun(preset.fan ? config::fan::RUN_DUTY : 0.f);
 
-    initTraceLog();
+    initTraceLog(preset.diagonal);
     logger.setDirName("fast");
     logger.setFileName(g_trace_name);
     logger.setIncludeTimestamp(false);
@@ -265,6 +285,14 @@ void runFastRun(const RunPreset& preset) {
     planProfile.reset();
     wallControl.reset();
     wallControl.enable(false);   // 横壁の補正は使わない（斜めでは横壁を読めない）
+    // 斜めの直線：切れ目からの距離の表で向きを補正する（プリセットが false なら横のずれを記録するだけ）
+    diagEdge.reset();
+    diagControl.reset();
+    if (preset.diagonal && g_diag_count > 0) {
+        diagControl.setRanges(g_diag_ranges, g_diag_count);
+        diagEdge.start();
+        diagControl.start(preset.diag_control);
+    }
     // 壁切れ：区画中央から入るターン（大回り・入45°・入135°）の手前の境界だけ教える（教えていない壁切れは記録だけ）。プリセットが false なら補正しない
     wallEdge.reset();
     wallEdge.start(preset.wall_edge);
@@ -284,6 +312,8 @@ void runFastRun(const RunPreset& preset) {
     planProfile.stop();
     fan.stop();
     wallEdge.stop();
+    diagControl.stop();
+    diagEdge.stop();
     logger.stop();
     motorDriver.setBreak();
 
@@ -302,6 +332,14 @@ void runFastRun(const RunPreset& preset) {
         static_cast<unsigned long>(planProfile.rejectedCount()), static_cast<unsigned long>(planProfile.droppedCount()));
     LOG("wall edge: %lu edges, correction %s, total shift %+.1f mm\r\n",
         static_cast<unsigned long>(wallEdge.eventCount()), preset.wall_edge ? "on" : "off", wallEdge.totalShift());
+    if (preset.diagonal) {
+        LOG("diagonal control: %s, measured %lu / %lu ms on the diagonals, heading offset %+.2f deg, "
+            "edges L %lu / R %lu\r\n",
+            preset.diag_control ? "on" : "log only", static_cast<unsigned long>(diagControl.measuredTicks()),
+            static_cast<unsigned long>(diagControl.activeTicks()), diagControl.offset(),
+            static_cast<unsigned long>(diagEdge.edgeCount(DiagEdge::left)),
+            static_cast<unsigned long>(diagEdge.edgeCount(DiagEdge::right)));
+    }
     wall_edge_log::dump("fast", g_edge_name);
     logger.dump();
     ledBar16.set(0x0000);

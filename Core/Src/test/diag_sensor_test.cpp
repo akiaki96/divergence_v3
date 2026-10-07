@@ -31,6 +31,7 @@ constexpr float accelDistance(float v) {
 const slalom::Param* g_param = nullptr;
 slalom::TurnDir g_dir = slalom::TurnDir::left;
 uint32_t g_half_steps = 0;
+DiagTestMode g_mode = DiagTestMode::log;
 float g_anchor = 0.f;        // [mm] 出口の基準点の経路に沿った距離（目標の座標）
 uint32_t g_log_ms = 0;
 bool g_log_restarted = false;
@@ -40,6 +41,9 @@ struct Result {
     float diag_x;        // [mm] 止まった位置（出口の基準点から）
     float angle_error;   // [deg] 止まったときの実測 − 目標
     uint32_t edges[DiagEdge::SIDE_COUNT];
+    float control_offset;   // [deg] DiagControl が向きに足した補正
+    uint32_t measured_ticks;
+    uint32_t active_ticks;
 };
 Result g_result;
 
@@ -83,6 +87,8 @@ void diag_init_log() {
     logger.add("ir_r", Logger::Getter::create<&irR>());
     logger.add<&DiagEdge::sinceLeft>("since_l", diagEdge);
     logger.add<&DiagEdge::sinceRight>("since_r", diagEdge);
+    logger.add<&DiagControl::lateral>("diag_lat", diagControl);
+    logger.add<&DiagControl::offset>("diag_offset", diagControl);
     logger.setDuration(g_log_ms);
 }
 
@@ -90,6 +96,12 @@ void diag_profile() {
     const slalom::Param& p = *g_param;
     float v = p.speed;
     float accel = accelDistance(v);
+    // 斜めの直線（出口の基準点から止まるまで）だけ DiagControl に教える。log でも横のずれは記録する
+    diagControl.reset();
+    DiagControl::Range range{g_anchor, g_anchor + g_half_steps * PITCH_MM};
+    diagControl.setRanges(&range, 1);
+    if (g_mode == DiagTestMode::inject) diagControl.injectAngle(DIAG_TEST_INJECT_DEG);
+    diagControl.start(g_mode != DiagTestMode::log);
     planProfile.straight(v, accel);
     planProfile.straight(v, RUNUP_MM - accel);
     slalom::push(planProfile, p, g_dir);
@@ -109,8 +121,10 @@ void diag_profile() {
 
     planProfile.waitUntilIdle();
     HAL_Delay(SETTLE_MS);
+    g_result = {diagX(), angleError(), {diagEdge.edgeCount(DiagEdge::left), diagEdge.edgeCount(DiagEdge::right)},
+                diagControl.offset(), diagControl.measuredTicks(), diagControl.activeTicks()};
     diagEdge.stop();
-    g_result = {diagX(), angleError(), {diagEdge.edgeCount(DiagEdge::left), diagEdge.edgeCount(DiagEdge::right)}};
+    diagControl.stop();
 }
 
 void blinkRefused() {
@@ -162,8 +176,10 @@ void printPillars(slalom::TurnDir dir, uint32_t half_steps) {
 }
 } // namespace
 
-void runDiagSensorTest(const slalom::Param& p, slalom::TurnDir dir, uint32_t half_steps) {
+void runDiagSensorTest(const slalom::Param& p, slalom::TurnDir dir, uint32_t half_steps, DiagTestMode mode) {
     const char* dir_name = (dir == slalom::TurnDir::left) ? "left" : "right";
+    static const char* const MODE_SUFFIX[] = {"", "_ctrl", "_inj"};
+    static const char* const MODE_NAME[] = {"log only", "control", "control + inject"};
     if (!checkRunnable(p, dir, half_steps)) {
         blinkRefused();
         return;
@@ -172,15 +188,20 @@ void runDiagSensorTest(const slalom::Param& p, slalom::TurnDir dir, uint32_t hal
     g_param = &p;
     g_dir = dir;
     g_half_steps = half_steps;
+    g_mode = mode;
     g_anchor = RUNUP_MM + slalom::totalDistance(p, dir);
     g_log_ms = logMs(p.speed, half_steps);
     g_log_restarted = false;
     g_result = {};
-    std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s_n%lu", p.name, dir_name, static_cast<unsigned long>(half_steps));
+    std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s_n%lu%s", p.name, dir_name,
+                  static_cast<unsigned long>(half_steps), MODE_SUFFIX[static_cast<uint8_t>(mode)]);
 
     float diag_mm = half_steps * PITCH_MM;
     LOG("diag test %s %s: %.0f mm/s, run-up %.1f mm, diagonal from %.1f mm, %lu x %.1f = %.1f mm (stop in the last %.1f mm)\r\n",
         p.name, dir_name, p.speed, RUNUP_MM, g_anchor, static_cast<unsigned long>(half_steps), PITCH_MM, diag_mm, STOP_MM);
+    LOG("  diagonal control: %s", MODE_NAME[static_cast<uint8_t>(mode)]);
+    if (mode == DiagTestMode::inject) LOG(" (heading %+.1f deg at the diagonal start)", DIAG_TEST_INJECT_DEG);
+    LOG("\r\n");
     printPillars(dir, half_steps);
 
     float fan_duty = p.fan ? config::fan::RUN_DUTY : 0.f;
@@ -194,6 +215,9 @@ void runDiagSensorTest(const slalom::Param& p, slalom::TurnDir dir, uint32_t hal
         p.name, dir_name, g_result.diag_x, diag_mm, g_result.diag_x - diag_mm, g_result.angle_error,
         static_cast<unsigned long>(g_result.edges[DiagEdge::left]),
         static_cast<unsigned long>(g_result.edges[DiagEdge::right]));
+    LOG("  diagonal control: measured %lu / %lu ms, heading offset %+.2f deg\r\n",
+        static_cast<unsigned long>(g_result.measured_ticks), static_cast<unsigned long>(g_result.active_ticks),
+        g_result.control_offset);
     LOG("  log %lu samples (recordable %lu ms for %lu ms)%s\r\n", static_cast<unsigned long>(logger.sampleCount()),
         static_cast<unsigned long>(logger.recordableMs()), static_cast<unsigned long>(g_log_ms),
         logger.isFull() ? ", FULL: the end of the run is missing" : "");

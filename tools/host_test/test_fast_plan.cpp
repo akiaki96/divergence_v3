@@ -48,7 +48,7 @@ constexpr const slalom::Param* LOUT135[] = {&OUT135};
 constexpr RunPreset P{"t", 500.f, 1500.f, 1000.f, 3000.f, 3000.f,
                       {ladder(LL90), ladder(LT180), ladder(LIN45), ladder(LOUT45), ladder(LIN135), ladder(LOUT135),
                        ladder(LV90), ladder(LS90)},
-                      true, false, true};
+                      true, false, true, false};
 
 // 速度の違うターン（fitSpeeds の試験）。経路長は使わない
 constexpr slalom::Param L90_1500{"L90_1500", "t", 90.f, Anchor::center, Anchor::center, 1500.f, M, M, false};
@@ -63,7 +63,7 @@ constexpr const slalom::Param* MS90[] = {&S90_900};
 constexpr RunPreset PM{"m", 1500.f, 2000.f, 1500.f, 4000.f, 4000.f,
                        {ladder(ML90), ladder(MT180), {nullptr, 0}, {nullptr, 0}, {nullptr, 0}, {nullptr, 0}, {nullptr, 0},
                         ladder(MS90)},
-                       false, false, true};
+                       false, false, true, false};
 
 fast_plan::Step straight(float d, bool dia = false) {
     return {nullptr, TurnDir::left, dia, TURN_L90, d};
@@ -213,6 +213,19 @@ void testDiagonalTurns() {
     check(n == 4, "4 boundaries (IN45 2 + IN135 2)");
     check(n >= 2 && near(out[0], 900.f - HALF_MM - CELL_MM) && near(out[1], 900.f - HALF_MM), "IN45: entry - 270, - 90");
     check(n >= 4 && near(out[2], x - HALF_MM - CELL_MM) && near(out[3], x - HALF_MM), "IN135: entry - 270, - 90");
+
+    // 斜めの直線の範囲（DiagControl に教える）：ターンの出口の基準点から次のターンの入口の基準点まで
+    std::printf("diagonal ranges: the three diagonal straights, from the turn exit to the next entry\n");
+    float x0[8], x1[8];
+    float a = 900.f + slalom::totalDistance(IN45, TurnDir::right);
+    float b = a + dia + slalom::totalDistance(V90, TurnDir::left);
+    float c = x + slalom::totalDistance(IN135, TurnDir::left);
+    std::size_t nd = fast_plan::diagonalRanges(steps, x0, x1, 8);
+    check(nd == 3, "3 diagonal straights");
+    check(nd >= 1 && near(x0[0], a) && near(x1[0], a + dia), "after IN45");
+    check(nd >= 2 && near(x0[1], b) && near(x1[1], b + dia), "after V90");
+    check(nd >= 3 && near(x0[2], c) && near(x1[2], c + dia), "after IN135");
+    check(fast_plan::diagonalRanges(steps, x0, x1, 2) == 2, "max caps the output");
 }
 
 void testFirstStraightLimit() {

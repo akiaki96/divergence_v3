@@ -1,11 +1,11 @@
-# 斜め走行のセンサーのデータ収集
+# 斜め走行のセンサーのデータ収集と姿勢制御
 
 参考：naophis「斜めの姿勢制御をするには」（Mice Advent Calendar 2018，<https://naophis.hatenablog.com/entry/2018/12/08/diagonalrunning>）。
 
 斜めの直線では横壁の中心線の値（`config::wall::REF_*`）が使えない。記事の方法では、45° のセンサーが壁・柱の
 **切れ目**を検出したところからの距離に対するセンサー値を表（理想のリファレンス値）にしておき、走るときはその距離での
-表の値を目標にして制御する。ここでは表を作るためのデータ収集・解析と、機体で切れ目からの距離を数える部分を作った
-（表を使った制御はまだない）。
+表の値を目標にして制御する。ここでは表を作るためのデータ収集・解析、機体で切れ目からの距離を数える部分と、
+表を使った向きの補正（下の「斜めの姿勢制御」）を作った。
 
 ## 幾何
 
@@ -29,18 +29,24 @@
 | 場所 | 内容 |
 | --- | --- |
 | `common/diag_edge.hpp` | `DiagEdge`（デバイスに依存しない）。左右それぞれヒステリシス（`config::diag::THRESH_ON_*` / `THRESH_OFF_*`）で OFF を下回った位置を tick 間で補間し、`since()` で最後の切れ目からの距離を返す（なければ NaN）。壁が `MIN_WALL_MM` より短く見えたときの切れ目は使わない |
-| `app/update.cpp` | ISR が `diagEdge.active()` のときだけ毎 tick `update()` を呼ぶ（補正はしない） |
+| `app/update.cpp` | ISR が `diagEdge.active()` のときだけ毎 tick `update()` を呼び、`diagControl.apply()` で回転の目標に補正を足す |
+| `common/diag_control.hpp` | `DiagControl`：表で横のずれを出し、向きを補正する（下の「斜めの姿勢制御」） |
+| `config::diag_control` | 補正のゲイン・使う条件 |
+| `tools/diag_table.json` → `config/diag_table.hpp` | 表（`tools/gen_diag_table.py`。ビルドのたびに JSON から生成） |
 | `test/diag_sensor_test.hpp` | 試験の走行とログ |
 | `config::diag` | 柱の間隔と閾値（**仮の値**。下の R2 で決める） |
 | `tools/diag_sensor.py` | ログから切れ目を検出し直し、切れ目からの距離に対する各センサーの表を作る |
 | `tools/host_test/test_diag_edge.cpp` | `DiagEdge` の単体試験（`tools/host_test/run.sh`） |
+| `tools/host_test/test_diag_control.cpp` | `DiagControl` の単体試験（表をセンサーの模型にした閉ループ） |
 
 ## 試験メニュー：Device → IR → Diagonal
 
 | 項目 | 内容 |
 | --- | --- |
 | left n4 / right n4 | 入45°（IN45_500）で左 / 右へ入り、斜めの直線を 4 区間（509 mm）走って止まる |
-| left n8 / right n8 | 同じく 8 区間（1018 mm）。表のデータはこちらで取る |
+| left n8 / right n8 | 同じく 8 区間（1018 mm）。表のデータはこちらで取る（補正なし。横のずれの推定は記録する） |
+| left n8 ctrl / right n8 ctrl | 同じ走行で斜めの直線に `DiagControl` の補正をかける。ログは `..._n8_ctrl` |
+| left n8 inj / right n8 inj | 補正をかけ、斜めの直線の始まりで向きを +1°（左）ずらす（制御には見せない）。補正がなければ終わりで約 18 mm 左へずれる。ログは `..._n8_inj` |
 
 走り方：置き方は探索と同じ（後端をスタート区画の後壁に当てて北向き）。1区画先の区画中央まで 500 mm/s に加速し、
 入45°で斜めに入る。辺の中点の間隔（127.3 mm）を n 区間ぶん 500 mm/s のまま走り、最後の区間の後半（63.6 mm）で
@@ -56,9 +62,56 @@ n4 は約 2 ms おき。
 | `angle_error` | 実測 − 目標の角度 [deg]（斜めの直線は向きの補正なしで走るので、ずれの大きさを見る） |
 | `ir_l` `ir_fl` `ir_fr` `ir_r` | センサーの値（左・前左・前右・右） |
 | `since_l` / `since_r` | 機体の `DiagEdge` が数えた、最後の切れ目からの距離（まだなければ NaN） |
+| `diag_lat` / `diag_offset` | 機体の `DiagControl`：表から出した横のずれ（左が正，ならした値）と、向きに足した補正 [deg] |
 
 シリアルには、走る前に柱の位置の一覧（`pillars (diag_x ...)`）、止まった後に止まった位置・角度のずれ・
-切れ目の数・ログの長さ（`FULL` と出たら最後が欠けている）が出る。受け取りは `tools/main.py`、取りこぼしたら **LogDump**。
+切れ目の数・`DiagControl` が表を引けた時間と向きの補正・ログの長さ（`FULL` と出たら最後が欠けている）が出る。
+受け取りは `tools/main.py`、取りこぼしたら **LogDump**。
+
+`diag_sensor.py` は既定では `_ctrl` / `_inj` のログを表に使わない（ファイルを指定すれば解析し、`diag_lat` を区間の
+4 分の 1 ごとに出す。そのときは `reference.json` を書かない）。
+
+## 斜めの姿勢制御（common/diag_control.hpp）
+
+1. **横のずれ**：左右それぞれ、この斜めの直線に入ってから（入口の `EDGE_BEFORE_MM` = 70 mm 手前から）の最後の切れ目
+   からの距離 `since` で表を引き、`(値 − 基準値) / 感度` をその側への寄り [mm] にする。両側が読めれば
+   `(左の寄り − 右の寄り)/2`、片側ならその側だけ。表の「使わない」区間（切れ目の直後 約 36 mm・直前 約 15 mm）と、
+   **`MAX_AWAY_MM`（4 mm）より離れたと読めた側**は使わない。表は柱の両側に壁がある並べ方 A で取ったので、
+   実際の迷路で壁が抜けると値は下がる（＝離れたと読める）側にしかずれない。大きく離れたと読めたら壁の抜けとみなし、
+   壁の側へ寄せない
+2. **ならす**：距離 `FILTER_MM`（20 mm）の一次遅れ。読めない区間は `HOLD_MM`（60 mm）まで最後の値を保ち、
+   それより長く読めなければ 0 へ戻す
+3. **向き**：向きの目標 = 斜めの直線に入ったときの向き + 積分 − `KP`·y。角度の制御が向きを追うので、横は y' = θ
+   （走った距離あたり）になり、`KP` = 0.477 deg/mm で 1/KP = 120 mm の距離で戻る（振動しない）。
+   入口の向きのずれは積分 `KI`（ζ = 1）が打ち消す。向きの目標が変わる速さは `MAX_OMEGA_PER_VELOCITY`·v で抑える
+4. 足した向きは `WallControl` と同じく回転の目標の角度に残す（次のターンはそれを基準に曲がる）
+
+最短走行では、経路の斜めの直線（前のターンの出口の基準点 → 次のターンの入口の基準点，`fast_plan::diagonalRanges`）を
+教える。プリセットの `"diag_control": true` で補正（いまは `500_dia` と `500_fan_dia` だけ）、false でも斜めありなら
+横のずれは記録する（トレースの `diag_lat` / `diag_offset`）。走った後にシリアルへ `diagonal control: ...` が出る。
+
+### 表の作り方（tools/gen_diag_table.py）
+
+```sh
+# 基準値：横のずれの小さい走行（左右の入り方を同じ数ずつ）
+python3 tools/diag_sensor.py tools/log/diag/IN45_500_{left,right}_n8_{3,4,5}.csv --out post.json
+# 感度：横の位置だけが違う2組（入45°の補正前の左入り・右入り，横の差 14.7 mm）
+python3 tools/diag_sensor.py tools/log/diag/IN45_500_left_n8{,_1,_2}.csv --out pre_left.json
+python3 tools/diag_sensor.py tools/log/diag/IN45_500_right_n8{,_1,_2}.csv --out pre_right.json
+python3 tools/gen_diag_table.py --make --ref post.json --sens pre_left.json pre_right.json   # → tools/diag_table.json
+```
+
+感度 = 2組の表の差 / 2組の横の平均の差（`runs[].lateral_mm`：切れ目の位相から出した横）。基準値の走行の横の平均
+（2026-10-07 の表では −1.45 mm）は、感度 × その分を引いて中心線上の値にする。4 mm ごと、感度 2.5 count/mm 以上の区間だけ使う。
+
+2026-10-07 の表：左右とも切れ目から約 36〜240 mm を使う。感度は 2.6〜47 count/mm（基準値の約 1.4 乗に比例：
+IR の値が距離の約 −2 乗なので）。基準値の走行間のばらつきは横に換算して中央値 2.9 mm。
+
+**実機のログでの確かめ（ホスト）**：R2・R7 の n8 を `DiagEdge` + `DiagControl`（推定だけ）に流すと、推定（前半を除く平均）は
+`diag_sensor.py` の切れ目の位相からの横と ±1 mm 以内で一致した（補正後：左 −1.2 / +0.4 / +0.6 に対して −0.7 / +1.3 / +1.2、
+右 +0.7 / −4.4 / −5.2 に対して +0.2 / −5.0 / −5.6）。補正前の右（−8〜−13 mm）は上限で −7.5 mm 前後に飽和する。
+ただし**片側ずつ**見ると、曲がった向き（内側）のセンサーが 1.5〜4 mm「離れた」側に読む（入45°の後の向きのずれ？）。
+両側の平均では消えるが、片側しか壁がないところでは ±2〜4 mm のずれが残りうる。
 
 ## 壁の並べ方
 
@@ -129,6 +182,12 @@ python3 tools/diag_sensor.py --selftest               # 合成データでの確
   15 項目（横 5 mm → 分解の横 +5.1 mm，距離 +15 mm → 分解の前後 +15.0 mm を追加 2026-10-06），切れ目の周期 254.6 mm，左右の入り方で位相が同じ，距離のずれ +15 mm は位相だけを動かし表は変えない，
   横に 5 mm ずれると安定な区間の値が変わる，ノイズで切れ目が増えない，切れ目の直後は「使わない」）。2026-10-06 PASS
 - [x] **H3 ARM ビルド**：RAM 92.19%，FLASH 22.52%。2026-10-06
+- [x] **H4 DiagControl の単体試験** `tools/host_test/run.sh`：表をセンサーの模型にして閉ループで 1018 mm（n8）を走らせる。
+  向き +1° のずれ：補正なし 終わり +18.0 mm → 補正あり +0.1 mm（最大 2.0 mm）、−1° も同じ、横 5 mm から始めて −0.3 mm、
+  中央なら動かない。片側の壁がすべて抜けても壁の側へ寄せない（中央で推定 +0.1 mm）、壁のある側だけで 3 mm を読む、
+  止めている間・範囲の外・旋回中・遅いときは何もしない、斜めの直線より前の切れ目を使わない。
+  `fast_plan::diagonalRanges` の範囲（test_fast_plan）。2026-10-07 PASS
+- [x] **H5 ARM ビルド**（feature/diag-control）：警告 0，RAM 93.94%，FLASH 17.04%。2026-10-07
 
 ### R. 実機
 
@@ -204,10 +263,29 @@ pre_offset を +δ にすると直線は外側へ δ/√2・前へ δ/√2 動�
     [ ] 2回目：right n8 を3回（左も1〜2回取ると、置き方のくせが前回と同じかの比べになる）。`diag_sensor.py` の
     `placement shift ... removed` が右 0 ± 2 mm、前後 −82 ± 2 mm。効き目（動いた量 / 3.8）も記録する
 
+### 斜めの姿勢制御（実機）
+
+前提：R7 の右の 2 回目（fc7353d5 の入45° の補正）が済んでいること（入45° の出口の横のずれが残っていると、
+補正の効き目と区別しにくい）。A の並べ方で走る。
+
+- [ ] **R8 補正なしの推定**：left n8 / right n8 を各 2 回。シリアルの `diagonal control: measured` が斜めの直線の 8 割以上、
+  `diag_sensor.py <ファイル>` の `diag_lat` と切れ目の位相からの横（`lateral`）が ±2 mm 以内
+- [ ] **R9 補正あり**：left n8 ctrl / right n8 ctrl を各 3 回。壁に当たらずに止まり、`diag_lat` が後半で 0 ± 1.5 mm、
+  `diag_sensor.py` の横（位相から）が 0 ± 2 mm。`angle error` が ±2° 以内。向きが揺れる（`diag_offset` が細かく
+  振れる）なら `FILTER_MM` を長く、`KP` を小さく
+- [ ] **R10 注入**：left n8 inj / right n8 inj を各 2 回。補正なしなら約 18 mm 左へずれるところを、`diag_lat` が 3 区間目
+  以降で ±2 mm、`diag_offset` が約 −1° に落ち着く（注入した +1° を打ち消す）
+- [ ] **R11 壁の抜け**：B の並べ方（片側の壁を数枚抜く）で right n8 ctrl。抜いたところで `diag_lat` が跳ねない
+  （`MAX_AWAY_MM` で落とせているか）。片側だけのところの推定の偏り（上の ±2〜4 mm）を確かめる
+- [ ] **R12 最短走行**：`500_dia`（`"diag_control": true`）で斜めを含む迷路を走る。トレースの `diag_lat` / `diag_offset`
+  と、斜めの直線の後のターン（出45°・V90・出135°）の出口のずれを、`"diag_control": false` にしたビルドと比べる。
+  斜めの直線の最高速度は 1000 mm/s（表は 500 mm/s で取った。切れ目からの距離で引くので、センサーの遅れが一定なら
+  速度によらないはず）
+
 ## 今後
 
-- 表を使った制御：切れ目からの距離 `diagEdge.since()` で表を引き、横のセンサーの値との差を向きの補正にする
-  （`WallControl` の斜め版）。記事のように不安定な区間は使わない
-- 表の生成：`reference.json` から `config/diag_reference_table.hpp` を生成する（`gen_front_distance.py` と同じ形）
+- 表の取り直し：R7 の右の 2 回目の後の走行で基準値を作り直す（左右の入り方を同じ数ずつ）
+- 速度：700 / 1000 mm/s の斜めで推定（`diag_lat`）が変わらないか。変わるなら速度ごとの表か、検出の遅れの補正
+- 他のプリセットへ：R12 が良ければ `run_presets.json` の斜めのプリセットに `"diag_control": true` を足す
 - 切れ目の位相が安定していれば、斜めの直線でも壁切れの補正（`WallEdge`）と同じように並進の位置を合わせられる
 - 速度による差（検出の遅れ）：700 mm/s の入45°で同じ走行をして位相を比べる

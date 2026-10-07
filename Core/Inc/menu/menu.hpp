@@ -209,6 +209,15 @@ private:
                 MenuNode diag_right_n4_{"right n4", nullptr, &diag_sensor_test_onenter<slalom::TurnDir::right, 4>};
                 MenuNode diag_left_n8_{"left n8", nullptr, &diag_sensor_test_onenter<slalom::TurnDir::left, 8>};
                 MenuNode diag_right_n8_{"right n8", nullptr, &diag_sensor_test_onenter<slalom::TurnDir::right, 8>};
+                // 斜めの姿勢制御（common/diag_control.hpp）をかけて同じ走行。inj は斜めの直線の始まりで向きを 1° ずらす
+                MenuNode diag_left_ctrl_{"left n8 ctrl", nullptr,
+                                         &diag_sensor_test_onenter<slalom::TurnDir::left, 8, DiagTestMode::control>};
+                MenuNode diag_right_ctrl_{"right n8 ctrl", nullptr,
+                                          &diag_sensor_test_onenter<slalom::TurnDir::right, 8, DiagTestMode::control>};
+                MenuNode diag_left_inj_{"left n8 inj", nullptr,
+                                        &diag_sensor_test_onenter<slalom::TurnDir::left, 8, DiagTestMode::inject>};
+                MenuNode diag_right_inj_{"right n8 inj", nullptr,
+                                         &diag_sensor_test_onenter<slalom::TurnDir::right, 8, DiagTestMode::inject>};
         MenuNode battery_{"Battery"};
         MenuNode led_{"LED"};
 

@@ -17,6 +17,7 @@
     "decel": 3000,
     "diagonal": true,
     "wall_edge": true,
+    "diag_control": true,
     "note": "斜めあり（斜めのターンは実機で未試験）"
   },
   "300": {
@@ -237,6 +238,7 @@
     "diagonal": true,
     "fan": true,
     "wall_edge": true,
+    "diag_control": true,
     "note": "ファンON，斜めあり，500mm/s の斜めのターンは 2026-10-07 に slalom_autotune で作った（実機で未試験）。直線は 500 と同じ値"
   },
   "500_fan": {

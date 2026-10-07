@@ -29,6 +29,7 @@ run_presets.json の形:
         "diagonal": true,         … 斜めの経路を使うか
         "fan": false,             … 任意（省略で false）。ファンを回して走るか
         "wall_edge": true,        … 任意（省略で false）。区画中央から入るターン（L90・T180・IN45・IN135）の前の直線で壁切れの補正をかけるか
+        "diag_control": true,     … 任意（斜めありのときだけ。省略で false）。斜めの直線で切れ目からの距離の表で向きを補正するか（tools/DIAGONAL.md）
         "s90": false,             … 任意（斜めありのときだけ。省略で true＝設計があれば使う）。小回り90°を使うか
         "v90": false,             … 任意（斜めありのときだけ。省略で true＝必ず使う）。V90 を使うか
         "note": ""                … 任意。ヘッダのコメントに出す
@@ -50,7 +51,7 @@ from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel", "diagonal"]
-OPTIONAL_KEYS = ["speeds", "fan", "wall_edge", "s90", "v90", "note"]
+OPTIONAL_KEYS = ["speeds", "fan", "wall_edge", "diag_control", "s90", "v90", "note"]
 
 ORTHO_TURNS = ["S90", "L90", "T180"]
 DIAGONAL_TURNS = ["IN45", "OUT45", "V90", "IN135", "OUT135"]
@@ -89,12 +90,15 @@ def build_entries(presets, slalom_params):
         fan = preset.get("fan", False)
         diagonal = preset["diagonal"]
         wall_edge = preset.get("wall_edge", False)
+        diag_control = preset.get("diag_control", False)
         use_s90 = preset.get("s90", True)
         use_v90 = preset.get("v90", True)
-        for key, value in [("fan", fan), ("diagonal", diagonal), ("wall_edge", wall_edge), ("s90", use_s90),
-                           ("v90", use_v90)]:
+        for key, value in [("fan", fan), ("diagonal", diagonal), ("wall_edge", wall_edge),
+                           ("diag_control", diag_control), ("s90", use_s90), ("v90", use_v90)]:
             if not isinstance(value, bool):
                 raise GenError(f"{where}: {key} は true / false です")
+        if diag_control and not diagonal:
+            raise GenError(f"{where}: 斜めなしでは斜めの直線がないので \"diag_control\": true にできません")
         if not use_s90 and not diagonal:
             raise GenError(f"{where}: 斜めなしでは小回り90°（S90）が要るので \"s90\": false にできません")
         if not use_v90 and not diagonal:
@@ -143,6 +147,7 @@ def build_entries(presets, slalom_params):
             "fan": fan,
             "diagonal": diagonal,
             "wall_edge": wall_edge,
+            "diag_control": diag_control,
             "values": preset,
         })
     if not entries:
@@ -196,7 +201,7 @@ def render(entries):
         v = e["values"]
         note = f"  メモ: {v['note']}" if v.get("note") else ""
         extra = (("，斜めあり" if e["diagonal"] else "，斜めなし") + ("，ファンON" if e["fan"] else "")
-                 + ("，壁切れ補正" if e["wall_edge"] else ""))
+                 + ("，壁切れ補正" if e["wall_edge"] else "") + ("，斜めの姿勢制御" if e["diag_control"] else ""))
         out.append(f"// {e['name']}: ターン {describe(e)}，直線 {v['max_speed']:g} / 斜め {v['max_speed_dia']:g}mm/s"
                    f"{extra}{note}")
         turns = []
@@ -207,7 +212,7 @@ def render(entries):
             f"inline constexpr RunPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['turn_speed'])}, {fmt(v['max_speed'])}, "
             f"{fmt(v['max_speed_dia'])}, {fmt(v['accel'])}, {fmt(v['decel'])}, {{{', '.join(turns)}}}, "
             f"{'true' if e['diagonal'] else 'false'}, {'true' if e['fan'] else 'false'}, "
-            f"{'true' if e['wall_edge'] else 'false'}}};")
+            f"{'true' if e['wall_edge'] else 'false'}, {'true' if e['diag_control'] else 'false'}}};")
         out.append("")
     out.append("// メニューに並べる順（ファンOFFが先，同じファンの中は斜めなしが先，同じ段の中は run_presets.json に書いた順）")
     out.append(f"inline constexpr std::array<RunPreset, {len(entries)}> PRESETS = {{")

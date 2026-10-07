@@ -65,3 +65,13 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     "$ROOT/Core/Src/common/diag_edge.cpp" "$ROOT/tools/host_test/test_diag_edge.cpp" \
     -o "$OUT/test_diag_edge"
 "$OUT/test_diag_edge"
+
+# 斜めの直線の向きの補正（表のヘッダはビルドと同じく JSON から生成する，tools/DIAGONAL.md）
+python3 "$ROOT/tools/gen_diag_table.py" --table "$ROOT/tools/diag_table.json" \
+    --out "$OUT/generated/config/diag_table.hpp"
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" -I "$OUT/generated" \
+    "$ROOT/Core/Src/common/diag_edge.cpp" "$ROOT/Core/Src/common/diag_control.cpp" \
+    "$ROOT/tools/host_test/test_diag_control.cpp" \
+    -o "$OUT/test_diag_control"
+"$OUT/test_diag_control"
