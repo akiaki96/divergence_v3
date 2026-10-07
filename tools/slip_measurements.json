@@ -161,6 +161,120 @@
       "outward": -5,
       "longitudinal": 4,
       "note": "2026-10-07 ファンOFF，右旋回（設計は c=10.6 前提。同じ日の左旋回と比べて c_eff が約 8mm 大きい）"
+    },
+    {
+      "log": "slalom/S90_300_FAN_left.csv",
+      "outward": -4,
+      "longitudinal": -5,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_300_FAN_left.csv",
+      "outward": -3,
+      "longitudinal": 0,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/S90_500_FAN_left_1.csv",
+      "outward": 1,
+      "longitudinal": -13,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_500_FAN_left.csv",
+      "outward": 0,
+      "longitudinal": -5,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/T180_500_FAN_left.csv",
+      "outward": -13,
+      "longitudinal": -3,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/S90_700_FAN_left.csv",
+      "outward": -3,
+      "longitudinal": -2,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_700_FAN_left.csv",
+      "outward": -11,
+      "longitudinal": 3,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_1200_FAN_left.csv",
+      "outward": 9,
+      "longitudinal": 0,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_1800_FAN_left.csv",
+      "outward": 7,
+      "longitudinal": -4,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）。記録用ドキュメントでは 1500 の行に書かれていた（ログは 1800）"
+    },
+    {
+      "log": "slalom/L90_1800_FAN_left_1.csv",
+      "outward": 10,
+      "longitudinal": -7,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_300_FAN_right.csv",
+      "outward": 8,
+      "longitudinal": 0,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/S90_500_FAN_right_1.csv",
+      "outward": 5,
+      "longitudinal": -6,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_500_FAN_right_1.csv",
+      "outward": 2,
+      "longitudinal": -2,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/T180_500_FAN_right_1.csv",
+      "outward": -8,
+      "longitudinal": -8,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/S90_700_FAN_right_1.csv",
+      "outward": 3,
+      "longitudinal": 1,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_700_FAN_right_1.csv",
+      "outward": -10,
+      "longitudinal": 7,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_1200_FAN_right.csv",
+      "outward": -13,
+      "longitudinal": 12,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_1500_FAN_right.csv",
+      "outward": -7,
+      "longitudinal": 5,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
+    },
+    {
+      "log": "slalom/L90_1800_FAN_right.csv",
+      "outward": 14,
+      "longitudinal": -4,
+      "note": "2026-10-07 ファンON（IMU はファンを回して 2s 後に校正）"
     }
   ]
 }
