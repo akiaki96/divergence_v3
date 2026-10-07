@@ -35,11 +35,11 @@ void Menu::buildTree() {
                 plan_rotation_.setChildren(std::array{&plan_turn_pos430_, &plan_turn_neg430_});
                 rotation_.setChildren(std::array{&rot_angle_hold_, &rot_pivot_pos90_, &rot_pivot_neg90_, &rot_pivot_pos180_, &rot_pivot_neg180_});
 
-    // 種類・速度のノードは生成ヘッダから並べる（menu.hppのslalomTurnNodes() / slalomSpeedNodes()）
+    // ファン・速度・種類のノードは生成ヘッダから並べる（menu.hppのslalomGroupNodes() / slalomTurnNodes()）
     slalom_.setChildren(std::array{&slalom_left_, &slalom_right_, &axle_check_});
         axle_check_.setChildren(std::array{&axle_check_n1_, &axle_check_n2_, &axle_check_n4_, &axle_check_n8_});
-        linkSlalom(slalom_left_, slalom_left_turns_, slalom_left_speeds_);
-        linkSlalom(slalom_right_, slalom_right_turns_, slalom_right_speeds_);
+        linkSlalom(slalom_left_, slalom_left_fans_, slalom_left_speeds_, slalom_left_turns_);
+        linkSlalom(slalom_right_, slalom_right_fans_, slalom_right_speeds_, slalom_right_turns_);
 
     // 試験用の探索のプリセットは生成ヘッダから並べる（menu.hppのtestSearchNodes()）
     test_.setChildren(std::array{&test_search_});

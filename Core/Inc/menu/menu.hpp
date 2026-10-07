@@ -14,14 +14,17 @@
 #include "test/wall_edge_test.hpp"
 #include "test/front_check_test.hpp"
 
-// スラロームの種類・速度とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
+// スラロームの速度・種類とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
 constexpr bool slalomFitsMenu() {
-    for (const auto& turn : config::slalom::TURNS) {
-        if (turn.count > config::menu::MAX_CHILDREN) return false;
+    for (const auto& fan : config::slalom::FANS) {
+        if (fan.count > config::menu::MAX_CHILDREN) return false;
     }
-    return config::slalom::TURNS.size() <= config::menu::MAX_CHILDREN;
+    for (const auto& speed : config::slalom::SPEEDS) {
+        if (speed.count > config::menu::MAX_CHILDREN) return false;
+    }
+    return config::slalom::FANS.size() <= config::menu::MAX_CHILDREN;
 }
-static_assert(slalomFitsMenu(), "slalom turns or speeds exceed config::menu::MAX_CHILDREN");
+static_assert(slalomFitsMenu(), "slalom speeds (per fan) or turns (per speed) exceed config::menu::MAX_CHILDREN");
 static_assert(config::search::PRESETS.size() <= config::menu::MAX_CHILDREN,
               "search presets exceed config::menu::MAX_CHILDREN");
 static_assert(config::search::TEST_PRESETS.size() <= config::menu::MAX_CHILDREN,
@@ -45,11 +48,12 @@ private:
     void buildTree();
     void setFunction();
 
-    // スラロームの試験：Slalom → 向き → 種類（config::slalom::TURNS）→ 速度（config::slalom::ALL）。
-    // 速度のノードは生成ヘッダのパラメータごとに1つ作り，種類のノードの子にはALLの範囲[first, first+count)を割り当てる
+    // スラロームの試験：Slalom → 向き → ファン（config::slalom::FANS）→ 速度（config::slalom::SPEEDS）→
+    // 種類（config::slalom::ALL）。種類のノードは生成ヘッダのパラメータごとに1つ作り，速度のノードの子には
+    // ALLの範囲，ファンのノードの子にはSPEEDSの範囲[first, first+count)を割り当てる
     template <slalom::TurnDir Dir, std::size_t... I>
-    static std::array<MenuNode, sizeof...(I)> slalomSpeedNodes(std::index_sequence<I...>) {
-        return {MenuNode(config::slalom::ALL[I].speed_name, nullptr, &slalom_test_onenter<Dir, I>)...};
+    static std::array<MenuNode, sizeof...(I)> slalomTurnNodes(std::index_sequence<I...>) {
+        return {MenuNode(config::slalom::ALL[I].turn_name, nullptr, &slalom_test_onenter<Dir, I>)...};
     }
 
     // 探索：Run → Search → プリセット（config::search::PRESETS，tools/search_presets.json の順）
@@ -70,19 +74,28 @@ private:
         return {MenuNode(config::search::TEST_PRESETS[I].name, nullptr, &test_search_onenter<I>)...};
     }
 
-    template <std::size_t... K>
-    static std::array<MenuNode, sizeof...(K)> slalomTurnNodes(std::index_sequence<K...>) {
-        return {MenuNode(config::slalom::TURNS[K].name)...};
+    template <std::size_t N, std::size_t... K>
+    static std::array<MenuNode, sizeof...(K)> slalomGroupNodes(const std::array<slalom::MenuGroup, N>& groups,
+                                                              std::index_sequence<K...>) {
+        return {MenuNode(groups[K].name)...};
     }
 
+    // 親のノードたちの子に，子のノードの範囲（groups[k] の [first, first+count)）を割り当てる
     template <std::size_t K, std::size_t N>
-    static void linkSlalom(MenuNode& dir, std::array<MenuNode, K>& turns, std::array<MenuNode, N>& speeds) {
-        dir.setChildren(pointersOf(turns));
-        auto speed_pointers = pointersOf(speeds);
+    static void linkGroups(std::array<MenuNode, K>& parents, const std::array<slalom::MenuGroup, K>& groups,
+                           std::array<MenuNode, N>& children) {
+        auto child_pointers = pointersOf(children);
         for (std::size_t k = 0; k < K; ++k) {
-            const auto& turn = config::slalom::TURNS[k];
-            turns[k].setChildren(speed_pointers.data() + turn.first, turn.count);
+            parents[k].setChildren(child_pointers.data() + groups[k].first, groups[k].count);
         }
+    }
+
+    template <std::size_t F, std::size_t S, std::size_t N>
+    static void linkSlalom(MenuNode& dir, std::array<MenuNode, F>& fans, std::array<MenuNode, S>& speeds,
+                           std::array<MenuNode, N>& turns) {
+        dir.setChildren(pointersOf(fans));
+        linkGroups(fans, config::slalom::FANS, speeds);
+        linkGroups(speeds, config::slalom::SPEEDS, turns);
     }
 
     template <std::size_t N>
@@ -95,7 +108,8 @@ private:
     }
 
     static constexpr auto SLALOM_PARAM_INDICES = std::make_index_sequence<config::slalom::ALL.size()>{};
-    static constexpr auto SLALOM_TURN_INDICES = std::make_index_sequence<config::slalom::TURNS.size()>{};
+    static constexpr auto SLALOM_SPEED_INDICES = std::make_index_sequence<config::slalom::SPEEDS.size()>{};
+    static constexpr auto SLALOM_FAN_INDICES = std::make_index_sequence<config::slalom::FANS.size()>{};
 
 private:
     MenuNode root_{"Root"};
@@ -180,11 +194,13 @@ private:
 
     MenuNode slalom_{"Slalom"};
         MenuNode slalom_left_{"Slalom left"};
-            std::array<MenuNode, config::slalom::TURNS.size()> slalom_left_turns_ = slalomTurnNodes(SLALOM_TURN_INDICES);
-                std::array<MenuNode, config::slalom::ALL.size()> slalom_left_speeds_ = slalomSpeedNodes<slalom::TurnDir::left>(SLALOM_PARAM_INDICES);
+            std::array<MenuNode, config::slalom::FANS.size()> slalom_left_fans_ = slalomGroupNodes(config::slalom::FANS, SLALOM_FAN_INDICES);
+                std::array<MenuNode, config::slalom::SPEEDS.size()> slalom_left_speeds_ = slalomGroupNodes(config::slalom::SPEEDS, SLALOM_SPEED_INDICES);
+                    std::array<MenuNode, config::slalom::ALL.size()> slalom_left_turns_ = slalomTurnNodes<slalom::TurnDir::left>(SLALOM_PARAM_INDICES);
         MenuNode slalom_right_{"Slalom right"};
-            std::array<MenuNode, config::slalom::TURNS.size()> slalom_right_turns_ = slalomTurnNodes(SLALOM_TURN_INDICES);
-                std::array<MenuNode, config::slalom::ALL.size()> slalom_right_speeds_ = slalomSpeedNodes<slalom::TurnDir::right>(SLALOM_PARAM_INDICES);
+            std::array<MenuNode, config::slalom::FANS.size()> slalom_right_fans_ = slalomGroupNodes(config::slalom::FANS, SLALOM_FAN_INDICES);
+                std::array<MenuNode, config::slalom::SPEEDS.size()> slalom_right_speeds_ = slalomGroupNodes(config::slalom::SPEEDS, SLALOM_SPEED_INDICES);
+                    std::array<MenuNode, config::slalom::ALL.size()> slalom_right_turns_ = slalomTurnNodes<slalom::TurnDir::right>(SLALOM_PARAM_INDICES);
         MenuNode axle_check_{"Axle check"};   // BACK_TO_AXLE_MMの確認（test/axle_check_test.hpp）
             MenuNode axle_check_n1_{"n=1", nullptr, &axle_check_onenter<1>};
             MenuNode axle_check_n2_{"n=2", nullptr, &axle_check_onenter<2>};
