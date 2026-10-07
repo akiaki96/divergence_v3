@@ -2,6 +2,7 @@
 // ターンのパラメータは試験用の値（経路長が分かればよい）
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 #include "app/fast_plan.hpp"
 #include "config/mouse_config.hpp"
 
@@ -31,17 +32,121 @@ constexpr slalom::Param OUT45{"OUT45_T", "t", 45.f, Anchor::diagonal, Anchor::ce
 constexpr slalom::Param V90{"V90_T", "t", 90.f, Anchor::diagonal, Anchor::diagonal, 500.f, M, M, false};
 constexpr slalom::Param IN135{"IN135_T", "t", 135.f, Anchor::center, Anchor::diagonal, 500.f, M, M, false};
 constexpr slalom::Param OUT135{"OUT135_T", "t", 135.f, Anchor::diagonal, Anchor::center, 500.f, M, M, false};
-constexpr DiagonalTurns D{&IN45, &OUT45, &V90, &IN135, &OUT135};
-constexpr RunPreset P{"t", 500.f, 500.f, 1500.f, 1000.f, 3000.f, 3000.f, {&S90, &L90, &T180}, &D, false, true,
-                      0.f, {nullptr, nullptr, nullptr}, nullptr};
+template <std::size_t N>
+constexpr TurnLadder ladder(const slalom::Param* const (&list)[N]) {
+    return {list, static_cast<uint8_t>(N)};
+}
+constexpr const slalom::Param* LS90[] = {&S90};
+constexpr const slalom::Param* LL90[] = {&L90};
+constexpr const slalom::Param* LT180[] = {&T180};
+constexpr const slalom::Param* LIN45[] = {&IN45};
+constexpr const slalom::Param* LOUT45[] = {&OUT45};
+constexpr const slalom::Param* LV90[] = {&V90};
+constexpr const slalom::Param* LIN135[] = {&IN135};
+constexpr const slalom::Param* LOUT135[] = {&OUT135};
+// RunPreset::turns の並び：L90, T180, IN45, OUT45, IN135, OUT135, V90, S90（TurnKind）
+constexpr RunPreset P{"t", 500.f, 1500.f, 1000.f, 3000.f, 3000.f,
+                      {ladder(LL90), ladder(LT180), ladder(LIN45), ladder(LOUT45), ladder(LIN135), ladder(LOUT135),
+                       ladder(LV90), ladder(LS90)},
+                      true, false, true};
+
+// 速度の違うターン（fitSpeeds の試験）。経路長は使わない
+constexpr slalom::Param L90_1500{"L90_1500", "t", 90.f, Anchor::center, Anchor::center, 1500.f, M, M, false};
+constexpr slalom::Param L90_1200{"L90_1200", "t", 90.f, Anchor::center, Anchor::center, 1200.f, M, M, false};
+constexpr slalom::Param L90_900{"L90_900", "t", 90.f, Anchor::center, Anchor::center, 900.f, M, M, false};
+constexpr slalom::Param T180_1200{"T180_1200", "t", 180.f, Anchor::center, Anchor::center, 1200.f, M, M, false};
+constexpr slalom::Param T180_900{"T180_900", "t", 180.f, Anchor::center, Anchor::center, 900.f, M, M, false};
+constexpr slalom::Param S90_900{"S90_900", "t", 90.f, Anchor::edge, Anchor::edge, 900.f, M, M, false};
+constexpr const slalom::Param* ML90[] = {&L90_1500, &L90_1200, &L90_900};
+constexpr const slalom::Param* MT180[] = {&T180_1200, &T180_900};
+constexpr const slalom::Param* MS90[] = {&S90_900};
+constexpr RunPreset PM{"m", 1500.f, 2000.f, 1500.f, 4000.f, 4000.f,
+                       {ladder(ML90), ladder(MT180), {nullptr, 0}, {nullptr, 0}, {nullptr, 0}, {nullptr, 0}, {nullptr, 0},
+                        ladder(MS90)},
+                       false, false, true};
 
 fast_plan::Step straight(float d, bool dia = false) {
-    return {nullptr, TurnDir::left, dia, d};
+    return {nullptr, TurnDir::left, dia, TURN_L90, d};
 }
-fast_plan::Step turn(const slalom::Param& t, TurnDir dir) {
-    return {&t, dir, false, 0.f};
+fast_plan::Step turn(const slalom::Param& t, TurnDir dir, TurnKind kind = TURN_L90) {
+    return {&t, dir, false, kind, 0.f};
 }
 
+// fitSpeeds の後の各ターンの速度（直線は飛ばす）
+bool speedsAre(const fast_plan::Steps& steps, std::initializer_list<float> want) {
+    auto it = want.begin();
+    for (const auto& s : steps) {
+        if (s.turn == nullptr) continue;
+        if (it == want.end() || !near(s.turn->speed, *it)) return false;
+        ++it;
+    }
+    return it == want.end();
+}
+
+void testFitSpeeds() {
+    std::printf("fitSpeeds: turns are lowered where the straight between them is too short\n");
+    using fast_plan::Error;
+    // 基準は機体の上限（加速 A，減速 B）。v から w へ距離 d：|v² − w²| ≤ 2·A·d（または 2·B·d）
+    constexpr float A = config::profile_limit::MAX_ACCEL_X;   // 約 14710
+    constexpr float B = config::profile_limit::MAX_DECEL_X;   // 約 19613
+    static_assert(1500.f * 1500.f - 1200.f * 1200.f <= 2.f * B * 360.f, "the long-straight case must fit");
+    {
+        fast_plan::Steps s;
+        s.push_back(straight(1000.f));
+        s.push_back(turn(L90_1500, TurnDir::right, TURN_L90));
+        s.push_back(straight(360.f));
+        s.push_back(turn(T180_1200, TurnDir::left, TURN_180));
+        s.push_back(straight(1000.f));
+        check(fast_plan::fitSpeeds(&s, PM) == Error::none && speedsAre(s, {1500.f, 1200.f}), "long straights: unchanged");
+    }
+    {
+        // 直線なしで続く：速い L90 1500 を T180 と同じ 1200 に
+        fast_plan::Steps s;
+        s.push_back(straight(1000.f));
+        s.push_back(turn(L90_1500, TurnDir::right, TURN_L90));
+        s.push_back(turn(T180_1200, TurnDir::left, TURN_180));
+        s.push_back(straight(1000.f));
+        check(fast_plan::fitSpeeds(&s, PM) == Error::none && speedsAre(s, {1200.f, 1200.f}), "turn-to-turn: equal speeds");
+    }
+    {
+        // S90 900 の後 30mm で L90：√(900² + 2·A·30) ≈ 1301 → L90 1200
+        static_assert(1200.f * 1200.f <= 900.f * 900.f + 2.f * A * 30.f && 1500.f * 1500.f > 900.f * 900.f + 2.f * A * 30.f);
+        fast_plan::Steps s;
+        s.push_back(straight(1000.f));
+        s.push_back(turn(S90_900, TurnDir::left, TURN_S90));
+        s.push_back(straight(30.f));
+        s.push_back(turn(L90_1500, TurnDir::right, TURN_L90));
+        s.push_back(straight(1000.f));
+        check(fast_plan::fitSpeeds(&s, PM) == Error::none && speedsAre(s, {900.f, 1200.f}), "30 mm after S90 900: L90 1200");
+    }
+    {
+        // スタートから 20mm で L90：√(2·A·20) ≈ 767 < 900（いちばん遅い候補）→ speedUnfit
+        static_assert(900.f * 900.f > 2.f * A * 20.f && 900.f * 900.f <= 2.f * A * 40.f && 1200.f * 1200.f > 2.f * A * 40.f);
+        fast_plan::Steps s;
+        s.push_back(straight(20.f));
+        s.push_back(turn(L90_1500, TurnDir::right, TURN_L90));
+        s.push_back(straight(1000.f));
+        check(fast_plan::fitSpeeds(&s, PM) == Error::speedUnfit, "start too short even for the slowest: speedUnfit");
+        // 40mm なら √(2·A·40) ≈ 1085 → 900
+        s[0].distance = 40.f;
+        s[1].turn = &L90_1500;
+        check(fast_plan::fitSpeeds(&s, PM) == Error::none && speedsAre(s, {900.f}), "start 40 mm: L90 900");
+    }
+    {
+        // 連鎖：ゴールまで 25mm で止まる：√(2·B·25) ≈ 990 → T180 900，直線なしで続く L90 も 900
+        static_assert(900.f * 900.f > 2.f * B * 10.f && 900.f * 900.f <= 2.f * B * 25.f && 1200.f * 1200.f > 2.f * B * 25.f);
+        fast_plan::Steps s;
+        s.push_back(straight(1000.f));
+        s.push_back(turn(L90_1500, TurnDir::right, TURN_L90));
+        s.push_back(turn(T180_1200, TurnDir::left, TURN_180));
+        s.push_back(straight(10.f));                   // 10mm：√(2·B·10) ≈ 626 → 900 にも落とせない
+        check(fast_plan::fitSpeeds(&s, PM) == Error::speedUnfit, "goal too close after the turn: speedUnfit");
+        s[3].distance = 25.f;
+        s[1].turn = &L90_1500;
+        s[2].turn = &T180_1200;
+        check(fast_plan::fitSpeeds(&s, PM) == Error::none && speedsAre(s, {900.f, 900.f}), "chain: both lowered to 900");
+    }
+}
 void testLongShortStraights() {
     std::printf("long / medium / short straights before large turns\n");
     const float d90 = slalom::totalDistance(L90, TurnDir::right);
@@ -130,6 +235,7 @@ int main() {
     testOtherTurns();
     testDiagonalTurns();
     testFirstStraightLimit();
+    testFitSpeeds();
     std::printf("test_fast_plan: %s (%d failures)\n", g_failures == 0 ? "PASS" : "FAIL", g_failures);
     return g_failures == 0 ? 0 : 1;
 }

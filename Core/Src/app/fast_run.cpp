@@ -26,59 +26,53 @@ constexpr uint32_t SETTLE_MS = 500;
 // 先に教えすぎると，WallEdge が同時に待てる境界（MAX_PENDING = 4）からあふれて古い境界が捨てられる
 constexpr float EDGE_FEED_LEAD_MM = 300.f;
 
-// [ms] 小回り90°の無い（斜めありの）プリセットで，ソルバーの S90 のコストにする値。ほかの経路があれば必ずそちらを選ぶ。
-// ソルバーの時間は uint16_t（未到達は 0xFFFF）なので，経路の時間と足しても 65535 を超えにくい大きさにとどめる。
-// それでも S90 しかない経路になったら，fast_plan が turnMissing で走行を断る
-constexpr uint16_t S90_DISABLED_MS = 30000;
-// [ms] V90 の無い（1500mm/s 以上で設計できない）プリセットで，ソルバーの V90 のコストにする値。S90 と同じ扱い
-constexpr uint16_t V90_DISABLED_MS = 30000;
-
-// ---- プリセットの検査（ビルド時）：ターンがターンの速度・同じファンの条件で設計されていて積める ----
-constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required, float speed) {
-    if (t == nullptr) return !required;
-    return t->speed == speed && t->fan == p.fan && slalom::validate(*t) == SegmentResult::ok;
+// ---- プリセットの検査（ビルド時）：候補が速い順で，同じファンの条件で設計されていて積める ----
+// 種類ごとの入口・出口（slalom::Anchor）。fast_plan と ACT の幾何の約束（fast_plan.hpp）
+constexpr bool anchorsMatch(const slalom::Param& t, uint8_t k) {
+    using slalom::Anchor;
+    switch (k) {
+    case TURN_S90:    return t.entry == Anchor::edge && t.exit == Anchor::edge;
+    case TURN_L90:
+    case TURN_180:    return t.entry == Anchor::center && t.exit == Anchor::center;
+    case TURN_IN45:
+    case TURN_IN135:  return t.entry == Anchor::center && t.exit == Anchor::diagonal;
+    case TURN_OUT45:
+    case TURN_OUT135: return t.entry == Anchor::diagonal && t.exit == Anchor::center;
+    case TURN_V90:    return t.entry == Anchor::diagonal && t.exit == Anchor::diagonal;
+    default:          return false;
+    }
 }
-constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required) {
-    return turnUsable(t, p, required, p.turn_speed);
+
+constexpr bool ladderUsable(const TurnLadder& l, uint8_t k, const RunPreset& p) {
+    for (uint8_t i = 0; i < l.count; ++i) {
+        const slalom::Param* t = l.list[i];
+        if (t == nullptr || t->fan != p.fan || !anchorsMatch(*t, k) || slalom::validate(*t) != SegmentResult::ok) return false;
+        if (i > 0 && !(t->speed < l.list[i - 1]->speed)) return false;   // 速い順
+    }
+    return true;
 }
 
-// S90 と他のターンの間の直線は最短で半区画。そこで2つの速度の間を加速・減速しきれるか（gen_run_presets.py と同じ検査）
-constexpr bool speedsBridgeable(const RunPreset& p) {
-    float dv2 = p.turn_speed * p.turn_speed - p.s90_speed * p.s90_speed;
-    float lim = 2.f * ((p.accel < p.decel) ? p.accel : p.decel) * (config::maze::CELL_MM / 2.f);
-    return dv2 <= lim && -dv2 <= lim;
+constexpr bool isDiagonalKind(uint8_t k) {
+    return k == TURN_IN45 || k == TURN_OUT45 || k == TURN_V90 || k == TURN_IN135 || k == TURN_OUT135;
 }
 
 constexpr bool presetUsable(const RunPreset& p) {
-    // 小回り90°は斜めなしなら必須（ジグザグを曲がる），斜めありなら任意
-    const slalom::Param* s90 = p.turns.s90;
-    // S90 の速度は他のターンと変えてよい（S90 の隣のターンは S90 側の口が区画中央なので，間に必ず半区画以上の直線がある）
-    bool ok = turnUsable(s90, p, p.diagonal == nullptr, p.s90_speed)
-           && (s90 == nullptr || (s90->entry == slalom::Anchor::edge && s90->exit == slalom::Anchor::edge))
-           && (p.s90_speed == p.turn_speed || speedsBridgeable(p))
-           && turnUsable(p.turns.l90, p, true) && turnUsable(p.turns.t180, p, true)
-           && p.max_speed >= p.turn_speed && p.max_speed >= p.s90_speed && p.max_speed_dia >= p.turn_speed
-           && p.accel > 0.f && p.accel <= config::profile_limit::MAX_ACCEL_X
-           && p.decel > 0.f && p.decel <= config::profile_limit::MAX_DECEL_X;
-    if (p.diagonal != nullptr) {
-        // V90 は任意（無ければソルバーに選ばせない）。スタート用も同じく無いこと
-        const DiagonalTurns& d = *p.diagonal;
-        ok = ok && turnUsable(d.in45, p, true) && turnUsable(d.out45, p, true) && turnUsable(d.v90, p, false)
-                && turnUsable(d.in135, p, true) && turnUsable(d.out135, p, true)
-                && (p.start_diagonal == nullptr || (d.v90 == nullptr) == (p.start_diagonal->v90 == nullptr));
-    }
-    // スタート用のターン：start_speed で設計されていて，置いた位置から最初の区画中央までで start_speed まで加速できる
-    if (p.start_speed > 0.f) {
-        ok = ok && p.start_speed < p.turn_speed && p.start_turns.s90 == nullptr
-                && p.start_speed * p.start_speed <= 2.f * config::profile_limit::MAX_ACCEL_X * START_TO_CENTER
-                && turnUsable(p.start_turns.l90, p, true, p.start_speed)
-                && turnUsable(p.start_turns.t180, p, true, p.start_speed)
-                && ((p.diagonal == nullptr) == (p.start_diagonal == nullptr));
-        if (p.start_diagonal != nullptr) {
-            const DiagonalTurns& d = *p.start_diagonal;
-            const float v = p.start_speed;
-            ok = ok && turnUsable(d.in45, p, true, v) && turnUsable(d.out45, p, true, v) && turnUsable(d.v90, p, false, v)
-                    && turnUsable(d.in135, p, true, v) && turnUsable(d.out135, p, true, v);
+    bool ok = p.accel > 0.f && p.accel <= config::profile_limit::MAX_ACCEL_X
+           && p.decel > 0.f && p.decel <= config::profile_limit::MAX_DECEL_X
+           && p.max_speed >= p.turn_speed && p.max_speed_dia >= p.turn_speed
+           // 大回り90°・180° は必須。小回り90°は斜めなしなら必須（ジグザグを曲がる），斜めありなら任意
+           && p.turns[TURN_L90].count > 0 && p.turns[TURN_180].count > 0
+           && (p.diagonal || p.turns[TURN_S90].count > 0);
+    for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
+        const TurnLadder& l = p.turns[k];
+        ok = ok && ladderUsable(l, k, p);
+        if (isDiagonalKind(k)) {
+            // 斜めなしなら斜めのターンは持たない。斜めありなら V90 以外は必須
+            ok = ok && (p.diagonal ? (k == TURN_V90 || l.count > 0) : l.count == 0);
+        }
+        // 直線はターンの速度で入って出るので，最高速度はターンの速度以上（斜めの直線は斜めのターンの隣だけ）
+        if (l.count > 0) {
+            ok = ok && p.max_speed >= l.list[0]->speed && (!isDiagonalKind(k) || p.max_speed_dia >= l.list[0]->speed);
         }
     }
     return ok;
@@ -123,12 +117,6 @@ void blinkRefused() {
     ledBar16.set(0x0000);
 }
 
-// ターンの経路長（左右の平均）。ソルバーの時間のコストに使う
-float turnDist(const slalom::Param* t, float fallback) {
-    if (t == nullptr) return fallback;
-    return 0.5f * (slalom::totalDistance(*t, slalom::TurnDir::left) + slalom::totalDistance(*t, slalom::TurnDir::right));
-}
-
 // 保存した迷路とプリセットから経路を求めて g_steps にする。走れなければ理由を出して false
 bool plan(const RunPreset& p) {
     uint8_t bank = 0;
@@ -145,39 +133,9 @@ bool plan(const RunPreset& p) {
     solver_options_reset();
     solver_options.goal_x = r->goal_x;
     solver_options.goal_y = r->goal_y;
-    solver_options.diagonal = (p.diagonal != nullptr);
-    RunProfile prof;
-    prof.cell_mm = CELL_MM;
-    prof.turn_speed = p.turn_speed;
-    prof.max_speed = p.max_speed;
-    prof.max_speed_dia = p.max_speed_dia;
-    prof.accel = p.accel;
-    prof.decel = p.decel;
-    prof.turn_dist[TURN_L90] = turnDist(p.turns.l90, prof.turn_dist[TURN_L90]);
-    prof.turn_dist[TURN_180] = turnDist(p.turns.t180, prof.turn_dist[TURN_180]);
-    prof.turn_dist[TURN_S90] = turnDist(p.turns.s90, prof.turn_dist[TURN_S90]);
-    if (p.diagonal != nullptr) {
-        const DiagonalTurns& d = *p.diagonal;
-        prof.turn_dist[TURN_IN45] = turnDist(d.in45, prof.turn_dist[TURN_IN45]);
-        prof.turn_dist[TURN_OUT45] = turnDist(d.out45, prof.turn_dist[TURN_OUT45]);
-        prof.turn_dist[TURN_IN135] = turnDist(d.in135, prof.turn_dist[TURN_IN135]);
-        prof.turn_dist[TURN_OUT135] = turnDist(d.out135, prof.turn_dist[TURN_OUT135]);
-        prof.turn_dist[TURN_V90] = turnDist(d.v90, prof.turn_dist[TURN_V90]);
-    }
-    if (!solver_options_apply_profile(prof)) {
+    if (!fast_plan::applySolverCosts(p)) {
         LOG("fast %s: invalid run profile\r\n", p.name);
         return false;
-    }
-    if (p.turns.s90 == nullptr) {
-        solver_options.turn_ms[TURN_S90] = S90_DISABLED_MS;   // 小回り90°を使わない（ジグザグは斜めで走る）
-    } else if (p.s90_speed != p.turn_speed) {
-        // コスト表は turn_speed で作るので，小回り90°だけ自分の速度で時間を見積もり直す
-        // （S90 の前後の半区画の直線は turn_speed のままの近似）
-        float ms = 1000.f * prof.turn_dist[TURN_S90] / p.s90_speed;
-        solver_options.turn_ms[TURN_S90] = static_cast<uint16_t>((ms < 60000.f) ? ms + 0.5f : 60000.f);
-    }
-    if (p.diagonal != nullptr && p.diagonal->v90 == nullptr) {
-        solver_options.turn_ms[TURN_V90] = V90_DISABLED_MS;   // V90 を使わない（斜めのジグザグは出45°・入45°か縦横で走る）
     }
 
     // 既知の壁だけで（wallone：未知は壁）最短時間の経路を求める
@@ -269,9 +227,18 @@ bool runSteps(const RunPreset& p) {
 void runFastRun(const RunPreset& preset) {
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
-    LOG("fast %s: turn %.0f / s90 %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
-        preset.name, preset.turn_speed, preset.s90_speed, preset.max_speed, preset.max_speed_dia, preset.accel, preset.decel,
+    LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
+        preset.name, preset.turn_speed, preset.max_speed, preset.max_speed_dia, preset.accel, preset.decel,
         preset.diagonal ? "on" : "off", preset.fan ? "on" : "off");
+    // 種類ごとの候補（速い順。走る経路で直線が短いところは下の候補に落ちる）
+    static const char* const KIND_NAMES[TURN_KIND_COUNT] = {"L90", "T180", "IN45", "OUT45", "IN135", "OUT135", "V90", "S90"};
+    for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
+        const TurnLadder& l = preset.turns[k];
+        if (l.count == 0) continue;
+        LOG("  %s:", KIND_NAMES[k]);
+        for (uint8_t i = 0; i < l.count; ++i) LOG(" %.0f", l.list[i]->speed);
+        LOG("\r\n");
+    }
 
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);

@@ -1,39 +1,36 @@
 #!/usr/bin/env python3
 """最短走行のプリセットのヘッダ（config/run_presets.hpp）を生成する。
 
-  run_presets.json … プリセット名 → ターンの速度・直線の最高速度・加減速度・斜めを使うか など（手で書く）
+  run_presets.json … プリセット名 → ターンの速度（種類ごとに変えてよい）・直線の最高速度・加減速度・斜めを使うか など（手で書く）
 
 最短走行の経路（time_based_dijkstra）は、直線が続くところは区画中央から大回り90°（L90）・180°（T180）で、
 1区画ずつ曲がるジグザグは区画の辺から小回り90°（S90）で曲がる。"diagonal": true なら斜めのターン
 （IN45, OUT45, V90, IN135, OUT135）も使い、ジグザグは斜めで走れるので S90 は任意（設計があれば使う。
-"s90": false なら設計があっても使わない。使わないときはソルバーの S90 のコストを大きくして選ばせない）。
-V90 も "v90": false で使わないようにできる（1500mm/s 以上は α の上限で設計できないため。コストの扱いは S90 と同じ）。
-ターンはどれも "turn_speed" のもの（config::slalom::<turn>_<speed>、"fan": true なら _FAN）を使い、
-slalom_params.json にその速度・ファンの条件の設計がなければ生成をエラーで止める（ビルドが止まる）。
+"s90": false なら設計があっても使わない）。V90 も "v90": false で使わないようにできる。使わないターンはソルバーの
+コストを大きくして選ばせない。
+
+ターンの速度は種類ごとに決める（"turn_speed" が既定，"speeds" で種類ごとに上書き）。その速度の設計
+（config::slalom::<turn>_<speed>、"fan": true なら _FAN）がいちばん速い候補で，slalom_params.json にある同じ種類・
+同じファンの条件のもっと遅い設計（基本の組だけ）がすべて下の候補になる。走る経路で，あいだの直線が短くて速度を
+変えきれない（ターンどうしが直線なしで続くなら同じ速度でなければならない）ところや，スタート直後・ゴール直前で
+加速・減速しきれないところは，実機（fast_plan::fitSpeeds）が下の候補に落とす。いちばん速い候補が設計されていなければ
+生成をエラーで止める（ビルドが止まる）。
 
 run_presets.json の形:
 
     {
-      "500": {
-        "turn_speed": 500,        … ターンの速度 [mm/s]（直線の始点・終点の速度）
-        "max_speed": 1500,        … 縦横の直線の最高速度 [mm/s]
-        "max_speed_dia": 1000,    … 斜めの直線の最高速度 [mm/s]（diagonal が false でも書く）
-        "accel": 3000,            … 直線の加速度 [mm/s^2]
-        "decel": 3000,            … 直線の減速度 [mm/s^2]
-        "diagonal": false,        … 斜めの経路を使うか
+      "1500_dia": {
+        "turn_speed": 1500,       … ターンの速度の既定 [mm/s]。ソルバーの直線のコストの始点・終点の速度にも使う
+        "speeds": {"S90": 900},   … 任意。種類ごとのターンの速度 [mm/s]（S90 L90 T180 IN45 OUT45 V90 IN135 OUT135）
+        "max_speed": 2000,        … 縦横の直線の最高速度 [mm/s]（どのターンの速度以上）
+        "max_speed_dia": 1500,    … 斜めの直線の最高速度 [mm/s]（斜めのターンの速度以上。diagonal が false でも書く）
+        "accel": 8000,            … 直線の加速度 [mm/s^2]
+        "decel": 8000,            … 直線の減速度 [mm/s^2]
+        "diagonal": true,         … 斜めの経路を使うか
         "fan": false,             … 任意（省略で false）。ファンを回して走るか
         "wall_edge": true,        … 任意（省略で false）。区画中央から入るターン（L90・T180・IN45・IN135）の前の直線で壁切れの補正をかけるか
         "s90": false,             … 任意（斜めありのときだけ。省略で true＝設計があれば使う）。小回り90°を使うか
-        "v90": false,             … 任意（斜めありのときだけ。省略で true＝必ず使う）。V90 を使うか。使わないと
-                                    斜めのジグザグは出45°・入45°（間に斜めの直線）か縦横で走る
-        "start_speed": 900,       … 任意（省略で置き換えない）。スタート直後，最初の区画中央までで最初のターンの速度まで
-                                    加速しきれないときだけ，そのターンと直線なしで続くターンをこの速度の同じ種類に置き換える。
-                                    turn_speed が約 1100mm/s を超えるときに要る（区画中央から入るターンにスタートから
-                                    42mm で入るため）。大回り90°・180°（斜めありなら斜めの5種類も）をこの速度で設計しておく
-        "s90_speed": 900,         … 任意（省略で turn_speed）。小回り90°の速度 [mm/s]。turn_speed はほかのターン（大回り90°・
-                                    180°，斜めありなら斜めの5種類）の速度になる。斜めありでも書けば S90 を必ず使う（設計が要る）。
-                                    S90 と他のターンの間の直線は最短で半区画なので（ほかのターンは S90 側の口が区画中央），
-                                    |turn_speed² − s90_speed²| ≤ 2·min(accel, decel)·90mm でないとエラー
+        "v90": false,             … 任意（斜めありのときだけ。省略で true＝必ず使う）。V90 を使うか
         "note": ""                … 任意。ヘッダのコメントに出す
       }
     }
@@ -48,18 +45,28 @@ import re
 import sys
 
 from gen_slalom_params import GenError, cpp_ident, fmt, load_json
-from slalom_presets import PRESET_LIST, make_speed_key, slalom_key_order
+from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel", "diagonal"]
-OPTIONAL_KEYS = ["fan", "wall_edge", "s90", "v90", "s90_speed", "start_speed", "note"]
+OPTIONAL_KEYS = ["speeds", "fan", "wall_edge", "s90", "v90", "note"]
 
-HALF_CELL_MM = 90.0   # S90 と他のターンの間の直線の最短（ソルバーが S90 の前後に足す半区画）
-
-# RunPreset のターンの集合と、その並び（app/run_preset.hpp の RunTurns、app/search_preset.hpp の DiagonalTurns と同じ順）
 ORTHO_TURNS = ["S90", "L90", "T180"]
 DIAGONAL_TURNS = ["IN45", "OUT45", "V90", "IN135", "OUT135"]
+# RunPreset::turns の並び（ソルバーの TurnKind：solver/core/solver_options.h）
+KIND_ORDER = [("L90", "TURN_L90"), ("T180", "TURN_180"), ("IN45", "TURN_IN45"), ("OUT45", "TURN_OUT45"),
+              ("IN135", "TURN_IN135"), ("OUT135", "TURN_OUT135"), ("V90", "TURN_V90"), ("S90", "TURN_S90")]
+
+
+def designed_speeds(slalom_params, label, fan):
+    """そのターン・ファンの条件で設計されている速度（基本の組だけ）。速い順"""
+    out = []
+    for key in slalom_params.get(label, {}):
+        speed, f = parse_speed_key(key)
+        if f == fan and key == make_speed_key(speed, fan):
+            out.append(speed)
+    return sorted(out, reverse=True)
 
 
 def build_entries(presets, slalom_params):
@@ -72,16 +79,13 @@ def build_entries(presets, slalom_params):
         missing = [k for k in REQUIRED_KEYS if k not in preset]
         unknown = [k for k in preset if k not in REQUIRED_KEYS + OPTIONAL_KEYS]
         if missing or unknown:
-            raise GenError(f"{where}: 足りないキー {missing}，知らないキー {unknown}")
+            hint = "（s90_speed・start_speed は無くなりました：\"speeds\": {\"S90\": …} を使う。スタート直後は自動で下の候補に落とす）" \
+                if {"s90_speed", "start_speed"} & set(unknown) else ""
+            raise GenError(f"{where}: 足りないキー {missing}，知らないキー {unknown}{hint}")
 
         for key in ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel"]:
             if float(preset[key]) <= 0.0:
                 raise GenError(f"{where}: {key} は正の値にしてください")
-        speed = float(preset["turn_speed"])
-        for key in ["max_speed", "max_speed_dia"]:
-            if float(preset[key]) < speed:
-                raise GenError(f"{where}: {key} は turn_speed 以上にしてください（直線はターンの速度で入って出る）")
-
         fan = preset.get("fan", False)
         diagonal = preset["diagonal"]
         wall_edge = preset.get("wall_edge", False)
@@ -95,71 +99,73 @@ def build_entries(presets, slalom_params):
             raise GenError(f"{where}: 斜めなしでは小回り90°（S90）が要るので \"s90\": false にできません")
         if not use_v90 and not diagonal:
             raise GenError(f"{where}: \"v90\": false は斜めありのときだけ書けます")
-        s90_speed = float(preset.get("s90_speed", speed))
-        if s90_speed <= 0.0:
-            raise GenError(f"{where}: s90_speed は正の値にしてください")
-        if s90_speed != speed:
-            if not use_s90:
-                raise GenError(f"{where}: \"s90\": false なら s90_speed は書けません")
-            if float(preset["max_speed"]) < s90_speed:
-                raise GenError(f"{where}: max_speed は s90_speed 以上にしてください")
-            need = abs(speed ** 2 - s90_speed ** 2) / (2.0 * HALF_CELL_MM)
-            have = min(float(preset["accel"]), float(preset["decel"]))
-            if need > have:
-                raise GenError(f"{where}: S90（{s90_speed:g}mm/s）と他のターン（{speed:g}mm/s）の間の半区画の直線で"
-                               f"速度を変えきれません。accel と decel を {need:.0f} mm/s^2 以上にするか，速度の差を小さくしてください")
 
-        kinds = ORTHO_TURNS + ([k for k in DIAGONAL_TURNS if use_v90 or k != "V90"] if diagonal else [])
-        resolved = {}
+        kinds = ORTHO_TURNS + (DIAGONAL_TURNS if diagonal else [])
+        speeds = preset.get("speeds", {})
+        if not isinstance(speeds, dict) or any(k not in kinds for k in speeds):
+            raise GenError(f"{where}: speeds のキーは {', '.join(kinds)} です")
+        if "S90" in speeds and not use_s90:
+            raise GenError(f"{where}: \"s90\": false なら speeds に S90 は書けません")
+        if "V90" in speeds and not use_v90:
+            raise GenError(f"{where}: \"v90\": false なら speeds に V90 は書けません")
+
+        ladders = {}   # 種類 → [(速度, C++ の名前)]（速い順）
         for cpp_name in kinds:
+            if (cpp_name == "S90" and not use_s90) or (cpp_name == "V90" and not use_v90):
+                continue
             turn = by_cpp_name[cpp_name]
-            designed = slalom_params.get(turn.label, {})
-            turn_v = s90_speed if cpp_name == "S90" else speed
-            if cpp_name == "S90" and diagonal and (not use_s90 or (turn_v == speed and make_speed_key(turn_v, fan) not in designed)):
-                continue   # 斜めありなら小回り90°は任意（無ければジグザグを斜めで走る）
-            # 最短走行は基本の組（"500" / "500_fan"）を使う
-            if make_speed_key(turn_v, fan) not in designed:
-                raise GenError(f"{where}: {turn.label} の {turn_v:g}mm/s ファン{'ON' if fan else 'OFF'} は slalom_params.json に設計されていません"
-                               f"（設計済み: {', '.join(sorted(designed, key=slalom_key_order)) or 'なし'}）"
+            top = float(speeds.get(cpp_name, preset["turn_speed"]))
+            if top <= 0.0:
+                raise GenError(f"{where}: {cpp_name} の速度は正の値にしてください")
+            have = designed_speeds(slalom_params, turn.label, fan)
+            if top not in have:
+                # 斜めありなら小回り90°は任意（速度を書いていなければ，無いときはジグザグを斜めで走る）
+                if cpp_name == "S90" and diagonal and "S90" not in speeds:
+                    continue
+                raise GenError(f"{where}: {turn.label} の {top:g}mm/s ファン{'ON' if fan else 'OFF'} は slalom_params.json に設計されていません"
+                               f"（設計済み: {', '.join(f'{v:g}' for v in reversed(have)) or 'なし'}）"
                                + ("。斜めを使わないなら \"diagonal\": false" if cpp_name in DIAGONAL_TURNS else ""))
-            resolved[cpp_name] = (turn.label, cpp_ident(turn.cpp_name, turn_v, fan))
+            ladders[cpp_name] = [(v, cpp_ident(turn.cpp_name, v, fan)) for v in have if v <= top]
 
-        # スタート用のターン（小回り90°は区画中央のターンの直後に来ないので要らない）
-        start_speed = float(preset.get("start_speed", 0.0))
-        start = {}
-        if start_speed:
-            if not 0.0 < start_speed < speed:
-                raise GenError(f"{where}: start_speed は 0 より大きく turn_speed より小さくしてください")
-            for cpp_name in [k for k in kinds if k != "S90"]:
-                turn = by_cpp_name[cpp_name]
-                if make_speed_key(start_speed, fan) not in slalom_params.get(turn.label, {}):
-                    raise GenError(f"{where}: start_speed の {turn.label} {start_speed:g}mm/s ファン{'ON' if fan else 'OFF'} "
-                                   f"は slalom_params.json に設計されていません")
-                start[cpp_name] = (turn.label, cpp_ident(turn.cpp_name, start_speed, fan))
+        tops = {k: l[0][0] for k, l in ladders.items()}
+        if float(preset["max_speed"]) < max(tops.values()):
+            raise GenError(f"{where}: max_speed は いちばん速いターン（{max(tops.values()):g}mm/s）以上にしてください")
+        dia_tops = [v for k, v in tops.items() if k in DIAGONAL_TURNS]
+        if dia_tops and float(preset["max_speed_dia"]) < max(dia_tops):
+            raise GenError(f"{where}: max_speed_dia は いちばん速い斜めのターン（{max(dia_tops):g}mm/s）以上にしてください")
+        if float(preset["max_speed_dia"]) < float(preset["turn_speed"]) or float(preset["max_speed"]) < float(preset["turn_speed"]):
+            raise GenError(f"{where}: max_speed・max_speed_dia は turn_speed 以上にしてください")
 
         entries.append({
             "name": name,
             "ident": f"P_{name}",
-            "diag_ident": f"D_{name}" if diagonal else None,
-            "turns": resolved,
+            "ladders": ladders,
             "fan": fan,
+            "diagonal": diagonal,
             "wall_edge": wall_edge,
-            "s90_speed": s90_speed,
-            "start_speed": start_speed,
-            "start": start,
-            "start_diag_ident": f"DS_{name}" if (diagonal and start_speed) else None,
             "values": preset,
         })
     if not entries:
         raise GenError("run_presets.json にプリセットがありません")
     # メニューは Fast → ファン（OFF / ON）→ 縦横 / 斜め → プリセット なので，ファンOFFを先に，同じファンの中は
     # 斜めなしを先に並べる（同じ段の中は書いた順）
-    entries.sort(key=lambda e: (e["fan"], e["diag_ident"] is not None))
+    entries.sort(key=lambda e: (e["fan"], e["diagonal"]))
     return entries
 
 
-def turn_list(e, kinds, key="turns"):
-    return "{" + ", ".join(f"&config::slalom::{e[key][k][1]}" if k in e[key] else "nullptr" for k in kinds) + "}"
+def ladder_ident(kind, ladder, fan):
+    return f"LADDER_{kind}_{ladder[0][0]:g}".replace(".", "p") + ("_FAN" if fan else "")
+
+
+def describe(e):
+    """ヘッダのコメント：種類ごとのいちばん速い候補"""
+    tops = {k: l[0][0] for k, l in e["ladders"].items()}
+    parts = []
+    for k, _ in KIND_ORDER:
+        if k in tops:
+            parts.append(f"{k} {tops[k]:g}")
+    gone = [k for k in (ORTHO_TURNS + (DIAGONAL_TURNS if e["diagonal"] else [])) if k not in tops]
+    return "，".join(parts) + " mm/s" + (f"（{'・'.join(gone)} なし）" if gone else "")
 
 
 def render(entries):
@@ -174,28 +180,34 @@ def render(entries):
         "",
         "namespace config::run {",
         "",
+        "// ターンの候補（速い順。いちばん速いものがプリセットの速度，下は fast_plan::fitSpeeds が落とす先）",
     ]
+    seen = set()
+    for e in entries:
+        for kind, ladder in e["ladders"].items():
+            ident = ladder_ident(kind, ladder, e["fan"])
+            if ident in seen:
+                continue
+            seen.add(ident)
+            out.append(f"inline constexpr const slalom::Param* {ident}[] = {{"
+                       + ", ".join(f"&config::slalom::{c}" for _, c in ladder) + "};")
+    out.append("")
     for e in entries:
         v = e["values"]
         note = f"  メモ: {v['note']}" if v.get("note") else ""
-        missing = [label for k, label in [("S90", "小回り90°"), ("V90", "V90")]
-                   if k not in e["turns"] and (k == "S90" or e["diag_ident"])]
-        extra = (("，斜めあり" if e["diag_ident"] else "，斜めなし") + (f"（{'・'.join(missing)}なし）" if missing else "")
-                 + ("，ファンON" if e["fan"] else "")
+        extra = (("，斜めあり" if e["diagonal"] else "，斜めなし") + ("，ファンON" if e["fan"] else "")
                  + ("，壁切れ補正" if e["wall_edge"] else ""))
-        s90 = f"（小回り90° {e['s90_speed']:g}mm/s）" if e["s90_speed"] != float(v["turn_speed"]) else ""
-        out.append(f"// {e['name']}: ターン {v['turn_speed']:g}mm/s{s90}，直線 {v['max_speed']:g} / 斜め {v['max_speed_dia']:g}mm/s"
+        out.append(f"// {e['name']}: ターン {describe(e)}，直線 {v['max_speed']:g} / 斜め {v['max_speed_dia']:g}mm/s"
                    f"{extra}{note}")
-        if e["diag_ident"]:
-            out.append(f"inline constexpr DiagonalTurns {e['diag_ident']} = {turn_list(e, DIAGONAL_TURNS)};")
-        if e["start_diag_ident"]:
-            out.append(f"inline constexpr DiagonalTurns {e['start_diag_ident']} = {turn_list(e, DIAGONAL_TURNS, 'start')};")
+        turns = []
+        for kind, _ in KIND_ORDER:
+            ladder = e["ladders"].get(kind)
+            turns.append(f"{{{ladder_ident(kind, ladder, e['fan'])}, {len(ladder)}}}" if ladder else "{nullptr, 0}")
         out.append(
-            f"inline constexpr RunPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['turn_speed'])}, {fmt(e['s90_speed'])}, {fmt(v['max_speed'])}, "
-            f"{fmt(v['max_speed_dia'])}, {fmt(v['accel'])}, {fmt(v['decel'])}, {turn_list(e, ORTHO_TURNS)}, "
-            f"{'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, {'true' if e['fan'] else 'false'}, "
-            f"{'true' if e['wall_edge'] else 'false'}, {fmt(e['start_speed'])}, {turn_list(e, ORTHO_TURNS, 'start')}, "
-            f"{'&' + e['start_diag_ident'] if e['start_diag_ident'] else 'nullptr'}}};")
+            f"inline constexpr RunPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['turn_speed'])}, {fmt(v['max_speed'])}, "
+            f"{fmt(v['max_speed_dia'])}, {fmt(v['accel'])}, {fmt(v['decel'])}, {{{', '.join(turns)}}}, "
+            f"{'true' if e['diagonal'] else 'false'}, {'true' if e['fan'] else 'false'}, "
+            f"{'true' if e['wall_edge'] else 'false'}}};")
         out.append("")
     out.append("// メニューに並べる順（ファンOFFが先，同じファンの中は斜めなしが先，同じ段の中は run_presets.json に書いた順）")
     out.append(f"inline constexpr std::array<RunPreset, {len(entries)}> PRESETS = {{")
@@ -206,11 +218,10 @@ def render(entries):
     #   KINDS[k] … PRESETS[first] から count 個（縦横 / 斜め）
     kinds = []   # [fan, diag, first, count]
     for i, e in enumerate(entries):
-        diag = e["diag_ident"] is not None
-        if kinds and kinds[-1][0] == e["fan"] and kinds[-1][1] == diag:
+        if kinds and kinds[-1][0] == e["fan"] and kinds[-1][1] == e["diagonal"]:
             kinds[-1][3] += 1
         else:
-            kinds.append([e["fan"], diag, i, 1])
+            kinds.append([e["fan"], e["diagonal"], i, 1])
     fans = []    # [fan, first, count]
     for j, (fan, _, _, _) in enumerate(kinds):
         if fans and fans[-1][0] == fan:
