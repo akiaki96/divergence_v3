@@ -25,6 +25,11 @@ constexpr uint32_t SETTLE_MS = 500;
 // 先に教えすぎると，WallEdge が同時に待てる境界（MAX_PENDING = 4）からあふれて古い境界が捨てられる
 constexpr float EDGE_FEED_LEAD_MM = 300.f;
 
+// [ms] 小回り90°の無い（斜めありの）プリセットで，ソルバーの S90 のコストにする値。ほかの経路があれば必ずそちらを選ぶ。
+// ソルバーの時間は uint16_t（未到達は 0xFFFF）なので，経路の時間と足しても 65535 を超えにくい大きさにとどめる。
+// それでも S90 しかない経路になったら，fast_plan が turnMissing で走行を断る
+constexpr uint16_t S90_DISABLED_MS = 30000;
+
 // ---- プリセットの検査（ビルド時）：ターンがターンの速度・同じファンの条件で設計されていて積める ----
 constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required) {
     if (t == nullptr) return !required;
@@ -32,8 +37,10 @@ constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool requi
 }
 
 constexpr bool presetUsable(const RunPreset& p) {
-    bool ok = turnUsable(p.turns.s90, p, true) && p.turns.s90->entry == slalom::Anchor::edge
-           && p.turns.s90->exit == slalom::Anchor::edge
+    // 小回り90°は斜めなしなら必須（ジグザグを曲がる），斜めありなら任意
+    const slalom::Param* s90 = p.turns.s90;
+    bool ok = turnUsable(s90, p, p.diagonal == nullptr)
+           && (s90 == nullptr || (s90->entry == slalom::Anchor::edge && s90->exit == slalom::Anchor::edge))
            && turnUsable(p.turns.l90, p, true) && turnUsable(p.turns.t180, p, true)
            && p.max_speed >= p.turn_speed && p.max_speed_dia >= p.turn_speed
            && p.accel > 0.f && p.accel <= config::profile_limit::MAX_ACCEL_X
@@ -129,6 +136,9 @@ bool plan(const RunPreset& p) {
     if (!solver_options_apply_profile(prof)) {
         LOG("fast %s: invalid run profile\r\n", p.name);
         return false;
+    }
+    if (p.turns.s90 == nullptr) {
+        solver_options.turn_ms[TURN_S90] = S90_DISABLED_MS;   // 小回り90°を使わない（ジグザグは斜めで走る）
     }
 
     // 既知の壁だけで（wallone：未知は壁）最短時間の経路を求める

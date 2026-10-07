@@ -19,7 +19,8 @@ void Menu::buildTree() {
         run_.setChildren(std::array{&search_, &fast_, &maze_});
             search_.setChildren(pointersOf(search_presets_));
             fast_.setChildren(pointersOf(fast_fans_));
-                linkGroups(fast_fans_, config::run::FANS, fast_presets_);
+                linkGroups(fast_fans_, config::run::FANS, fast_kinds_);
+                linkGroups(fast_kinds_, config::run::KINDS, fast_presets_);
             maze_.setChildren(std::array{&maze_show_, &maze_clear_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});

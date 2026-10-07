@@ -9,7 +9,8 @@
 // 区画に沿ったターン。最短走行の経路（time_based_dijkstra）は、直線が続くところは大回り（区画中央から）、
 // 1区画ずつ曲がるジグザグは小回り（区画の辺から）で曲がる
 struct RunTurns {
-    const slalom::Param* s90;    // 小回り90°（区画境界 → 区画境界）。ACT_TURN_*_MOVE
+    const slalom::Param* s90;    // 小回り90°（区画境界 → 区画境界）。ACT_TURN_*_MOVE。斜めありなら nullptr でよい
+                                 // （ジグザグを斜めで走る。ソルバーに選ばせないよう S90 のコストを大きくする）
     const slalom::Param* l90;    // 大回り90°（区画中央 → 区画中央）。ACT_S90_*
     const slalom::Param* t180;   // 180°（区画中央 → 区画中央）。ACT_S180_*
 };

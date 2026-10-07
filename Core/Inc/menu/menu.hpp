@@ -29,14 +29,17 @@ static_assert(config::search::PRESETS.size() <= config::menu::MAX_CHILDREN,
               "search presets exceed config::menu::MAX_CHILDREN");
 static_assert(config::search::TEST_PRESETS.size() <= config::menu::MAX_CHILDREN,
               "test search presets exceed config::menu::MAX_CHILDREN");
-// 最短走行は Run → Fast → ファン → プリセット：ファンの段・ファンごとのプリセットとも上限に収まるか
+// 最短走行は Run → Fast → ファン → 縦横 / 斜め → プリセット：どの段も上限に収まるか
 constexpr bool fastFitsMenu() {
     for (const auto& fan : config::run::FANS) {
         if (fan.count > config::menu::MAX_CHILDREN) return false;
     }
+    for (const auto& kind : config::run::KINDS) {
+        if (kind.count > config::menu::MAX_CHILDREN) return false;
+    }
     return config::run::FANS.size() <= config::menu::MAX_CHILDREN;
 }
-static_assert(fastFitsMenu(), "run presets (per fan) exceed config::menu::MAX_CHILDREN");
+static_assert(fastFitsMenu(), "run presets (per fan and kind) exceed config::menu::MAX_CHILDREN");
 
 class Menu {
 public:
@@ -68,8 +71,8 @@ private:
         return {MenuNode(config::search::PRESETS[I].name, nullptr, &search_onenter<I>)...};
     }
 
-    // 最短走行：Run → Fast → ファン（config::run::FANS）→ プリセット（config::run::PRESETS，ファンOFFが先，
-    // 同じファンの中は tools/run_presets.json の順）
+    // 最短走行：Run → Fast → ファン（config::run::FANS）→ 縦横 / 斜め（config::run::KINDS）→
+    // プリセット（config::run::PRESETS，同じ段の中は tools/run_presets.json の順）
     template <std::size_t... I>
     static std::array<MenuNode, sizeof...(I)> fastNodes(std::index_sequence<I...>) {
         return {MenuNode(config::run::PRESETS[I].name, nullptr, &fast_onenter<I>)...};
@@ -130,8 +133,10 @@ private:
         MenuNode fast_{"Fast"};   // 最短走行（app/fast_run.hpp）。保存した迷路を使う
             std::array<MenuNode, config::run::FANS.size()> fast_fans_ =
                 groupNodes(config::run::FANS, std::make_index_sequence<config::run::FANS.size()>{});
-                std::array<MenuNode, config::run::PRESETS.size()> fast_presets_ =
-                    fastNodes(std::make_index_sequence<config::run::PRESETS.size()>{});
+                std::array<MenuNode, config::run::KINDS.size()> fast_kinds_ =
+                    groupNodes(config::run::KINDS, std::make_index_sequence<config::run::KINDS.size()>{});
+                    std::array<MenuNode, config::run::PRESETS.size()> fast_presets_ =
+                        fastNodes(std::make_index_sequence<config::run::PRESETS.size()>{});
         MenuNode maze_{"Maze"};   // 保存した迷路（app/maze_store.hpp）
             MenuNode maze_show_{"Show"};
             MenuNode maze_clear_{"Clear"};
