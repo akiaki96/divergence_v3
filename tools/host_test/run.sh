@@ -58,3 +58,10 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     "$SOLVER"/core/*.cpp "$ROOT/Core/Src/app/maze_store.cpp" "$ROOT/tools/host_test/test_maze_store.cpp" \
     -o "$OUT/test_maze_store"
 "$OUT/test_maze_store"
+
+# 斜めの直線の切れ目からの距離（Device → IR → Diagonal のデータ収集，tools/DIAGONAL.md）
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" \
+    "$ROOT/Core/Src/common/diag_edge.cpp" "$ROOT/tools/host_test/test_diag_edge.cpp" \
+    -o "$OUT/test_diag_edge"
+"$OUT/test_diag_edge"

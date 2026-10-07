@@ -12,6 +12,7 @@
 #include "app/maze_menu.hpp"
 #include "test/axle_check_test.hpp"
 #include "test/wall_edge_test.hpp"
+#include "test/diag_sensor_test.hpp"
 #include "test/front_check_test.hpp"
 
 // スラロームの速度・種類とも，メニューの子の数の上限に収まるか（収まらなければビルドを止める）
@@ -203,6 +204,11 @@ private:
                 MenuNode wall_edge_calib_700_{"calib 700", nullptr, &wall_edge_test_onenter<WallEdgeMode::calib, 700>};
                 MenuNode wall_edge_verify_500_{"verify 500", nullptr, &wall_edge_test_onenter<WallEdgeMode::verify, 500>};
                 MenuNode wall_edge_inject_500_{"inject 500", nullptr, &wall_edge_test_onenter<WallEdgeMode::inject, 500>};
+            MenuNode ir_diag_{"Diagonal"};   // 斜め走行のセンサーのデータ収集（test/diag_sensor_test.hpp）
+                MenuNode diag_left_n4_{"left n4", nullptr, &diag_sensor_test_onenter<slalom::TurnDir::left, 4>};
+                MenuNode diag_right_n4_{"right n4", nullptr, &diag_sensor_test_onenter<slalom::TurnDir::right, 4>};
+                MenuNode diag_left_n8_{"left n8", nullptr, &diag_sensor_test_onenter<slalom::TurnDir::left, 8>};
+                MenuNode diag_right_n8_{"right n8", nullptr, &diag_sensor_test_onenter<slalom::TurnDir::right, 8>};
         MenuNode battery_{"Battery"};
         MenuNode led_{"LED"};
 
