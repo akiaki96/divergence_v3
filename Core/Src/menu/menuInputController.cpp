@@ -27,17 +27,13 @@ void MenuInputController::syncUpdate() {
         encoderDistance_ = 0.f;
         motorRight.setDuty(-config::mode_selector::KORIKORI);
         controller_.next();
-        nowOnSelected = controller_.currentMenuNode()->child(controller_.index())->onSelected();
-        ledBar16.set(controller_.index(), LedBarDotMode::dot8);
-        isOnSelected_ = true;
+        select();
         lock(10);
     } else if (encoderDistance_ < -config::mode_selector::ENC_THRESH) { // prev
         encoderDistance_ = 0.f;
         motorRight.setDuty(config::mode_selector::KORIKORI);
         controller_.prev();
-        ledBar16.set(controller_.index(), LedBarDotMode::dot8);
-        nowOnSelected = controller_.currentMenuNode()->child(controller_.index())->onSelected();
-        isOnSelected_ = true;
+        select();
         lock(10);
     } else if (irFL.filtered_ < config::mode_selector::IR_THRESH && irFR.filtered_ > config::mode_selector::IR_THRESH) { // enter
         ledBar16.set(0x000F);
@@ -50,6 +46,19 @@ void MenuInputController::syncUpdate() {
         controller_.back();
         lock(300);
     }
+}
+
+// 回して選んだ子のonSelectedをasyncUpdateに渡す。
+// 葉ノード（子なし）ではchild()がnullptrなので何も渡さない。nullptrから読むと0番地のベクタテーブル
+// （NMI_Handler = while(1)）を関数として呼んでしまい，lock_が立ったままonEnterが効かなくなる
+void MenuInputController::select() {
+    ledBar16.set(controller_.index(), LedBarDotMode::dot8);
+    const MenuNode* selected = controller_.currentMenuNode()->child(controller_.index());
+    if (selected == nullptr) {
+        return;
+    }
+    nowOnSelected = selected->onSelected();
+    isOnSelected_ = true;
 }
 
 void MenuInputController::lock(uint32_t delay) {
