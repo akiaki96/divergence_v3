@@ -1061,6 +1061,25 @@
       },
       "saved_at": "2026-10-07T11:06:19",
       "autotune": "optimize"
+    },
+    "1500_fan": {
+      "Set_Speed": 1500.0,
+      "Set_low_AngVel": 889.0,
+      "Set_Low_AngAcl": 18490.0,
+      "Set_pri_offset": 1.61,
+      "Set_post_offset": 60.53,
+      "Set_K_SP": 0.0048,
+      "Set_C_SP": 2.7,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 73.5,
+        "const_dist": 3.0,
+        "total_dist": 212.14,
+        "time_ms": 141.4
+      },
+      "saved_at": "2026-10-07T16:07:37",
+      "autotune": "optimize"
     }
   },
   "出45°": {

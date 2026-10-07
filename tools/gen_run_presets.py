@@ -7,6 +7,7 @@
 1区画ずつ曲がるジグザグは区画の辺から小回り90°（S90）で曲がる。"diagonal": true なら斜めのターン
 （IN45, OUT45, V90, IN135, OUT135）も使い、ジグザグは斜めで走れるので S90 は任意（設計があれば使う。
 "s90": false なら設計があっても使わない。使わないときはソルバーの S90 のコストを大きくして選ばせない）。
+V90 も "v90": false で使わないようにできる（1500mm/s 以上は α の上限で設計できないため。コストの扱いは S90 と同じ）。
 ターンはどれも "turn_speed" のもの（config::slalom::<turn>_<speed>、"fan": true なら _FAN）を使い、
 slalom_params.json にその速度・ファンの条件の設計がなければ生成をエラーで止める（ビルドが止まる）。
 
@@ -23,12 +24,15 @@ run_presets.json の形:
         "fan": false,             … 任意（省略で false）。ファンを回して走るか
         "wall_edge": true,        … 任意（省略で false）。区画中央から入るターン（L90・T180・IN45・IN135）の前の直線で壁切れの補正をかけるか
         "s90": false,             … 任意（斜めありのときだけ。省略で true＝設計があれば使う）。小回り90°を使うか
+        "v90": false,             … 任意（斜めありのときだけ。省略で true＝必ず使う）。V90 を使うか。使わないと
+                                    斜めのジグザグは出45°・入45°（間に斜めの直線）か縦横で走る
         "start_speed": 900,       … 任意（省略で置き換えない）。スタート直後，最初の区画中央までで最初のターンの速度まで
                                     加速しきれないときだけ，そのターンと直線なしで続くターンをこの速度の同じ種類に置き換える。
                                     turn_speed が約 1100mm/s を超えるときに要る（区画中央から入るターンにスタートから
                                     42mm で入るため）。大回り90°・180°（斜めありなら斜めの5種類も）をこの速度で設計しておく
-        "s90_speed": 900,         … 任意（斜めなしのときだけ。省略で turn_speed）。小回り90°の速度 [mm/s]。turn_speed は
-                                    大回り90°・180°の速度になる。S90 と他のターンの間の直線は最短で半区画なので，
+        "s90_speed": 900,         … 任意（省略で turn_speed）。小回り90°の速度 [mm/s]。turn_speed はほかのターン（大回り90°・
+                                    180°，斜めありなら斜めの5種類）の速度になる。斜めありでも書けば S90 を必ず使う（設計が要る）。
+                                    S90 と他のターンの間の直線は最短で半区画なので（ほかのターンは S90 側の口が区画中央），
                                     |turn_speed² − s90_speed²| ≤ 2·min(accel, decel)·90mm でないとエラー
         "note": ""                … 任意。ヘッダのコメントに出す
       }
@@ -49,7 +53,7 @@ from slalom_presets import PRESET_LIST, make_speed_key, slalom_key_order
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel", "diagonal"]
-OPTIONAL_KEYS = ["fan", "wall_edge", "s90", "s90_speed", "start_speed", "note"]
+OPTIONAL_KEYS = ["fan", "wall_edge", "s90", "v90", "s90_speed", "start_speed", "note"]
 
 HALF_CELL_MM = 90.0   # S90 と他のターンの間の直線の最短（ソルバーが S90 の前後に足す半区画）
 
@@ -82,17 +86,21 @@ def build_entries(presets, slalom_params):
         diagonal = preset["diagonal"]
         wall_edge = preset.get("wall_edge", False)
         use_s90 = preset.get("s90", True)
-        for key, value in [("fan", fan), ("diagonal", diagonal), ("wall_edge", wall_edge), ("s90", use_s90)]:
+        use_v90 = preset.get("v90", True)
+        for key, value in [("fan", fan), ("diagonal", diagonal), ("wall_edge", wall_edge), ("s90", use_s90),
+                           ("v90", use_v90)]:
             if not isinstance(value, bool):
                 raise GenError(f"{where}: {key} は true / false です")
         if not use_s90 and not diagonal:
             raise GenError(f"{where}: 斜めなしでは小回り90°（S90）が要るので \"s90\": false にできません")
+        if not use_v90 and not diagonal:
+            raise GenError(f"{where}: \"v90\": false は斜めありのときだけ書けます")
         s90_speed = float(preset.get("s90_speed", speed))
         if s90_speed <= 0.0:
             raise GenError(f"{where}: s90_speed は正の値にしてください")
         if s90_speed != speed:
-            if diagonal:
-                raise GenError(f"{where}: s90_speed を turn_speed と変えられるのは斜めなし（\"diagonal\": false）のときだけです")
+            if not use_s90:
+                raise GenError(f"{where}: \"s90\": false なら s90_speed は書けません")
             if float(preset["max_speed"]) < s90_speed:
                 raise GenError(f"{where}: max_speed は s90_speed 以上にしてください")
             need = abs(speed ** 2 - s90_speed ** 2) / (2.0 * HALF_CELL_MM)
@@ -101,13 +109,13 @@ def build_entries(presets, slalom_params):
                 raise GenError(f"{where}: S90（{s90_speed:g}mm/s）と他のターン（{speed:g}mm/s）の間の半区画の直線で"
                                f"速度を変えきれません。accel と decel を {need:.0f} mm/s^2 以上にするか，速度の差を小さくしてください")
 
-        kinds = ORTHO_TURNS + (DIAGONAL_TURNS if diagonal else [])
+        kinds = ORTHO_TURNS + ([k for k in DIAGONAL_TURNS if use_v90 or k != "V90"] if diagonal else [])
         resolved = {}
         for cpp_name in kinds:
             turn = by_cpp_name[cpp_name]
             designed = slalom_params.get(turn.label, {})
             turn_v = s90_speed if cpp_name == "S90" else speed
-            if cpp_name == "S90" and diagonal and (not use_s90 or make_speed_key(turn_v, fan) not in designed):
+            if cpp_name == "S90" and diagonal and (not use_s90 or (turn_v == speed and make_speed_key(turn_v, fan) not in designed)):
                 continue   # 斜めありなら小回り90°は任意（無ければジグザグを斜めで走る）
             # 最短走行は基本の組（"500" / "500_fan"）を使う
             if make_speed_key(turn_v, fan) not in designed:
@@ -170,7 +178,9 @@ def render(entries):
     for e in entries:
         v = e["values"]
         note = f"  メモ: {v['note']}" if v.get("note") else ""
-        extra = (("，斜めあり" if e["diag_ident"] else "，斜めなし") + ("" if "S90" in e["turns"] else "（小回り90°なし）")
+        missing = [label for k, label in [("S90", "小回り90°"), ("V90", "V90")]
+                   if k not in e["turns"] and (k == "S90" or e["diag_ident"])]
+        extra = (("，斜めあり" if e["diag_ident"] else "，斜めなし") + (f"（{'・'.join(missing)}なし）" if missing else "")
                  + ("，ファンON" if e["fan"] else "")
                  + ("，壁切れ補正" if e["wall_edge"] else ""))
         s90 = f"（小回り90° {e['s90_speed']:g}mm/s）" if e["s90_speed"] != float(v["turn_speed"]) else ""

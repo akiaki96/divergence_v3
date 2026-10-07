@@ -32,7 +32,8 @@ constexpr slalom::Param V90{"V90_T", "t", 90.f, Anchor::diagonal, Anchor::diagon
 constexpr slalom::Param IN135{"IN135_T", "t", 135.f, Anchor::center, Anchor::diagonal, 500.f, M, M, false};
 constexpr slalom::Param OUT135{"OUT135_T", "t", 135.f, Anchor::diagonal, Anchor::center, 500.f, M, M, false};
 constexpr DiagonalTurns D{&IN45, &OUT45, &V90, &IN135, &OUT135};
-constexpr RunPreset P{"t", 500.f, 1500.f, 1000.f, 3000.f, 3000.f, {&S90, &L90, &T180}, &D, false, true};
+constexpr RunPreset P{"t", 500.f, 500.f, 1500.f, 1000.f, 3000.f, 3000.f, {&S90, &L90, &T180}, &D, false, true,
+                      0.f, {nullptr, nullptr, nullptr}, nullptr};
 
 fast_plan::Step straight(float d, bool dia = false) {
     return {nullptr, TurnDir::left, dia, d};

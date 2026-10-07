@@ -30,6 +30,8 @@ constexpr float EDGE_FEED_LEAD_MM = 300.f;
 // ソルバーの時間は uint16_t（未到達は 0xFFFF）なので，経路の時間と足しても 65535 を超えにくい大きさにとどめる。
 // それでも S90 しかない経路になったら，fast_plan が turnMissing で走行を断る
 constexpr uint16_t S90_DISABLED_MS = 30000;
+// [ms] V90 の無い（1500mm/s 以上で設計できない）プリセットで，ソルバーの V90 のコストにする値。S90 と同じ扱い
+constexpr uint16_t V90_DISABLED_MS = 30000;
 
 // ---- プリセットの検査（ビルド時）：ターンがターンの速度・同じファンの条件で設計されていて積める ----
 constexpr bool turnUsable(const slalom::Param* t, const RunPreset& p, bool required, float speed) {
@@ -50,18 +52,20 @@ constexpr bool speedsBridgeable(const RunPreset& p) {
 constexpr bool presetUsable(const RunPreset& p) {
     // 小回り90°は斜めなしなら必須（ジグザグを曲がる），斜めありなら任意
     const slalom::Param* s90 = p.turns.s90;
-    // S90 の速度を他のターンと変えてよいのは斜めなしのときだけ（斜めのターンとのつながりは確かめていない）
+    // S90 の速度は他のターンと変えてよい（S90 の隣のターンは S90 側の口が区画中央なので，間に必ず半区画以上の直線がある）
     bool ok = turnUsable(s90, p, p.diagonal == nullptr, p.s90_speed)
            && (s90 == nullptr || (s90->entry == slalom::Anchor::edge && s90->exit == slalom::Anchor::edge))
-           && (p.s90_speed == p.turn_speed || (p.diagonal == nullptr && speedsBridgeable(p)))
+           && (p.s90_speed == p.turn_speed || speedsBridgeable(p))
            && turnUsable(p.turns.l90, p, true) && turnUsable(p.turns.t180, p, true)
            && p.max_speed >= p.turn_speed && p.max_speed >= p.s90_speed && p.max_speed_dia >= p.turn_speed
            && p.accel > 0.f && p.accel <= config::profile_limit::MAX_ACCEL_X
            && p.decel > 0.f && p.decel <= config::profile_limit::MAX_DECEL_X;
     if (p.diagonal != nullptr) {
+        // V90 は任意（無ければソルバーに選ばせない）。スタート用も同じく無いこと
         const DiagonalTurns& d = *p.diagonal;
-        ok = ok && turnUsable(d.in45, p, true) && turnUsable(d.out45, p, true) && turnUsable(d.v90, p, true)
-                && turnUsable(d.in135, p, true) && turnUsable(d.out135, p, true);
+        ok = ok && turnUsable(d.in45, p, true) && turnUsable(d.out45, p, true) && turnUsable(d.v90, p, false)
+                && turnUsable(d.in135, p, true) && turnUsable(d.out135, p, true)
+                && (p.start_diagonal == nullptr || (d.v90 == nullptr) == (p.start_diagonal->v90 == nullptr));
     }
     // スタート用のターン：start_speed で設計されていて，置いた位置から最初の区画中央までで start_speed まで加速できる
     if (p.start_speed > 0.f) {
@@ -73,7 +77,7 @@ constexpr bool presetUsable(const RunPreset& p) {
         if (p.start_diagonal != nullptr) {
             const DiagonalTurns& d = *p.start_diagonal;
             const float v = p.start_speed;
-            ok = ok && turnUsable(d.in45, p, true, v) && turnUsable(d.out45, p, true, v) && turnUsable(d.v90, p, true, v)
+            ok = ok && turnUsable(d.in45, p, true, v) && turnUsable(d.out45, p, true, v) && turnUsable(d.v90, p, false, v)
                     && turnUsable(d.in135, p, true, v) && turnUsable(d.out135, p, true, v);
         }
     }
@@ -171,6 +175,9 @@ bool plan(const RunPreset& p) {
         // （S90 の前後の半区画の直線は turn_speed のままの近似）
         float ms = 1000.f * prof.turn_dist[TURN_S90] / p.s90_speed;
         solver_options.turn_ms[TURN_S90] = static_cast<uint16_t>((ms < 60000.f) ? ms + 0.5f : 60000.f);
+    }
+    if (p.diagonal != nullptr && p.diagonal->v90 == nullptr) {
+        solver_options.turn_ms[TURN_V90] = V90_DISABLED_MS;   // V90 を使わない（斜めのジグザグは出45°・入45°か縦横で走る）
     }
 
     // 既知の壁だけで（wallone：未知は壁）最短時間の経路を求める
