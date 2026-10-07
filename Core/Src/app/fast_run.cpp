@@ -125,7 +125,40 @@ void blinkRefused() {
     ledBar16.set(0x0000);
 }
 
-// 保存した迷路とプリセットから経路を求めて g_steps にする。走れなければ理由を出して false
+// 経路を求めた迷路とソルバーの見積もり（経路の情報は走った後に出すので，それまで取っておく）
+struct PlanInfo {
+    char bank;
+    uint32_t sequence;
+    uint8_t goal_x;
+    uint8_t goal_y;
+    bool complete;
+    uint16_t solver_ms;
+};
+PlanInfo g_plan_info;
+
+void printMaze(const RunPreset& p) {
+    const PlanInfo& m = g_plan_info;
+    LOG("fast %s: maze bank %c, sequence %lu, goal (%u,%u), %s\r\n", p.name, m.bank,
+        static_cast<unsigned long>(m.sequence), m.goal_x, m.goal_y, m.complete ? "complete" : "partial");
+}
+
+// プリセットの速度と，種類ごとのターンの候補（速い順。走る経路で直線が短いところは下の候補に落ちる）
+void printPreset(const RunPreset& p) {
+    LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
+        p.name, p.turn_speed, p.max_speed, p.max_speed_dia, p.accel, p.decel,
+        p.diagonal ? "on" : "off", p.fan ? "on" : "off");
+    static const char* const KIND_NAMES[TURN_KIND_COUNT] = {"L90", "T180", "IN45", "OUT45", "IN135", "OUT135", "V90", "S90"};
+    for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
+        const TurnLadder& l = p.turns[k];
+        if (l.count == 0) continue;
+        LOG("  %s:", KIND_NAMES[k]);
+        for (uint8_t i = 0; i < l.count; ++i) LOG(" %.0f", l.list[i]->speed);
+        LOG("\r\n");
+    }
+}
+
+// 保存した迷路とプリセットから経路を求めて g_steps にする。走れなければ理由を出して false。
+// 走れるときは何も出さない（経路の情報は printPlan で走った後に出す。走る前の UART の出力を減らす）
 bool plan(const RunPreset& p) {
     uint8_t bank = 0;
     const maze_store::Record* r = maze_store::latest(&bank);
@@ -133,15 +166,15 @@ bool plan(const RunPreset& p) {
         LOG("fast %s: no saved maze (search first)\r\n", p.name);
         return false;
     }
-    LOG("fast %s: maze bank %c, sequence %lu, goal (%u,%u), %s\r\n", p.name, 'A' + bank,
-        static_cast<unsigned long>(r->sequence), r->goal_x, r->goal_y,
-        (r->flags & maze_store::FLAG_COMPLETE) ? "complete" : "partial");
+    g_plan_info = {static_cast<char>('A' + bank), r->sequence, r->goal_x, r->goal_y,
+                   (r->flags & maze_store::FLAG_COMPLETE) != 0, 0};
 
     // ソルバーの時間のコストを、このプリセットの速度とスラロームの経路長にそろえる
     solver_options_reset();
     solver_options.goal_x = r->goal_x;
     solver_options.goal_y = r->goal_y;
     if (!fast_plan::applySolverCosts(p)) {
+        printMaze(p);
         LOG("fast %s: invalid run profile\r\n", p.name);
         return false;
     }
@@ -151,38 +184,47 @@ bool plan(const RunPreset& p) {
     uint8_vector actions = time_based_dijkstra::solver_time_based_dijekstra_init();
     // 時間0でも経路はありうる（ゴール (0,1) はスタートから1区画進むだけ）ので、経路の有無で見る
     if (!time_based_dijkstra::last_path_found()) {
+        printMaze(p);
         LOG("fast %s: no path to the goal with the known walls\r\n", p.name);
         return false;
     }
+    g_plan_info.solver_ms = time_based_dijkstra::last_path_time_ms();
 
     fast_plan::Error e = fast_plan::build(actions, p, START_TO_CENTER, &g_steps);
     if (e != fast_plan::Error::none) {
+        printMaze(p);
         LOG("fast %s: cannot run the path: %s\r\n", p.name, fast_plan::errorName(e));
         return false;
     }
     std::size_t bad = 0;
     SegmentResult v = fast_plan::validate(g_steps, p, &bad);
     if (v != SegmentResult::ok) {
+        printMaze(p);
         LOG("fast %s: step %u cannot be pushed: %s\r\n", p.name, static_cast<unsigned>(bad), slalom::resultName(v));
         return false;
     }
 
-    LOG("fast %s: %u steps, solver estimate %u ms, profile estimate %.0f ms\r\n", p.name,
-        static_cast<unsigned>(g_steps.size()), time_based_dijkstra::last_path_time_ms(),
-        1000.f * fast_plan::estimatedTime(g_steps, p));
-
     g_edge_count = fast_plan::edgeBoundaries(g_steps, p, config::wall_edge::FAST_BOUNDARIES_PER_TURN,
                                              g_edge_boundaries, MAX_EDGE_BOUNDARIES);
-    LOG("fast %s: wall edge %s, %u boundaries before the center-entry turns:", p.name,
-        p.wall_edge ? "correction" : "log only", static_cast<unsigned>(g_edge_count));
-    for (std::size_t i = 0; i < g_edge_count; ++i) LOG(" %.0f", g_edge_boundaries[i]);
-    LOG("\r\n");
 
     float x0[DiagControl::MAX_RANGES];
     float x1[DiagControl::MAX_RANGES];
     std::size_t nd = fast_plan::diagonalRanges(g_steps, x0, x1, DiagControl::MAX_RANGES);
     g_diag_count = static_cast<uint8_t>(nd);
     for (uint8_t i = 0; i < g_diag_count; ++i) g_diag_ranges[i] = {x0[i], x1[i]};
+    return true;
+}
+
+// plan() で求めた経路の情報（迷路・見積もりの時間・壁切れの境界・斜めの直線・手順）
+void printPlan(const RunPreset& p) {
+    printPreset(p);
+    printMaze(p);
+    LOG("fast %s: %u steps, solver estimate %u ms, profile estimate %.0f ms\r\n", p.name,
+        static_cast<unsigned>(g_steps.size()), g_plan_info.solver_ms, 1000.f * fast_plan::estimatedTime(g_steps, p));
+    LOG("fast %s: wall edge %s, %u boundaries before the center-entry turns:", p.name,
+        p.wall_edge ? "correction" : "log only", static_cast<unsigned>(g_edge_count));
+    for (std::size_t i = 0; i < g_edge_count; ++i) LOG(" %.0f", g_edge_boundaries[i]);
+    LOG("\r\n");
     if (p.diagonal) {
         LOG("fast %s: diagonal control %s, %u diagonal straights:", p.name, p.diag_control ? "on" : "log only",
             static_cast<unsigned>(g_diag_count));
@@ -197,7 +239,6 @@ bool plan(const RunPreset& p) {
             LOG("  %2u straight%s %.1f mm\r\n", static_cast<unsigned>(i), s.diagonal ? " dia" : "", s.distance);
         }
     }
-    return true;
 }
 
 bool profileBroken() {
@@ -247,19 +288,7 @@ bool runSteps(const RunPreset& p) {
 void runFastRun(const RunPreset& preset) {
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
-    LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
-        preset.name, preset.turn_speed, preset.max_speed, preset.max_speed_dia, preset.accel, preset.decel,
-        preset.diagonal ? "on" : "off", preset.fan ? "on" : "off");
-    // 種類ごとの候補（速い順。走る経路で直線が短いところは下の候補に落ちる）
-    static const char* const KIND_NAMES[TURN_KIND_COUNT] = {"L90", "T180", "IN45", "OUT45", "IN135", "OUT135", "V90", "S90"};
-    for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
-        const TurnLadder& l = preset.turns[k];
-        if (l.count == 0) continue;
-        LOG("  %s:", KIND_NAMES[k]);
-        for (uint8_t i = 0; i < l.count; ++i) LOG(" %.0f", l.list[i]->speed);
-        LOG("\r\n");
-    }
-
+    // 走る前は，走れないときの理由だけを出す（プリセット・経路の情報は haltByAccZ の後に printPlan で出す）
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
     float v0 = battery.voltage();
@@ -269,6 +298,7 @@ void runFastRun(const RunPreset& preset) {
         return;
     }
     if (!plan(preset)) {
+        printPreset(preset);
         blinkRefused();
         return;
     }
@@ -324,6 +354,7 @@ void runFastRun(const RunPreset& preset) {
     ledBar16.set(0xFFFF);
     haltByAccZ();
 
+    printPlan(preset);
     if (g_reject_step != NO_REJECT) {
         LOG("fast %s: step %u rejected: %s\r\n", preset.name, static_cast<unsigned>(g_reject_step),
             slalom::resultName(g_reject_result));
