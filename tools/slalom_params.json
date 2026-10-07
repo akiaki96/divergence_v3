@@ -529,6 +529,63 @@
       },
       "saved_at": "2026-10-07T18:53:50",
       "autotune": "optimize"
+    },
+    "2400": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1132.0,
+      "Set_Low_AngAcl": 29670.0,
+      "Set_pri_offset": 2.6,
+      "Set_post_offset": 15.36,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 10.6,
+      "Set_Width": 86.0,
+      "fan": false,
+      "result": {
+        "acc_dist": 93.6,
+        "const_dist": 98.4,
+        "total_dist": 303.56,
+        "time_ms": 126.5
+      },
+      "saved_at": "2026-10-07T19:10:20",
+      "autotune": "optimize"
+    },
+    "2700": {
+      "Set_Speed": 2700.0,
+      "Set_low_AngVel": 1440.0,
+      "Set_Low_AngAcl": 33400.0,
+      "Set_pri_offset": 2.82,
+      "Set_post_offset": 14.14,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 10.6,
+      "Set_Width": 86.0,
+      "fan": false,
+      "result": {
+        "acc_dist": 118.8,
+        "const_dist": 51.3,
+        "total_dist": 305.86,
+        "time_ms": 113.3
+      },
+      "saved_at": "2026-10-07T19:10:20",
+      "autotune": "optimize"
+    },
+    "2400_fan": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1372.0,
+      "Set_Low_AngAcl": 33200.0,
+      "Set_pri_offset": 2.53,
+      "Set_post_offset": 55.04,
+      "Set_K_SP": 0.0048,
+      "Set_C_SP": 2.7,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 100.8,
+        "const_dist": 57.6,
+        "total_dist": 316.77,
+        "time_ms": 132.0
+      },
+      "saved_at": "2026-10-07T19:10:21",
+      "autotune": "optimize"
     }
   },
   "180°": {
@@ -870,6 +927,82 @@
         "time_ms": 204.5
       },
       "saved_at": "2026-10-07T11:06:19",
+      "autotune": "optimize"
+    },
+    "2400": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1640.2,
+      "Set_Low_AngAcl": 33229.0,
+      "Set_pri_offset": 0.0,
+      "Set_post_offset": 14.18,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 10.6,
+      "Set_Width": 86.0,
+      "fan": false,
+      "result": {
+        "acc_dist": 120.0,
+        "const_dist": 144.0,
+        "total_dist": 398.18,
+        "time_ms": 165.9
+      },
+      "saved_at": "2026-10-07T19:10:22",
+      "autotune": "optimize"
+    },
+    "2700": {
+      "Set_Speed": 2700.0,
+      "Set_low_AngVel": 1895.0,
+      "Set_Low_AngAcl": 38370.0,
+      "Set_pri_offset": 0.0,
+      "Set_post_offset": 14.08,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 10.6,
+      "Set_Width": 86.0,
+      "fan": false,
+      "result": {
+        "acc_dist": 135.0,
+        "const_dist": 121.5,
+        "total_dist": 405.58,
+        "time_ms": 150.2
+      },
+      "saved_at": "2026-10-07T19:10:23",
+      "autotune": "optimize"
+    },
+    "2400_fan": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1523.7,
+      "Set_Low_AngAcl": 37926.0,
+      "Set_pri_offset": 0.0,
+      "Set_post_offset": 53.29,
+      "Set_K_SP": 0.0048,
+      "Set_C_SP": 2.7,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 98.4,
+        "const_dist": 184.8,
+        "total_dist": 434.89,
+        "time_ms": 181.2
+      },
+      "saved_at": "2026-10-07T19:10:24",
+      "autotune": "optimize"
+    },
+    "2700_fan": {
+      "Set_Speed": 2700.0,
+      "Set_low_AngVel": 1715.2,
+      "Set_Low_AngAcl": 38029.0,
+      "Set_pri_offset": 0.0,
+      "Set_post_offset": 65.61,
+      "Set_K_SP": 0.0048,
+      "Set_C_SP": 2.7,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 124.2,
+        "const_dist": 159.3,
+        "total_dist": 473.31,
+        "time_ms": 175.3
+      },
+      "saved_at": "2026-10-07T19:10:24",
       "autotune": "optimize"
     }
   },
@@ -1479,6 +1612,44 @@
       },
       "saved_at": "2026-10-07T18:53:54",
       "autotune": "optimize"
+    },
+    "2400": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1140.0,
+      "Set_Low_AngAcl": 30090.0,
+      "Set_pri_offset": 22.3,
+      "Set_post_offset": 3.15,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 10.6,
+      "Set_Width": 86.0,
+      "fan": false,
+      "result": {
+        "acc_dist": 91.2,
+        "const_dist": 2.4,
+        "total_dist": 210.25,
+        "time_ms": 87.6
+      },
+      "saved_at": "2026-10-07T19:10:26",
+      "autotune": "optimize"
+    },
+    "2400_fan": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1108.0,
+      "Set_Low_AngAcl": 29030.0,
+      "Set_pri_offset": 2.51,
+      "Set_post_offset": 17.55,
+      "Set_K_SP": 0.0048,
+      "Set_C_SP": 2.7,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 93.6,
+        "const_dist": 4.8,
+        "total_dist": 212.06,
+        "time_ms": 88.4
+      },
+      "saved_at": "2026-10-07T19:10:27",
+      "autotune": "optimize"
     }
   },
   "V90°": {
@@ -2049,6 +2220,44 @@
       },
       "saved_at": "2026-10-07T18:54:01",
       "autotune": "optimize"
+    },
+    "2400": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1999.0,
+      "Set_Low_AngAcl": 37950.0,
+      "Set_pri_offset": 14.09,
+      "Set_post_offset": 12.61,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 10.6,
+      "Set_Width": 86.0,
+      "fan": false,
+      "result": {
+        "acc_dist": 127.2,
+        "const_dist": 36.0,
+        "total_dist": 317.1,
+        "time_ms": 132.1
+      },
+      "saved_at": "2026-10-07T19:10:29",
+      "autotune": "optimize"
+    },
+    "2400_fan": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1970.0,
+      "Set_Low_AngAcl": 37340.0,
+      "Set_pri_offset": 2.57,
+      "Set_post_offset": 39.85,
+      "Set_K_SP": 0.0048,
+      "Set_C_SP": 2.7,
+      "Set_Width": 86.0,
+      "fan": true,
+      "result": {
+        "acc_dist": 127.2,
+        "const_dist": 38.4,
+        "total_dist": 335.22,
+        "time_ms": 139.7
+      },
+      "saved_at": "2026-10-07T19:10:30",
+      "autotune": "optimize"
     }
   },
   "出135°": {
@@ -2352,6 +2561,25 @@
         "time_ms": 183.9
       },
       "saved_at": "2026-10-07T18:54:05",
+      "autotune": "optimize"
+    },
+    "2400": {
+      "Set_Speed": 2400.0,
+      "Set_low_AngVel": 1999.0,
+      "Set_Low_AngAcl": 39470.0,
+      "Set_pri_offset": 2.52,
+      "Set_post_offset": 31.88,
+      "Set_K_SP": 0.0,
+      "Set_C_SP": 10.6,
+      "Set_Width": 86.0,
+      "fan": false,
+      "result": {
+        "acc_dist": 122.4,
+        "const_dist": 40.8,
+        "total_dist": 320.0,
+        "time_ms": 133.3
+      },
+      "saved_at": "2026-10-07T19:10:31",
       "autotune": "optimize"
     }
   }

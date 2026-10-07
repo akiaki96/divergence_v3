@@ -107,9 +107,11 @@ inline constexpr float MAX_DECEL_X = 2.0f * G;         // [mm/s^2] 減速の上�
 // 回転の角加速度の上限（積むときに検査する）。[要調整] 同定していない。桁違いの指定を弾くための上限で，
 // その場旋回の試験は2500dps/s，スラロームの設計値は最大10750dps/s（小回り90° 700mm/s）。
 // スラロームが収まるよう10000から20000へ上げた（2026-10-02）。V90 1500mm/s（ω 約1350〜1440dps，α 約23000〜23700dps/s。
-// 20000以下では入口のオフセットが負になり，柱までの余裕8mmも取れない）が収まるよう25000へ上げた（2026-10-07）
-inline constexpr float MAX_ALPHA = 25000.f;   // [dps/s] 増速の上限
-inline constexpr float MAX_ALPHA_DECEL = 25000.f;   // [dps/s] 減速の上限（大きさ）
+// 20000以下では入口のオフセットが負になり，柱までの余裕8mmも取れない）が収まるよう25000へ上げた（2026-10-07）。
+// 2400・2700mm/s のスラローム（L90・T180 2700 は約32000，OUT45 2700 は約38700，IN135・OUT135 2400 は約39500dps/s）が
+// 収まるよう40000へ上げた（2026-10-07）。入45° 2400 以上（約44000〜）と 135° の 2700（約58000，ω も 2000dps 超）は入らない
+inline constexpr float MAX_ALPHA = 40000.f;   // [dps/s] 増速の上限
+inline constexpr float MAX_ALPHA_DECEL = 40000.f;   // [dps/s] 減速の上限（大きさ）
 }
 
 // 位置のP制御（並進の外側ループ）：v_cmd = v_ref + kp(x_ref − x)。積分は持たない（AxisControllerの外側PIをki=0で使う）
@@ -289,7 +291,7 @@ inline constexpr uint32_t RESERVE_SLOTS = 160;  // 探索を始めるとき，�
 }
 
 namespace config::menu {
-inline constexpr uint8_t MAX_CHILDREN = 10;  // 子ノード数の上限（現在の最大はFanの9項目）
+inline constexpr uint8_t MAX_CHILDREN = 12;  // 子ノード数の上限（現在の最大はスラロームの速度の11項目：300〜2700）
 // 全ノードの子の数の合計の上限（MenuNode が子へのポインタを詰めて置く共有の表の大きさ。1つ 4 バイト）。
 // 足りなければ起動時に "menu: child pool full" と出て，あふれた子が出なくなる
 inline constexpr uint16_t MAX_CHILD_LINKS = 512;
