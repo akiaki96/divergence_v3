@@ -16,6 +16,7 @@
 #include "device/device_instance.hpp"
 #include "device/uart.hpp"
 #include "stm32f4xx_hal.h"
+#include "device/imu_calibration.hpp"
 
 namespace {
 using config::maze::CELL_MM;
@@ -598,13 +599,8 @@ void runSearch(const SearchPreset& preset) {
     LOG("maze journal: %s%s, %lu free slots\r\n", maze_store::resultName(opened), erased ? " (bank erased)" : "",
         static_cast<unsigned long>(maze_store::journal::freeSlots()));
 
-    // IMU校正はファンを回す前に行う（振動がジャイロのオフセット推定に乗らないように。runClosedLoopTest と同じ）
-    imu.calibrate();
-    HAL_Delay(1100);
-    if (preset.fan) {
-        fan.setDuty(config::fan::RUN_DUTY);
-        HAL_Delay(config::fan::SPINUP_MS);
-    }
+    // IMU校正：ファンを回すなら，回して定常になってから（runClosedLoopTest と同じ）
+    calibrateImuForRun(preset.fan ? config::fan::RUN_DUTY : 0.f);
 
     initTraceLog();
     logger.setDirName("search");

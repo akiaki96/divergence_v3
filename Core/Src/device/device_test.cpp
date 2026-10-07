@@ -1,11 +1,11 @@
 #include "device/device_test.hpp"
 #include "common/debug.hpp"
 #include "common/wall_sensor.hpp"
+#include "device/imu_calibration.hpp"
 
 onenter(imu_acc, 
     ledBar16.set(0);
-    imu.calibrate();
-    HAL_Delay(1100);
+    calibrateImuForRun(0.f);
     ledBar16.set(0xFFFF);
     while (true) {
         LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.accelX(), imu.accelY(), imu.accelZ());
@@ -14,8 +14,7 @@ onenter(imu_acc,
 )
 onenter(imu_gyro, 
     ledBar16.set(0);
-    imu.calibrate();
-    HAL_Delay(1100);
+    calibrateImuForRun(0.f);
     ledBar16.set(0xFFFF);
     while (true) {
         LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());
@@ -25,10 +24,7 @@ onenter(imu_gyro,
 
 onenter(imu_acc_fan, 
     ledBar16.set(0);
-    fan.setDuty(0.2);
-    HAL_Delay(2000);
-    imu.calibrate();
-    HAL_Delay(1100);
+    calibrateImuForRun(0.2f);   // ファンを回して定常になってから校正（走る前と同じ手順）
     ledBar16.set(0xFFFF);
     while (true) {
         LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.accelX(), imu.accelY(), imu.accelZ());
@@ -38,10 +34,7 @@ onenter(imu_acc_fan,
 
 onenter(imu_gyro_fan, 
     ledBar16.set(0);
-    fan.setDuty(0.2);
-    HAL_Delay(2000);
-    imu.calibrate();
-    HAL_Delay(1100);
+    calibrateImuForRun(0.2f);   // ファンを回して定常になってから校正（走る前と同じ手順）
     ledBar16.set(0xFFFF);
     while (true) {
         LOG("x: %+.2f, y: %+.2f, z: %+.2f \r\n", imu.gyroAngleX(), imu.gyroAngleY(), imu.gyroAngleZ());

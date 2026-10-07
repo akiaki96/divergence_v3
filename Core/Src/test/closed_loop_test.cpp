@@ -2,6 +2,7 @@
 #include "device/device_instance.hpp"
 #include "common/etc.hpp"
 #include "common/debug.hpp"
+#include "device/imu_calibration.hpp"
 
 namespace {
 }
@@ -29,14 +30,8 @@ void runClosedLoopTest(const ClosedLoopTest& test) {
         }
     }
 
-    // IMU校正はファンを回す前に行う（振動がジャイロのオフセット推定に乗らないように）
-    imu.calibrate();
-    HAL_Delay(1100);
-
-    if (test.fan_duty > 0.f) {
-        fan.setDuty(test.fan_duty);
-        HAL_Delay(config::fan::SPINUP_MS);
-    }
+    // IMU校正：ファンを回すなら，回して定常になってから（ファンを回している間のジャイロのオフセットを測る）
+    calibrateImuForRun(test.fan_duty);
 
     // 原点の取り直し：実測（エンコーダ・角度）と目標値を同時に0にそろえる
     odometry.reset();

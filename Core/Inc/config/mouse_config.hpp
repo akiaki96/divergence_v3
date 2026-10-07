@@ -41,7 +41,9 @@ inline constexpr float IIR_ALPHA = 0.1f;
 // 吸引ファンを回して走るときのduty（スラロームの試験など。plan_profile_testの高速試験と同じ20%）
 namespace config::fan {
 inline constexpr float RUN_DUTY = 0.20f;
-inline constexpr uint32_t SPINUP_MS = 1000;   // ファンのスピンアップ待ち（吸着力が立ち上がるまで）
+// ファンを回してから IMU を校正するまでの待ち。回転・振動・電源電圧（ファンの電流で電池の電圧が下がる）が
+// 定常になってからジャイロのオフセットを測る（device_test の imu_*_fan で試した 2s）
+inline constexpr uint32_t STEADY_MS = 2000;
 }
 
 namespace config::motor {

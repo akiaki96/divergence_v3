@@ -8,6 +8,7 @@
 #include "common/etc.hpp"
 #include "device/device_instance.hpp"
 #include "time_based_dijkstra.hpp"
+#include "device/imu_calibration.hpp"
 
 namespace {
 using config::maze::CELL_MM;
@@ -278,13 +279,8 @@ void runFastRun(const RunPreset& preset) {
         return;
     }
 
-    // ここから先は runSearch と同じ準備（IMU校正はファンを回す前）
-    imu.calibrate();
-    HAL_Delay(1100);
-    if (preset.fan) {
-        fan.setDuty(config::fan::RUN_DUTY);
-        HAL_Delay(config::fan::SPINUP_MS);
-    }
+    // ここから先は runSearch と同じ準備（IMU校正：ファンを回すなら，回して定常になってから）
+    calibrateImuForRun(preset.fan ? config::fan::RUN_DUTY : 0.f);
 
     initTraceLog();
     logger.setDirName("fast");
