@@ -149,6 +149,18 @@
       "outward": 5,
       "longitudinal": 1,
       "note": "2026-10-07 ファンOFF，左旋回（設計は c=10.6 前提。ログだけで外側約-10/前後約+10 になるのは設計の滑りの見込み）"
+    },
+    {
+      "log": "slalom/S90_500_right_2.csv",
+      "outward": -3,
+      "longitudinal": 3,
+      "note": "2026-10-07 ファンOFF，右旋回（設計は c=10.6 前提。同じ日の左旋回と比べて c_eff が約 8mm 大きい）"
+    },
+    {
+      "log": "slalom/L90_500_right_2.csv",
+      "outward": -5,
+      "longitudinal": 4,
+      "note": "2026-10-07 ファンOFF，右旋回（設計は c=10.6 前提。同じ日の左旋回と比べて c_eff が約 8mm 大きい）"
     }
   ]
 }
