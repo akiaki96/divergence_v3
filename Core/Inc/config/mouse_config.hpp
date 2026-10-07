@@ -287,6 +287,9 @@ inline constexpr uint32_t RESERVE_SLOTS = 160;  // 探索を始めるとき，�
 
 namespace config::menu {
 inline constexpr uint8_t MAX_CHILDREN = 10;  // 子ノード数の上限（現在の最大はFanの9項目）
+// 全ノードの子の数の合計の上限（MenuNode が子へのポインタを詰めて置く共有の表の大きさ。1つ 4 バイト）。
+// 足りなければ起動時に "menu: child pool full" と出て，あふれた子が出なくなる
+inline constexpr uint16_t MAX_CHILD_LINKS = 512;
 }
 
 namespace config::mode_selector {

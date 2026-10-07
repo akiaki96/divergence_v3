@@ -21,7 +21,7 @@ public:
     }
 
     const MenuNode* child(uint8_t index) const {
-        return (index < childCount_) ? children_[index] : nullptr;
+        return (index < childCount_) ? childPool_[childFirst_ + index] : nullptr;
     }
 
     const uint8_t childCount() const {
@@ -55,28 +55,26 @@ public:
     template<std::size_t N>
     void setChildren(const std::array<MenuNode*, N>& children) {
         static_assert(N <= config::menu::MAX_CHILDREN);
-        childCount_ = N;
-        for (std::size_t i = 0; i < N; ++i) {
-            children_[i] = children[i];
-        }
+        setChildren(children.data(), N);
     }
 
     // children[0]からcount個を子にする（個数がノードごとに違う，生成した表から並べるとき用）。
-    // 上限の検査は呼び出し側でstatic_assertすること（ここではMAX_CHILDRENで切り詰める）
-    void setChildren(MenuNode* const* children, std::size_t count) {
-        childCount_ = (count < config::menu::MAX_CHILDREN) ? count : config::menu::MAX_CHILDREN;
-        for (std::size_t i = 0; i < childCount_; ++i) {
-            children_[i] = children[i];
-        }
-    }
+    // 上限の検査は呼び出し側でstatic_assertすること（ここではMAX_CHILDRENで切り詰める）。
+    // 子へのポインタは全ノードで共有する表（childPool_）の続きに写す。メニューを組み立てるとき（起動時）に
+    // ノードごとに1回だけ呼ぶこと（呼び直すと表を余分に使う）
+    void setChildren(MenuNode* const* children, std::size_t count);
 
 private:
+    // 子へのポインタの共有の表。ノードの大半は葉なので，ノードごとに MAX_CHILDREN 個の配列を持つより RAM が少ない
+    static MenuNode* childPool_[config::menu::MAX_CHILD_LINKS];
+    static uint16_t childPoolUsed_;
+
     const char* name_;
     MenuNode* parent_ = nullptr;
 
-    std::array<MenuNode*, config::menu::MAX_CHILDREN> children_{};
-    uint8_t childCount_ = 0;
-
     MenuAction onSelected_ = nullptr;
     MenuAction onEnter_ = nullptr;
+
+    uint16_t childFirst_ = 0;   // 子は childPool_[childFirst_] から childCount_ 個
+    uint8_t childCount_ = 0;
 };
