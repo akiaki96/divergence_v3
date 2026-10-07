@@ -106,9 +106,10 @@ inline constexpr float MAX_DECEL_X = 2.0f * G;         // [mm/s^2] 減速の上�
 
 // 回転の角加速度の上限（積むときに検査する）。[要調整] 同定していない。桁違いの指定を弾くための上限で，
 // その場旋回の試験は2500dps/s，スラロームの設計値は最大10750dps/s（小回り90° 700mm/s）。
-// スラロームが収まるよう10000から20000へ上げた（2026-10-02）
-inline constexpr float MAX_ALPHA = 20000.f;   // [dps/s] 増速の上限
-inline constexpr float MAX_ALPHA_DECEL = 20000.f;   // [dps/s] 減速の上限（大きさ）
+// スラロームが収まるよう10000から20000へ上げた（2026-10-02）。V90 1500mm/s（ω 約1350〜1440dps，α 約23000〜23700dps/s。
+// 20000以下では入口のオフセットが負になり，柱までの余裕8mmも取れない）が収まるよう25000へ上げた（2026-10-07）
+inline constexpr float MAX_ALPHA = 25000.f;   // [dps/s] 増速の上限
+inline constexpr float MAX_ALPHA_DECEL = 25000.f;   // [dps/s] 減速の上限（大きさ）
 }
 
 // 位置のP制御（並進の外側ループ）：v_cmd = v_ref + kp(x_ref − x)。積分は持たない（AxisControllerの外側PIをki=0で使う）
