@@ -18,5 +18,173 @@
     "diagonal": true,
     "wall_edge": true,
     "note": "斜めあり（斜めのターンは実機で未試験）"
+  },
+  "300": {
+    "turn_speed": 300,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "wall_edge": true,
+    "note": "2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "300_dia": {
+    "turn_speed": 300,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "wall_edge": true,
+    "note": "斜めあり，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "600": {
+    "turn_speed": 600,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "wall_edge": true,
+    "note": "2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "600_dia": {
+    "turn_speed": 600,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "wall_edge": true,
+    "note": "斜めあり，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "700": {
+    "turn_speed": 700,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "wall_edge": true,
+    "note": "2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "700_dia": {
+    "turn_speed": 700,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "wall_edge": true,
+    "note": "斜めあり，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "900": {
+    "turn_speed": 900,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "wall_edge": true,
+    "note": "2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "900_dia": {
+    "turn_speed": 900,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "wall_edge": true,
+    "note": "斜めあり，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "300_fan": {
+    "turn_speed": 300,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "300_fan_dia": {
+    "turn_speed": 300,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，斜めあり，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "500_fan": {
+    "turn_speed": 500,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "600_fan": {
+    "turn_speed": 600,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "600_fan_dia": {
+    "turn_speed": 600,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，斜めあり，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "700_fan": {
+    "turn_speed": 700,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "900_fan": {
+    "turn_speed": 900,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
+  },
+  "900_fan_dia": {
+    "turn_speed": 900,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "fan": true,
+    "wall_edge": true,
+    "note": "ファンON，斜めあり，2026-10-07 に slalom_autotune で作ったスラローム（実機で未試験）。直線は 500 と同じ値"
   }
 }

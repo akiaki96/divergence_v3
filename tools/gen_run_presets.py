@@ -97,6 +97,8 @@ def build_entries(presets, slalom_params):
         })
     if not entries:
         raise GenError("run_presets.json にプリセットがありません")
+    # メニューは Fast → ファン（OFF / ON）→ プリセット なので，ファンOFFを先に並べる（同じファンの中は書いた順）
+    entries.sort(key=lambda e: e["fan"])
     return entries
 
 
@@ -132,10 +134,21 @@ def render(entries):
             f"{'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, {'true' if e['fan'] else 'false'}, "
             f"{'true' if e['wall_edge'] else 'false'}}};")
         out.append("")
-    out.append("// メニューに並べる順（run_presets.json に書いた順）")
+    out.append("// メニューに並べる順（ファンOFFが先，同じファンの中は run_presets.json に書いた順）")
     out.append(f"inline constexpr std::array<RunPreset, {len(entries)}> PRESETS = {{")
     out += [f"    {e['ident']}," for e in entries]
-    out += ["};", "", "} // namespace config::run", ""]
+    out += ["};", ""]
+    # メニューのファンの段：PRESETS[first]からcount個（並べ替え済みなので同じファンは連続している）
+    fans = []
+    for i, e in enumerate(entries):
+        if fans and fans[-1][0] == e["fan"]:
+            fans[-1][2] += 1
+        else:
+            fans.append([e["fan"], i, 1])
+    out.append("// メニューのファンの段：PRESETS[first]からcount個（Run → Fast → ファン → プリセット）")
+    out.append(f"inline constexpr std::array<::slalom::MenuGroup, {len(fans)}> FANS = {{{{")
+    out += [f"    {{\"{'fan on' if fan else 'fan off'}\", {first}, {count}}}," for fan, first, count in fans]
+    out += ["}};", "", "} // namespace config::run", ""]
     return "\n".join(out)
 
 

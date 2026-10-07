@@ -29,8 +29,14 @@ static_assert(config::search::PRESETS.size() <= config::menu::MAX_CHILDREN,
               "search presets exceed config::menu::MAX_CHILDREN");
 static_assert(config::search::TEST_PRESETS.size() <= config::menu::MAX_CHILDREN,
               "test search presets exceed config::menu::MAX_CHILDREN");
-static_assert(config::run::PRESETS.size() <= config::menu::MAX_CHILDREN,
-              "run presets exceed config::menu::MAX_CHILDREN");
+// 最短走行は Run → Fast → ファン → プリセット：ファンの段・ファンごとのプリセットとも上限に収まるか
+constexpr bool fastFitsMenu() {
+    for (const auto& fan : config::run::FANS) {
+        if (fan.count > config::menu::MAX_CHILDREN) return false;
+    }
+    return config::run::FANS.size() <= config::menu::MAX_CHILDREN;
+}
+static_assert(fastFitsMenu(), "run presets (per fan) exceed config::menu::MAX_CHILDREN");
 
 class Menu {
 public:
@@ -62,7 +68,8 @@ private:
         return {MenuNode(config::search::PRESETS[I].name, nullptr, &search_onenter<I>)...};
     }
 
-    // 最短走行：Run → Fast → プリセット（config::run::PRESETS，tools/run_presets.json の順）
+    // 最短走行：Run → Fast → ファン（config::run::FANS）→ プリセット（config::run::PRESETS，ファンOFFが先，
+    // 同じファンの中は tools/run_presets.json の順）
     template <std::size_t... I>
     static std::array<MenuNode, sizeof...(I)> fastNodes(std::index_sequence<I...>) {
         return {MenuNode(config::run::PRESETS[I].name, nullptr, &fast_onenter<I>)...};
@@ -75,7 +82,7 @@ private:
     }
 
     template <std::size_t N, std::size_t... K>
-    static std::array<MenuNode, sizeof...(K)> slalomGroupNodes(const std::array<slalom::MenuGroup, N>& groups,
+    static std::array<MenuNode, sizeof...(K)> groupNodes(const std::array<slalom::MenuGroup, N>& groups,
                                                               std::index_sequence<K...>) {
         return {MenuNode(groups[K].name)...};
     }
@@ -121,8 +128,10 @@ private:
             std::array<MenuNode, config::search::PRESETS.size()> search_presets_ =
                 searchNodes(std::make_index_sequence<config::search::PRESETS.size()>{});
         MenuNode fast_{"Fast"};   // 最短走行（app/fast_run.hpp）。保存した迷路を使う
-            std::array<MenuNode, config::run::PRESETS.size()> fast_presets_ =
-                fastNodes(std::make_index_sequence<config::run::PRESETS.size()>{});
+            std::array<MenuNode, config::run::FANS.size()> fast_fans_ =
+                groupNodes(config::run::FANS, std::make_index_sequence<config::run::FANS.size()>{});
+                std::array<MenuNode, config::run::PRESETS.size()> fast_presets_ =
+                    fastNodes(std::make_index_sequence<config::run::PRESETS.size()>{});
         MenuNode maze_{"Maze"};   // 保存した迷路（app/maze_store.hpp）
             MenuNode maze_show_{"Show"};
             MenuNode maze_clear_{"Clear"};
@@ -194,12 +203,12 @@ private:
 
     MenuNode slalom_{"Slalom"};
         MenuNode slalom_left_{"Slalom left"};
-            std::array<MenuNode, config::slalom::FANS.size()> slalom_left_fans_ = slalomGroupNodes(config::slalom::FANS, SLALOM_FAN_INDICES);
-                std::array<MenuNode, config::slalom::SPEEDS.size()> slalom_left_speeds_ = slalomGroupNodes(config::slalom::SPEEDS, SLALOM_SPEED_INDICES);
+            std::array<MenuNode, config::slalom::FANS.size()> slalom_left_fans_ = groupNodes(config::slalom::FANS, SLALOM_FAN_INDICES);
+                std::array<MenuNode, config::slalom::SPEEDS.size()> slalom_left_speeds_ = groupNodes(config::slalom::SPEEDS, SLALOM_SPEED_INDICES);
                     std::array<MenuNode, config::slalom::ALL.size()> slalom_left_turns_ = slalomTurnNodes<slalom::TurnDir::left>(SLALOM_PARAM_INDICES);
         MenuNode slalom_right_{"Slalom right"};
-            std::array<MenuNode, config::slalom::FANS.size()> slalom_right_fans_ = slalomGroupNodes(config::slalom::FANS, SLALOM_FAN_INDICES);
-                std::array<MenuNode, config::slalom::SPEEDS.size()> slalom_right_speeds_ = slalomGroupNodes(config::slalom::SPEEDS, SLALOM_SPEED_INDICES);
+            std::array<MenuNode, config::slalom::FANS.size()> slalom_right_fans_ = groupNodes(config::slalom::FANS, SLALOM_FAN_INDICES);
+                std::array<MenuNode, config::slalom::SPEEDS.size()> slalom_right_speeds_ = groupNodes(config::slalom::SPEEDS, SLALOM_SPEED_INDICES);
                     std::array<MenuNode, config::slalom::ALL.size()> slalom_right_turns_ = slalomTurnNodes<slalom::TurnDir::right>(SLALOM_PARAM_INDICES);
         MenuNode axle_check_{"Axle check"};   // BACK_TO_AXLE_MMの確認（test/axle_check_test.hpp）
             MenuNode axle_check_n1_{"n=1", nullptr, &axle_check_onenter<1>};

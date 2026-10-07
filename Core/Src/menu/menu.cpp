@@ -18,7 +18,8 @@ void Menu::buildTree() {
 
         run_.setChildren(std::array{&search_, &fast_, &maze_});
             search_.setChildren(pointersOf(search_presets_));
-            fast_.setChildren(pointersOf(fast_presets_));
+            fast_.setChildren(pointersOf(fast_fans_));
+                linkGroups(fast_fans_, config::run::FANS, fast_presets_);
             maze_.setChildren(std::array{&maze_show_, &maze_clear_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
@@ -35,7 +36,7 @@ void Menu::buildTree() {
                 plan_rotation_.setChildren(std::array{&plan_turn_pos430_, &plan_turn_neg430_});
                 rotation_.setChildren(std::array{&rot_angle_hold_, &rot_pivot_pos90_, &rot_pivot_neg90_, &rot_pivot_pos180_, &rot_pivot_neg180_});
 
-    // ファン・速度・種類のノードは生成ヘッダから並べる（menu.hppのslalomGroupNodes() / slalomTurnNodes()）
+    // ファン・速度・種類のノードは生成ヘッダから並べる（menu.hppのgroupNodes() / slalomTurnNodes()）
     slalom_.setChildren(std::array{&slalom_left_, &slalom_right_, &axle_check_});
         axle_check_.setChildren(std::array{&axle_check_n1_, &axle_check_n2_, &axle_check_n4_, &axle_check_n8_});
         linkSlalom(slalom_left_, slalom_left_fans_, slalom_left_speeds_, slalom_left_turns_);
