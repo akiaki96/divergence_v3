@@ -29,7 +29,7 @@ import sys
 import numpy as np
 
 import slalom_sim as S
-from slalom_presets import PRESET_LIST, parse_speed_key
+from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 PARAMS_PATH = os.path.join(TOOLS_DIR, "slalom_params.json")
@@ -262,17 +262,46 @@ def write_params(data):
     os.replace(tmp, PARAMS_PATH)
 
 
+def seed_entry(entries, speed, fan):
+    """新しく作るエントリの種：同じターン・同じファンの中で速度がいちばん近いエントリを，速度に合わせて伸ばしたもの
+    （ω は速度比倍，α は速度比の2乗倍で，滑りがなければ同じ軌跡になる）。同じファンがなければ None"""
+    same = [(k, e) for k, e in entries.items() if parse_speed_key(k)[1] == fan and k == make_speed_key(*parse_speed_key(k))]
+    if not same:
+        return None, None
+    key, base = min(same, key=lambda kv: abs(parse_speed_key(kv[0])[0] - speed))
+    r = speed / base["Set_Speed"]
+    e = dict(base)
+    e.update({"Set_Speed": float(speed), "Set_low_AngVel": base["Set_low_AngVel"] * r,
+              "Set_Low_AngAcl": base["Set_Low_AngAcl"] * r * r, "fan": fan})
+    for k in ("result", "saved_at", "autotune"):
+        e.pop(k, None)
+    return key, e
+
+
 def selected(args, params):
+    """(プリセット, 速度のキー, エントリ, 種のキー)。--create なら --speed のうち無いものを種から作る（種のキーは新規のときだけ）"""
     for p in PRESET_LIST:
         if args.turn and p.cpp_name not in args.turn:
             continue
-        for key, e in sorted(params.get(p.label, {}).items(), key=lambda kv: parse_speed_key(kv[0])):
+        entries = params.get(p.label, {})
+        items = [(key, e, None) for key, e in entries.items()]
+        if args.create:
+            fans = [False, True] if args.fan == "all" else [args.fan == "on"]
+            for speed in args.speed:
+                for fan in fans:
+                    key = make_speed_key(speed, fan)
+                    if key in entries:
+                        continue
+                    seed_key, e = seed_entry(entries, speed, fan)
+                    if e is not None:
+                        items.append((key, e, seed_key))
+        for key, e, seed_key in sorted(items, key=lambda it: parse_speed_key(it[0])):
             speed, fan = parse_speed_key(key)
             if args.speed and speed not in args.speed:
                 continue
             if args.fan != "all" and fan != (args.fan == "on"):
                 continue
-            yield p, key, e
+            yield p, key, e, seed_key
 
 
 def main():
@@ -290,23 +319,27 @@ def main():
     ap.add_argument("--slack", type=float, default=0.01,
                     help="optimize: 最短時間からこの割合だけ遅い候補まで含めて，α が最小のものを選ぶ（既定 0.01 = 1%%）")
     ap.add_argument("--omega-max", type=float, help="optimize: ω の上限 [dps]（既定 2000 まで探す）")
+    ap.add_argument("--create", action="store_true",
+                    help="--speed のうち slalom_params.json に無い速度のエントリを，同じターン・ファンのいちばん近い速度から作る")
     ap.add_argument("--write", action="store_true", help="slalom_params.json に書く")
     args = ap.parse_args()
 
     if (args.c is not None or args.k is not None) and args.fan == "all":
         ap.error("--c / --k はファンの有無で違うので，--fan off か --fan on と一緒に指定する")
+    if args.create and not args.speed:
+        ap.error("--create は作る速度を --speed で指定する")
     alpha_max = min(args.alpha_max or MAX_ALPHA, MAX_ALPHA, MAX_ALPHA_DECEL)
 
     params = load_json(PARAMS_PATH)
     results = []
-    for p, key, e in selected(args, params):
+    for p, key, e, seed_key in selected(args, params):
         c = e.get("Set_C_SP", 0.0) if args.c is None else args.c
         k = e.get("Set_K_SP", 0.0) if args.k is None else args.k
         width = e.get("Set_Width", 86.0)
         now = Design(p, e["Set_Speed"], e["Set_low_AngVel"], e["Set_Low_AngAcl"], e["Set_pri_offset"],
                      e["Set_post_offset"], c, k, width)
-        print(f"{p.cpp_name}_{key}  c={c:g}mm K={k:g}")
-        print(f"  今 {now.row()}")
+        print(f"{p.cpp_name}_{key}  c={c:g}mm K={k:g}" + (f"  （新規：{seed_key} を速度に合わせて伸ばした初期値）" if seed_key else ""))
+        print(f"  {'種' if seed_key else '今'} {now.row()}")
         try:
             new = refit(p, e, c, k) if args.mode == "refit" else optimize(p, e, c, k, args, alpha_max)
         except AutotuneError as ex:
@@ -338,7 +371,7 @@ def main():
     now_s = datetime.datetime.now().isoformat(timespec="seconds")
     stale = []
     for p, key, e, d in results:
-        entry = dict(data[p.label][key])
+        entry = dict(data.get(p.label, {}).get(key, e))   # 新しく作ったエントリは種から
         entry.update({
             "Set_low_AngVel": float(d.omega), "Set_Low_AngAcl": float(d.alpha),
             "Set_pri_offset": float(d.pre), "Set_post_offset": float(d.post),
@@ -348,7 +381,7 @@ def main():
             "saved_at": now_s,
             "autotune": args.mode,
         })
-        data[p.label][key] = entry
+        data.setdefault(p.label, {})[key] = entry
         if key in tuning.get(p.label, {}):
             stale.append(f"{p.label} / {key}")
     write_params(data)
