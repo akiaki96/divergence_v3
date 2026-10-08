@@ -236,6 +236,11 @@ inline constexpr bool SEARCH_CORRECTION = true;
 // 最短走行（app/fast_run.cpp）：入口が区画中央のターン（L90・T180・IN45・IN135）の手前の区画境界をいくつ教えるか。
 // 直前の境界で横壁が切れなくても，その1つ前で合わせられるように2つ。補正をかけるかはプリセットの "wall_edge"
 inline constexpr int FAST_BOUNDARIES_PER_TURN = 2;
+// 最短走行：入口の半区画先の境界（入口 + 90）も教えるか。横のセンサーは約 91 mm 先を見るので，壁切れは区画中央（入口）の
+// 約 1 mm 手前で起きる。ターンの先の区画は曲がる側の壁がないので，入口の区画に曲がる側の壁があれば必ず切れる
+// （手前の境界は「1区画手前まで壁があり入口の区画で壁がない」ときだけ）。直前の直線が 41 mm 以上なら教える。
+// 窓の後ろ半分はターンが始まった後（入口オフセットは 900 mm/s の L90 で約 1 mm）なので，遅れた壁切れは検出できない
+inline constexpr bool FAST_CENTER_BOUNDARY = true;
 }
 
 // 斜めの直線の柱・壁の切れ目（common/diag_edge.hpp，試験は test/diag_sensor_test.hpp，手順は tools/DIAGONAL.md）。

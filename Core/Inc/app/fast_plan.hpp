@@ -81,9 +81,11 @@ float estimatedTime(const Steps& steps, const RunPreset& p);
 
 // 壁切れの補正（common/wall_edge.hpp）に教える区画境界。入口が区画中央のターン（大回り90°・180°・入45°・入135°）の
 // 手前の縦横の直線にある境界（入口 − 半区画，さらに1区画ずつ手前）を，ターンごとに最大 per_turn 個。
-// 壁切れを検出する予想位置（窓の幅も含めて）が直線の中に収まる境界だけ（ターンの直後の短い直線では検出できない）。
+// center なら入口 + 半区画の境界も（壁切れは入口の約 1 mm 手前，区画中央に着いたところで起きる）。
+// 壁切れの予想位置から窓の幅を引いたところが直線の中に収まる境界だけ（ターンの直後の短い直線では検出できない）。
 // 位置は経路に沿った距離で，置いた位置が 0（Odometry::positionX と同じ座標）。小さい順に out に入れ，数を返す
-std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, float* out, std::size_t max);
+std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, bool center, float* out,
+                           std::size_t max);
 
 // 斜めの直線の位置の範囲（斜めの姿勢制御 common/diag_control.hpp に教える）。前のターンの出口の基準点から
 // 次のターンの入口の基準点まで（スラロームの入口・出口のオフセットは含まない）。座標は edgeBoundaries と同じ。

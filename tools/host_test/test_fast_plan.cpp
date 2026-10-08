@@ -160,18 +160,18 @@ void testLongShortStraights() {
     steps.push_back(straight(41.f));
 
     float out[8];
-    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, out, 8);
+    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, false, out, 8);
     const float x2 = 900.f + d90 + 2.f * CELL_MM;
     check(n == 3, "3 boundaries (2 + 1 + 0)");
     check(n >= 1 && near(out[0], 900.f - HALF_MM - CELL_MM), "first turn: entry - 270");
     check(n >= 2 && near(out[1], 900.f - HALF_MM), "first turn: entry - 90");
     check(n >= 3 && near(out[2], x2 - HALF_MM), "second turn: entry - 90 (after the previous turn's length)");
 
-    n = fast_plan::edgeBoundaries(steps, P, 1, out, 8);
+    n = fast_plan::edgeBoundaries(steps, P, 1, false, out, 8);
     check(n == 2 && near(out[0], 900.f - HALF_MM) && near(out[1], x2 - HALF_MM), "per_turn 1: last boundary only");
-    n = fast_plan::edgeBoundaries(steps, P, 0, out, 8);
+    n = fast_plan::edgeBoundaries(steps, P, 0, false, out, 8);
     check(n == 0, "per_turn 0: none");
-    n = fast_plan::edgeBoundaries(steps, P, 2, out, 1);
+    n = fast_plan::edgeBoundaries(steps, P, 2, false, out, 1);
     check(n == 1 && near(out[0], 900.f - HALF_MM - CELL_MM), "max caps the output");
 }
 
@@ -185,7 +185,7 @@ void testOtherTurns() {
     steps.push_back(turn(L90, TurnDir::right));       // 直前がターン：教えない
     steps.push_back(straight(41.f));
     float out[8];
-    check(fast_plan::edgeBoundaries(steps, P, 2, out, 8) == 0, "no boundaries");
+    check(fast_plan::edgeBoundaries(steps, P, 2, false, out, 8) == 0, "no boundaries");
 }
 
 void testDiagonalTurns() {
@@ -209,7 +209,7 @@ void testDiagonalTurns() {
         x += (steps[i].turn != nullptr) ? slalom::totalDistance(*steps[i].turn, steps[i].dir) : steps[i].distance;
     }
     float out[8];
-    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, out, 8);
+    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, false, out, 8);
     check(n == 4, "4 boundaries (IN45 2 + IN135 2)");
     check(n >= 2 && near(out[0], 900.f - HALF_MM - CELL_MM) && near(out[1], 900.f - HALF_MM), "IN45: entry - 270, - 90");
     check(n >= 4 && near(out[2], x - HALF_MM - CELL_MM) && near(out[3], x - HALF_MM), "IN135: entry - 270, - 90");
@@ -253,10 +253,50 @@ void testFirstStraightLimit() {
     steps.push_back(turn(L90, TurnDir::right));
     steps.push_back(straight(41.f));
     float out[8];
-    check(fast_plan::edgeBoundaries(steps, P, 2, out, 8) == 0, "220 mm: none");
+    check(fast_plan::edgeBoundaries(steps, P, 2, false, out, 8) == 0, "220 mm: none");
     steps[0].distance = 240.f;   // 150 − 111 = 39 ≥ 20
-    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, out, 8);
+    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, false, out, 8);
     check(n == 1 && near(out[0], 150.f), "240 mm: entry - 90");
+}
+void testCenterBoundary() {
+    std::printf("center: the boundary half a cell past the entry (seen when the axle reaches the cell center)\n");
+    const float d90 = slalom::totalDistance(L90, TurnDir::right);
+    const float d180 = slalom::totalDistance(T180, TurnDir::left);
+    fast_plan::Steps steps;
+    steps.push_back(straight(900.f));                 // 入口 900：手前 2 + 入口 + 90
+    steps.push_back(turn(L90, TurnDir::right));
+    steps.push_back(straight(CELL_MM));               // 180：手前はなし，入口 + 90 だけ
+    steps.push_back(turn(T180, TurnDir::left));
+    steps.push_back(straight(40.f));                  // 40：入口 + 90 の窓の始まり（入口 − 21）− 20 が直線の前 → なし
+    steps.push_back(turn(L90, TurnDir::left));
+    steps.push_back(straight(41.f));                  // 41：ちょうど入る
+    steps.push_back(turn(L90, TurnDir::right));
+    steps.push_back(straight(41.f));
+
+    const float x2 = 900.f + d90 + CELL_MM;
+    const float x3 = x2 + d180 + 40.f;
+    const float x4 = x3 + d90 + 41.f;
+    float out[8];
+    std::size_t n = fast_plan::edgeBoundaries(steps, P, 2, true, out, 8);
+    check(n == 5, "5 boundaries (2 + 1 + 1, 0, 1)");
+    check(n >= 3 && near(out[0], 900.f - HALF_MM - CELL_MM) && near(out[1], 900.f - HALF_MM) &&
+              near(out[2], 900.f + HALF_MM), "first turn: entry - 270, - 90, + 90 (ascending)");
+    check(n >= 4 && near(out[3], x2 + HALF_MM), "1-cell straight: entry + 90 only");
+    check(n >= 5 && near(out[4], x4 + HALF_MM), "41 mm straight: entry + 90 (40 mm: none)");
+    (void)x3;
+    check(fast_plan::edgeBoundaries(steps, P, 2, false, out, 8) == 2, "center false: entry - 270, - 90 only");
+    check(fast_plan::edgeBoundaries(steps, P, 0, true, out, 8) == 3, "per_turn 0: entry + 90 only");
+    check(fast_plan::edgeBoundaries(steps, P, 2, true, out, 2) == 2, "max caps the output");
+
+    // 小回り・斜めから入るターン・ターンの直後のターンには，入口 + 90 も教えない
+    fast_plan::Steps other;
+    other.push_back(straight(900.f));
+    other.push_back(turn(S90, TurnDir::left));
+    other.push_back(straight(900.f, true));
+    other.push_back(turn(OUT45, TurnDir::right));
+    other.push_back(turn(L90, TurnDir::right));
+    other.push_back(straight(41.f));
+    check(fast_plan::edgeBoundaries(other, P, 2, true, out, 8) == 0, "S90 / OUT45 / turn-to-turn: none");
 }
 } // namespace
 
@@ -265,6 +305,7 @@ int main() {
     testOtherTurns();
     testDiagonalTurns();
     testFirstStraightLimit();
+    testCenterBoundary();
     testFitSpeeds();
     std::printf("test_fast_plan: %s (%d failures)\n", g_failures == 0 ? "PASS" : "FAIL", g_failures);
     return g_failures == 0 ? 0 : 1;

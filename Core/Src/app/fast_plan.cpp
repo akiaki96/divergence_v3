@@ -248,7 +248,8 @@ float estimatedTime(const Steps& steps, const RunPreset& p) {
     return t;
 }
 
-std::size_t edgeBoundaries(const Steps& steps, const RunPreset& /*p*/, int per_turn, float* out, std::size_t max) {
+std::size_t edgeBoundaries(const Steps& steps, const RunPreset& /*p*/, int per_turn, bool center, float* out,
+                           std::size_t max) {
     using namespace config::wall_edge;
     std::size_t n = 0;
     float x = 0.f;   // 手順 i の始めの位置
@@ -265,19 +266,22 @@ std::size_t edgeBoundaries(const Steps& steps, const RunPreset& /*p*/, int per_t
         bool from_center = (s.turn->entry == slalom::Anchor::center);
         if (from_center && prev != nullptr && prev->turn == nullptr && !prev->diagonal) {
             const float straight_start = x - prev->distance;
-            // 入口に近い境界から per_turn 個まで数えてから，位置の小さい順に入れる
-            int k = 0;
-            while (k < per_turn) {
-                float b = x - HALF_MM - static_cast<float>(k) * CELL_MM;
+            // 境界 b の壁切れを直線の中で検出できるか：予想位置から窓の幅を引いたところまでに，
+            // 直線に入ってから MIN_WALL_MM 以上壁を見ていないと壁切れにならない
+            auto detectable = [&](float b) {
                 float earliest = std::min(WallEdge::expectedX(WallEdge::left, b, s.turn->speed),
                                           WallEdge::expectedX(WallEdge::right, b, s.turn->speed)) - WINDOW_MM;
-                // 直線に入ってから MIN_WALL_MM 以上壁を見ていないと壁切れにならない
-                if (earliest - MIN_WALL_MM < straight_start) break;
-                ++k;
-            }
+                return earliest - MIN_WALL_MM >= straight_start;
+            };
+            // 入口に近い境界から per_turn 個まで数えてから，位置の小さい順に入れる
+            int k = 0;
+            while (k < per_turn && detectable(x - HALF_MM - static_cast<float>(k) * CELL_MM)) ++k;
             for (int j = k - 1; j >= 0 && n < max; --j) {
                 out[n++] = x - HALF_MM - static_cast<float>(j) * CELL_MM;
             }
+            // 入口の半区画先の境界：横のセンサーは車軸の約 91 mm 先を見るので，区画中央（入口）に着いたところで
+            // 検出する。ターンの先の区画は曲がる側の壁がないので，入口の区画に曲がる側の壁があれば必ず切れる
+            if (center && n < max && detectable(x + HALF_MM)) out[n++] = x + HALF_MM;
         }
         x += slalom::totalDistance(*s.turn, s.dir);
     }
