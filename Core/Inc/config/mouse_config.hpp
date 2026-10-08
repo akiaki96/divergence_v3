@@ -196,6 +196,9 @@ inline constexpr float KP_PER_VELOCITY = 5.5e-4f;   // [dps/count per mm/s] 中�
 // 補正の角速度の上限も v に比例させる（曲率の上限。500 mm/s で前と同じ 90 dps）
 inline constexpr float MAX_OMEGA_PER_VELOCITY = 0.18f;   // [dps per mm/s]
 inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いとき（停止・超信地旋回）は補正しない
+// 最短走行でも縦横の直線（fast_plan::orthogonalRanges。斜めの直線・スラロームのオフセットは除く）で補正するか。
+// 補正で蛇行するとエンコーダの距離ほど前へ進まず，ターンの入口に届かなくなりがち → 壁切れの補正（config::wall_edge）で合わせる
+inline constexpr bool FAST_RUN_CONTROL = true;
 }
 
 // 壁切れによる距離の補正（common/wall_edge.hpp）。直進中に横のセンサー（左・右）の値が下がった

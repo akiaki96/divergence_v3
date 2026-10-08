@@ -99,6 +99,13 @@ std::size_t g_edge_next = 0;
 DiagControl::Range g_diag_ranges[DiagControl::MAX_RANGES];
 uint8_t g_diag_count = 0;
 
+// 縦横の直線の範囲（横壁の補正 WallControl に教える。fast_plan::orthogonalRanges）。直線とターンは交互なので
+// 手順の半分＋1 あれば足りる。WallControl はコピーせずに読むので，走り終わるまで書き換えない
+constexpr std::size_t MAX_ORTHO_RANGES = fast_plan::MAX_STEPS / 2 + 1;
+float g_ortho_x0[MAX_ORTHO_RANGES];
+float g_ortho_x1[MAX_ORTHO_RANGES];
+uint16_t g_ortho_count = 0;
+
 char g_trace_name[32];
 char g_edge_name[32];
 
@@ -110,6 +117,7 @@ void initTraceLog(bool diagonal) {
     logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
     logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&WallEdge::totalShift>("edge_shift", wallEdge);
+    logger.add<&WallControl::offset>("wall_offset", wallControl);
     if (diagonal) {
         logger.add<&DiagControl::lateral>("diag_lat", diagControl);
         logger.add<&DiagControl::offset>("diag_offset", diagControl);
@@ -212,6 +220,8 @@ bool plan(const RunPreset& p) {
     std::size_t nd = fast_plan::diagonalRanges(g_steps, x0, x1, DiagControl::MAX_RANGES);
     g_diag_count = static_cast<uint8_t>(nd);
     for (uint8_t i = 0; i < g_diag_count; ++i) g_diag_ranges[i] = {x0[i], x1[i]};
+    g_ortho_count = static_cast<uint16_t>(
+        fast_plan::orthogonalRanges(g_steps, g_ortho_x0, g_ortho_x1, MAX_ORTHO_RANGES));
     return true;
 }
 
@@ -224,6 +234,10 @@ void printPlan(const RunPreset& p) {
     LOG("fast %s: wall edge %s, %u boundaries before the center-entry turns:", p.name,
         p.wall_edge ? "correction" : "log only", static_cast<unsigned>(g_edge_count));
     for (std::size_t i = 0; i < g_edge_count; ++i) LOG(" %.0f", g_edge_boundaries[i]);
+    LOG("\r\n");
+    LOG("fast %s: wall control %s, %u orthogonal straights:", p.name, config::wall::FAST_RUN_CONTROL ? "on" : "off",
+        static_cast<unsigned>(g_ortho_count));
+    for (uint16_t i = 0; i < g_ortho_count; ++i) LOG(" %.0f-%.0f", g_ortho_x0[i], g_ortho_x1[i]);
     LOG("\r\n");
     if (p.diagonal) {
         LOG("fast %s: diagonal control %s, %u diagonal straights:", p.name, p.diag_control ? "on" : "log only",
@@ -313,8 +327,10 @@ void runFastRun(const RunPreset& preset) {
 
     odometry.reset();
     planProfile.reset();
+    // 横壁の補正：縦横の直線の範囲の中だけ（斜めの直線・スラロームのオフセットでは横壁を読めない）
     wallControl.reset();
-    wallControl.enable(false);   // 横壁の補正は使わない（斜めでは横壁を読めない）
+    wallControl.setRanges(g_ortho_x0, g_ortho_x1, g_ortho_count);
+    wallControl.enable(config::wall::FAST_RUN_CONTROL);
     // 斜めの直線：切れ目からの距離の表で向きを補正する（プリセットが false なら横のずれを記録するだけ）
     diagEdge.reset();
     diagControl.reset();
@@ -342,10 +358,12 @@ void runFastRun(const RunPreset& preset) {
     planProfile.stop();
     fan.stop();
     wallEdge.stop();
+    wallControl.enable(false);
     diagControl.stop();
     diagEdge.stop();
     logger.stop();
     motorDriver.setBreak();
+    wallControl.reset();   // ブレーキの後に補正の向きを0へ戻し，範囲も外す（g_ortho_x0 / x1 を読まなくなる）
 
     // 結果は機体を持ち上げた後（haltByAccZ の後）に UART へ出す（runSearch と同じ）
     if (!ok) blinkRefused();

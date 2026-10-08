@@ -90,4 +90,8 @@ std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn,
 // 小さい順に x0[i], x1[i] へ入れ，数を返す（max を超えた分は入れない）
 std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max);
 
+// 縦横の直線の位置の範囲（横壁の補正 common/wall_control.hpp に教える）。diagonalRanges と同じく，前のターンの出口の
+// 基準点から次のターンの入口の基準点まで（スラロームのオフセットは含まない：入45°の出口側・出45°の入口側などは斜め）
+std::size_t orthogonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max);
+
 } // namespace fast_plan

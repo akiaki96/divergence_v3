@@ -226,6 +226,23 @@ void testDiagonalTurns() {
     check(nd >= 2 && near(x0[1], b) && near(x1[1], b + dia), "after V90");
     check(nd >= 3 && near(x0[2], c) && near(x1[2], c + dia), "after IN135");
     check(fast_plan::diagonalRanges(steps, x0, x1, 2) == 2, "max caps the output");
+
+    // 縦横の直線の範囲（WallControl に教える）：斜めの直線とスラロームのオフセットは含まない
+    std::printf("orthogonal ranges: the three orthogonal straights, without the slalom offsets\n");
+    float d = x + slalom::totalDistance(IN135, TurnDir::left) + dia + slalom::totalDistance(OUT135, TurnDir::left);
+    float o0[8], o1[8];
+    std::size_t no = fast_plan::orthogonalRanges(steps, o0, o1, 8);
+    check(no == 3, "3 orthogonal straights");
+    check(no >= 1 && near(o0[0], 0.f) && near(o1[0], 900.f), "first straight: 0 - entry of IN45");
+    check(no >= 2 && near(o0[1], x - 3.f * CELL_MM) && near(o1[1], x), "after OUT45: exit - entry of IN135");
+    check(no >= 3 && near(o0[2], d) && near(o1[2], d + 41.f), "after OUT135");
+    // ターンからターンへ（長さ0の直線）は範囲にしない
+    fast_plan::Steps tt;
+    tt.push_back(straight(360.f));
+    tt.push_back(turn(OUT135, TurnDir::left));
+    tt.push_back(straight(0.f));
+    tt.push_back(turn(L90, TurnDir::right));
+    check(fast_plan::orthogonalRanges(tt, o0, o1, 8) == 1, "a zero-length straight is not a range");
 }
 
 void testFirstStraightLimit() {

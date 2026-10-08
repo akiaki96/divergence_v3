@@ -284,7 +284,9 @@ std::size_t edgeBoundaries(const Steps& steps, const RunPreset& /*p*/, int per_t
     return n;
 }
 
-std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max) {
+namespace {
+// 斜め（diagonal = true）か縦横の直線の範囲。diagonalRanges・orthogonalRanges の共通部分
+std::size_t straightRanges(const Steps& steps, bool diagonal, float* x0, float* x1, std::size_t max) {
     std::size_t n = 0;
     float x = 0.f;   // 手順 i の始めの位置
     for (std::size_t i = 0; i < steps.size(); ++i) {
@@ -293,7 +295,7 @@ std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t
             x += slalom::totalDistance(*s.turn, s.dir);
             continue;
         }
-        if (s.diagonal && s.distance > 0.f && n < max) {
+        if (s.diagonal == diagonal && s.distance > 0.f && n < max) {
             x0[n] = x;
             x1[n] = x + s.distance;
             ++n;
@@ -301,6 +303,15 @@ std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t
         x += s.distance;
     }
     return n;
+}
+} // namespace
+
+std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max) {
+    return straightRanges(steps, true, x0, x1, max);
+}
+
+std::size_t orthogonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max) {
+    return straightRanges(steps, false, x0, x1, max);
 }
 
 } // namespace fast_plan

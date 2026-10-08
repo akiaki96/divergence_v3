@@ -7,11 +7,30 @@ void WallControl::reset() {
     enabled_ = false;
     omega_ = 0.f;
     offset_deg_ = 0.f;
+    use_ranges_ = false;
+    x0_ = nullptr;
+    x1_ = nullptr;
+    range_count_ = 0;
+    range_index_ = 0;
 }
 
-AxisReference WallControl::apply(const AxisReference& rot, float omega_target, float v_target) {
+void WallControl::setRanges(const float* x0, const float* x1, uint16_t n) {
+    use_ranges_ = true;
+    x0_ = x0;
+    x1_ = x1;
+    range_count_ = (x0 != nullptr && x1 != nullptr) ? n : 0;
+    range_index_ = 0;
+}
+
+bool WallControl::inRange(float x) {
+    if (!use_ranges_) return true;
+    while (range_index_ < range_count_ && x >= x1_[range_index_]) ++range_index_;
+    return range_index_ < range_count_ && x >= x0_[range_index_];
+}
+
+AxisReference WallControl::apply(const AxisReference& rot, float omega_target, float v_target, float x_target) {
     omega_ = 0.f;
-    if (enabled_ && omega_target == 0.f && v_target > config::wall::MIN_VELOCITY) {
+    if (enabled_ && omega_target == 0.f && v_target > config::wall::MIN_VELOCITY && inRange(x_target)) {
         wall::Snapshot s = wall::read();
         // 左に寄る（左の値が大きい）ほど正。両側に壁があれば差，片側なら2倍して同じ重みにする
         float error_left = static_cast<float>(s.value[wall::left] - config::wall::REF_LEFT);
