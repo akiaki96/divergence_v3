@@ -44,6 +44,13 @@ c++ -std=c++20 -Wall -Wextra -O2 \
     -o "$OUT/test_search_lookahead"
 "$OUT/test_search_lookahead"
 
+# 最短走行のゴール領域（2×2 のゴールで、到達の最も遅い区画で経路を終える）
+c++ -std=c++20 -Wall -Wextra -O2 \
+    -I "$ROOT/external/etl/include" -I "$SOLVER/core" "${SOLVER_INC[@]}" \
+    "${SOLVER_SRC[@]}" "$ROOT/tools/host_test/test_goal_region.cpp" \
+    -o "$OUT/test_goal_region"
+"$OUT/test_goal_region"
+
 # 最短走行の手順（壁切れの補正に教える区画境界）。ACT_* と uint8_vector のためにソルバーの core を見る
 c++ -std=c++20 -Wall -Wextra -O1 \
     -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$SOLVER/core" \

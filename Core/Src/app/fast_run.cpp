@@ -139,6 +139,9 @@ struct PlanInfo {
     uint32_t sequence;
     uint8_t goal_x;
     uint8_t goal_y;
+    uint8_t goal_size;  // ゴール領域の一辺（1 なら goal_x/goal_y の1区画）
+    uint8_t end_x;      // 経路が終わる区画（領域のときは到達の最も遅い区画）
+    uint8_t end_y;
     bool complete;
     uint16_t solver_ms;
 };
@@ -146,8 +149,9 @@ PlanInfo g_plan_info;
 
 void printMaze(const RunPreset& p) {
     const PlanInfo& m = g_plan_info;
-    LOG("fast %s: maze bank %c, sequence %lu, goal (%u,%u), %s\r\n", p.name, m.bank,
-        static_cast<unsigned long>(m.sequence), m.goal_x, m.goal_y, m.complete ? "complete" : "partial");
+    LOG("fast %s: maze bank %c, sequence %lu, goal (%u,%u)-(%u,%u), end (%u,%u), %s\r\n", p.name, m.bank,
+        static_cast<unsigned long>(m.sequence), m.goal_x, m.goal_y, m.goal_x + m.goal_size - 1,
+        m.goal_y + m.goal_size - 1, m.end_x, m.end_y, m.complete ? "complete" : "partial");
 }
 
 // プリセットの速度と，種類ごとのターンの候補（速い順。走る経路で直線が短いところは下の候補に落ちる）
@@ -174,13 +178,17 @@ bool plan(const RunPreset& p) {
         LOG("fast %s: no saved maze (search first)\r\n", p.name);
         return false;
     }
-    g_plan_info = {static_cast<char>('A' + bank), r->sequence, r->goal_x, r->goal_y,
-                   (r->flags & maze_store::FLAG_COMPLETE) != 0, 0};
+    // 本番のゴール (7,7) は (7,7)〜(8,8) の領域として解き、到達の最も遅い区画で止まる（減速は領域の中）
+    const bool region = r->goal_x == config::search::GOAL_X && r->goal_y == config::search::GOAL_Y;
+    const uint8_t goal_size = region ? config::search::GOAL_SIZE : 1;
+    g_plan_info = {static_cast<char>('A' + bank), r->sequence, r->goal_x, r->goal_y, goal_size,
+                   r->goal_x, r->goal_y, (r->flags & maze_store::FLAG_COMPLETE) != 0, 0};
 
     // ソルバーの時間のコストを、このプリセットの速度とスラロームの経路長にそろえる
     solver_options_reset();
     solver_options.goal_x = r->goal_x;
     solver_options.goal_y = r->goal_y;
+    solver_options.goal_size = goal_size;
     if (!fast_plan::applySolverCosts(p)) {
         printMaze(p);
         LOG("fast %s: invalid run profile\r\n", p.name);
@@ -197,6 +205,7 @@ bool plan(const RunPreset& p) {
         return false;
     }
     g_plan_info.solver_ms = time_based_dijkstra::last_path_time_ms();
+    time_based_dijkstra::last_goal_cell(&g_plan_info.end_x, &g_plan_info.end_y);
 
     fast_plan::Error e = fast_plan::build(actions, p, START_TO_CENTER, &g_steps);
     if (e != fast_plan::Error::none) {
