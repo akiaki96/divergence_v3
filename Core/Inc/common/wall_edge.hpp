@@ -51,6 +51,11 @@ public:
         return active_;
     }
 
+    // 対応づけの幅 [mm]（start() で決めた値）
+    float window() const {
+        return window_;
+    }
+
     // メイン側：経路に沿った距離 boundary_mm に区画境界がある（次に通る順に積む）。キューが一杯なら false
     bool expect(float boundary_mm);
 
