@@ -183,8 +183,7 @@ bool plan(const RunPreset& p) {
         return false;
     }
     // 本番のゴール (7,7) は (7,7)〜(8,8) の領域として解き、到達の最も遅い区画で止まる（減速は領域の中）
-    const bool region = r->goal_x == config::search::GOAL_X && r->goal_y == config::search::GOAL_Y;
-    const uint8_t goal_size = region ? config::search::GOAL_SIZE : 1;
+    const uint8_t goal_size = config::search::goalSize(r->goal_x, r->goal_y);
     g_plan_info = {static_cast<char>('A' + bank), r->sequence, r->goal_x, r->goal_y, goal_size,
                    r->goal_x, r->goal_y, (r->flags & maze_store::FLAG_COMPLETE) != 0, 0};
 

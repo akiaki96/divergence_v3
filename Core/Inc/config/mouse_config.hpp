@@ -327,10 +327,15 @@ namespace config::search {
 inline constexpr float READ_LEAD_MM = 10.f;
 inline constexpr uint8_t GOAL_X = 7;
 inline constexpr uint8_t GOAL_Y = 7;
-// 最短走行のゴール領域の一辺。保存した迷路のゴールが (GOAL_X, GOAL_Y) のとき，最短走行は
-// (GOAL_X, GOAL_Y)〜(GOAL_X+GOAL_SIZE-1, GOAL_Y+GOAL_SIZE-1) をゴールとして解き，領域の区画のうち
-// 到達の最も遅い区画で止まる（領域へは減速せずに入る）。試験用の近いゴールは1区画のまま。探索は1区画
+// ゴール領域の一辺（ソルバーの solver_options.goal_size）。ゴールが (GOAL_X, GOAL_Y) のとき，
+// (GOAL_X, GOAL_Y)〜(GOAL_X+GOAL_SIZE-1, GOAL_Y+GOAL_SIZE-1) をゴールとして，最短走行は領域の区画のうち
+// 到達の最も遅い区画で止まる（領域へは減速せずに入る）。探索が「着いた」と見るのは (goal_x, goal_y) の
+// 1区画のままで，最短経路の確定は領域までの時間で比べる。試験用の近いゴールは1区画
 inline constexpr uint8_t GOAL_SIZE = 2;
+// ゴール (x, y) のときの goal_size。ソルバーの既定（2）に任せず，探索・最短走行で必ずこれを設定する
+inline constexpr uint8_t goalSize(uint8_t x, uint8_t y) {
+    return (x == GOAL_X && y == GOAL_Y) ? GOAL_SIZE : 1;
+}
 inline constexpr uint16_t MAX_STEPS = 2048;     // 壁を読む回数の上限（ログの行数。往復でも16×16なら足りる）
 inline constexpr float MIN_BATTERY_V = 7.4f;    // [V] これより低ければ走らない
 

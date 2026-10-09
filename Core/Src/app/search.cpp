@@ -356,6 +356,7 @@ Stop runSteps(const SearchPreset& p) {
     solver_options_reset();
     solver_options.goal_x = p.goal_x;
     solver_options.goal_y = p.goal_y;
+    solver_options.goal_size = config::search::goalSize(p.goal_x, p.goal_y);  // 最短経路の確定は最短走行と同じ領域で
     uint8_vector first = adachi_return::solver_adachi_return_init();
     if (search_lookahead::firstMotion(first) != ACT_MOVE_FIRST_HALF_CELL) return Stop::unknownAction;
 
