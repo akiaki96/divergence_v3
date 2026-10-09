@@ -41,7 +41,7 @@ public:
     void reset();
 
     // 検出を始める。correct が false なら記録だけ。対応づけの幅 [mm]：予想より前は window_mm，後ろは window_late_mm
-    // （既定 config::wall_edge::WINDOW_MM / WINDOW_LATE_MM。幅を1つだけ渡すと前後とも同じ）
+    // （既定は前後とも config::wall_edge::WINDOW_MM。幅を1つだけ渡すと前後とも同じ）
     void start(bool correct, float window_mm, float window_late_mm);
     void start(bool correct, float window_mm);
     void start(bool correct);

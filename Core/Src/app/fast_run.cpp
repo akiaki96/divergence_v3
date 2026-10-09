@@ -354,7 +354,8 @@ void runFastRun(const RunPreset& preset) {
     }
     // 壁切れ：区画中央から入るターン（大回り・入45°・入135°）の手前の境界と入口 + 90 の境界だけ教える（教えていない壁切れは記録だけ）。プリセットが false なら補正しない
     wallEdge.reset();
-    wallEdge.start(preset.wall_edge);
+    // 最短走行は足りない向き（予想より後ろの壁切れ）を FAST_WINDOW_LATE_MM まで補正する
+    wallEdge.start(preset.wall_edge, config::wall_edge::WINDOW_MM, config::wall_edge::FAST_WINDOW_LATE_MM);
     g_edge_next = 0;
 
     ledBar16.set(0x0000);

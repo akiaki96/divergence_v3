@@ -18,7 +18,7 @@ void WallEdge::reset() {
     active_ = false;
     correct_ = false;
     window_ = WINDOW_MM;
-    window_late_ = WINDOW_LATE_MM;
+    window_late_ = WINDOW_MM;
     queue_.clear();
     pending_count_ = 0;
     for (auto& s : side_) s = SideState{};
@@ -40,7 +40,7 @@ void WallEdge::start(bool correct, float window_mm) {
 }
 
 void WallEdge::start(bool correct) {
-    start(correct, WINDOW_MM, WINDOW_LATE_MM);
+    start(correct, WINDOW_MM, WINDOW_MM);
 }
 
 bool WallEdge::expect(float boundary_mm) {
