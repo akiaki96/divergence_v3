@@ -27,7 +27,9 @@ run_presets.json の形:
         "accel": 8000,            … 直線の加速度 [mm/s^2]
         "decel": 8000,            … 直線の減速度 [mm/s^2]
         "diagonal": true,         … 斜めの経路を使うか
-        "fan": false,             … 任意（省略で false）。ファンを回して走るか
+        "fan": false,             … 任意（省略で false）。ファンを回して走るか（ターンはファンONの設計を使う）
+        "fan_duty": 0.4,          … 任意（"fan": true のときだけ。省略で config::fan::RUN_DUTY）。回すファンの duty。
+                                    ターンは RUN_DUTY で設計したもののまま。メニューでは duty ごとに別の段（fan 0.4）になる
         "wall_edge": true,        … 任意（省略で false）。区画中央から入るターン（L90・T180・IN45・IN135）の前の直線で壁切れの補正をかけるか
         "diag_control": true,     … 任意（斜めありのときだけ。省略で false）。斜めの直線で切れ目からの距離の表で向きを補正するか（tools/DIAGONAL.md）
         "s90": false,             … 任意（斜めありのときだけ。省略で true＝設計があれば使う）。小回り90°を使うか
@@ -51,7 +53,7 @@ from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel", "diagonal"]
-OPTIONAL_KEYS = ["speeds", "fan", "wall_edge", "diag_control", "s90", "v90", "note"]
+OPTIONAL_KEYS = ["speeds", "fan", "fan_duty", "wall_edge", "diag_control", "s90", "v90", "note"]
 
 ORTHO_TURNS = ["S90", "L90", "T180"]
 DIAGONAL_TURNS = ["IN45", "OUT45", "V90", "IN135", "OUT135"]
@@ -97,6 +99,13 @@ def build_entries(presets, slalom_params):
                            ("diag_control", diag_control), ("s90", use_s90), ("v90", use_v90)]:
             if not isinstance(value, bool):
                 raise GenError(f"{where}: {key} は true / false です")
+        fan_duty = preset.get("fan_duty")
+        if fan_duty is not None:
+            if not fan:
+                raise GenError(f"{where}: \"fan_duty\" は \"fan\": true のときだけ書けます")
+            if isinstance(fan_duty, bool) or not isinstance(fan_duty, (int, float)) or not 0.0 < fan_duty <= 1.0:
+                raise GenError(f"{where}: fan_duty は 0 より大きく 1 以下の数にしてください")
+            fan_duty = float(fan_duty)
         if diag_control and not diagonal:
             raise GenError(f"{where}: 斜めなしでは斜めの直線がないので \"diag_control\": true にできません")
         if not use_s90 and not diagonal:
@@ -145,6 +154,7 @@ def build_entries(presets, slalom_params):
             "ident": f"P_{name}",
             "ladders": ladders,
             "fan": fan,
+            "fan_duty": fan_duty,   # None なら config::fan::RUN_DUTY（fan が false なら使わない）
             "diagonal": diagonal,
             "wall_edge": wall_edge,
             "diag_control": diag_control,
@@ -152,10 +162,28 @@ def build_entries(presets, slalom_params):
         })
     if not entries:
         raise GenError("run_presets.json にプリセットがありません")
-    # メニューは Fast → ファン（OFF / ON）→ 縦横 / 斜め → プリセット なので，ファンOFFを先に，同じファンの中は
-    # 斜めなしを先に並べる（同じ段の中は書いた順）
-    entries.sort(key=lambda e: (e["fan"], e["diagonal"]))
+    # メニューは Fast → ファン（OFF / ON / duty を変えたもの）→ 縦横 / 斜め → プリセット なので，ファンOFF，
+    # ファンON（RUN_DUTY），duty を書いたもの（小さい順）の順に，同じファンの中は斜めなしを先に並べる（同じ段の中は書いた順）
+    entries.sort(key=lambda e: (fan_group(e), e["diagonal"]))
     return entries
+
+
+def fan_group(e):
+    """メニューのファンの段を分けるキー：OFF，ON（RUN_DUTY），duty を書いたもの（小さい順）"""
+    return (e["fan"], e["fan_duty"] is not None, e["fan_duty"] or 0.0)
+
+
+def fan_label(e):
+    """メニューのファンの段の表示：fan off / fan on / fan 0.4"""
+    if not e["fan"]:
+        return "fan off"
+    return "fan on" if e["fan_duty"] is None else f"fan {e['fan_duty']:g}"
+
+
+def fan_duty_cpp(e):
+    if not e["fan"]:
+        return "0.f"
+    return "config::fan::RUN_DUTY" if e["fan_duty"] is None else fmt(e["fan_duty"])
 
 
 def ladder_ident(kind, ladder, fan):
@@ -200,7 +228,7 @@ def render(entries):
     for e in entries:
         v = e["values"]
         note = f"  メモ: {v['note']}" if v.get("note") else ""
-        extra = (("，斜めあり" if e["diagonal"] else "，斜めなし") + ("，ファンON" if e["fan"] else "")
+        extra = (("，斜めあり" if e["diagonal"] else "，斜めなし") + ((f"，ファンON（duty {e['fan_duty']:g}）" if e["fan_duty"] is not None else "，ファンON") if e["fan"] else "")
                  + ("，壁切れ補正" if e["wall_edge"] else "") + ("，斜めの姿勢制御" if e["diag_control"] else ""))
         out.append(f"// {e['name']}: ターン {describe(e)}，直線 {v['max_speed']:g} / 斜め {v['max_speed_dia']:g}mm/s"
                    f"{extra}{note}")
@@ -211,23 +239,23 @@ def render(entries):
         out.append(
             f"inline constexpr RunPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['turn_speed'])}, {fmt(v['max_speed'])}, "
             f"{fmt(v['max_speed_dia'])}, {fmt(v['accel'])}, {fmt(v['decel'])}, {{{', '.join(turns)}}}, "
-            f"{'true' if e['diagonal'] else 'false'}, {'true' if e['fan'] else 'false'}, "
+            f"{'true' if e['diagonal'] else 'false'}, {'true' if e['fan'] else 'false'}, {fan_duty_cpp(e)}, "
             f"{'true' if e['wall_edge'] else 'false'}, {'true' if e['diag_control'] else 'false'}}};")
         out.append("")
-    out.append("// メニューに並べる順（ファンOFFが先，同じファンの中は斜めなしが先，同じ段の中は run_presets.json に書いた順）")
+    out.append("// メニューに並べる順（ファンOFF，ON，duty を変えたものの順，同じファンの中は斜めなしが先，同じ段の中は run_presets.json に書いた順）")
     out.append(f"inline constexpr std::array<RunPreset, {len(entries)}> PRESETS = {{")
     out += [f"    {e['ident']}," for e in entries]
     out += ["};", ""]
     # メニューの段（並べ替え済みなので同じ段は連続している）：
-    #   FANS[f]  … KINDS[first] から count 個（fan off / fan on）
+    #   FANS[f]  … KINDS[first] から count 個（fan off / fan on / fan 0.4 …）
     #   KINDS[k] … PRESETS[first] から count 個（縦横 / 斜め）
-    kinds = []   # [fan, diag, first, count]
+    kinds = []   # [ファンの段の表示, diag, first, count]
     for i, e in enumerate(entries):
-        if kinds and kinds[-1][0] == e["fan"] and kinds[-1][1] == e["diagonal"]:
+        if kinds and kinds[-1][0] == fan_label(e) and kinds[-1][1] == e["diagonal"]:
             kinds[-1][3] += 1
         else:
-            kinds.append([e["fan"], e["diagonal"], i, 1])
-    fans = []    # [fan, first, count]
+            kinds.append([fan_label(e), e["diagonal"], i, 1])
+    fans = []    # [ファンの段の表示, first, count]
     for j, (fan, _, _, _) in enumerate(kinds):
         if fans and fans[-1][0] == fan:
             fans[-1][2] += 1
@@ -235,11 +263,11 @@ def render(entries):
             fans.append([fan, j, 1])
     out.append("// メニューのファンの段：KINDS[first]からcount個（Run → Fast → ファン → 縦横 / 斜め → プリセット）")
     out.append(f"inline constexpr std::array<::slalom::MenuGroup, {len(fans)}> FANS = {{{{")
-    out += [f"    {{\"{'fan on' if fan else 'fan off'}\", {first}, {count}}}," for fan, first, count in fans]
+    out += [f"    {{\"{fan}\", {first}, {count}}}," for fan, first, count in fans]
     out += ["}};", ""]
     out.append("// メニューの縦横 / 斜めの段：PRESETS[first]からcount個")
     out.append(f"inline constexpr std::array<::slalom::MenuGroup, {len(kinds)}> KINDS = {{{{")
-    out += [f"    {{\"{'diagonal' if diag else 'ortho'}\", {first}, {count}}},   // {'fan on' if fan else 'fan off'}"
+    out += [f"    {{\"{'diagonal' if diag else 'ortho'}\", {first}, {count}}},   // {fan}"
             for fan, diag, first, count in kinds]
     out += ["}};", "", "} // namespace config::run", ""]
     return "\n".join(out)

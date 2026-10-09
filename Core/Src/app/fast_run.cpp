@@ -62,7 +62,9 @@ constexpr bool presetUsable(const RunPreset& p) {
            && p.max_speed >= p.turn_speed && p.max_speed_dia >= p.turn_speed
            // 大回り90°・180° は必須。小回り90°は斜めなしなら必須（ジグザグを曲がる），斜めありなら任意
            && p.turns[TURN_L90].count > 0 && p.turns[TURN_180].count > 0
-           && (p.diagonal || p.turns[TURN_S90].count > 0);
+           && (p.diagonal || p.turns[TURN_S90].count > 0)
+           // ファンを回すなら duty は (0, 1]，回さないなら 0
+           && (p.fan ? (p.fan_duty > 0.f && p.fan_duty <= 1.f) : p.fan_duty == 0.f);
     for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
         const TurnLadder& l = p.turns[k];
         ok = ok && ladderUsable(l, k, p);
@@ -156,9 +158,9 @@ void printMaze(const RunPreset& p) {
 
 // プリセットの速度と，種類ごとのターンの候補（速い順。走る経路で直線が短いところは下の候補に落ちる）
 void printPreset(const RunPreset& p) {
-    LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %s\r\n",
+    LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %.2f\r\n",
         p.name, p.turn_speed, p.max_speed, p.max_speed_dia, p.accel, p.decel,
-        p.diagonal ? "on" : "off", p.fan ? "on" : "off");
+        p.diagonal ? "on" : "off", p.fan_duty);
     static const char* const KIND_NAMES[TURN_KIND_COUNT] = {"L90", "T180", "IN45", "OUT45", "IN135", "OUT135", "V90", "S90"};
     for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
         const TurnLadder& l = p.turns[k];
@@ -328,7 +330,7 @@ void runFastRun(const RunPreset& preset) {
     }
 
     // ここから先は runSearch と同じ準備（IMU校正：ファンを回すなら，回して定常になってから）
-    calibrateImuForRun(preset.fan ? config::fan::RUN_DUTY : 0.f);
+    calibrateImuForRun(preset.fan_duty);
 
     initTraceLog(preset.diagonal);
     logger.setDirName("fast");

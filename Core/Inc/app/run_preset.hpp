@@ -29,7 +29,8 @@ struct RunPreset {
     float decel;                            // [mm/s^2] 直線の減速度（大きさ）
     TurnLadder turns[TURN_KIND_COUNT];      // ターンの種類（TurnKind）ごとの候補。斜めなしなら斜めの5種類は空
     bool diagonal;                          // 斜めの経路を使う（solver_options.diagonal）
-    bool fan;                               // ファンを config::fan::RUN_DUTY で回して走る（ターンもファンONの設計を使う）
+    bool fan;                               // ファンを回して走る（ターンはファンON＝config::fan::RUN_DUTY で設計したものを使う）
+    float fan_duty;                         // 実際に回すファンの duty（fan が false なら 0。ふつうは RUN_DUTY，0.4 などで強く吸うこともある）
     bool wall_edge;                         // 区画中央から入るターン（L90・T180・IN45・IN135）の前の直線で壁切れの補正をかける（false でも壁切れは記録する）
     bool diag_control;                      // 斜めの直線で切れ目からの距離の表で向きを補正する（common/diag_control.hpp。false でも横のずれは記録する）
 

@@ -432,5 +432,84 @@
     "diagonal": true,
     "fan": true,
     "note": "ファンON，斜めあり，大回り90°・180°・出45° 2100mm/s，S90 900，IN45 1500，V90 1500，IN135 1800，OUT135 1800（速度の違うターンを混ぜる）。実機で未試験。速度を変えきれないところ（スタート直後など）は下の候補に落とす"
+  },
+  "500_fan40": {
+    "turn_speed": 500,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "fan": true,
+    "fan_duty": 0.4,
+    "wall_edge": true,
+    "note": "ファン duty 0.4（吸引を強めた 500_fan）。ターンは duty 0.2（RUN_DUTY）の設計を流用，直線は 500_fan と同じ値。実機で未試験"
+  },
+  "900_fan40": {
+    "turn_speed": 900,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": false,
+    "fan": true,
+    "fan_duty": 0.4,
+    "wall_edge": true,
+    "note": "ファン duty 0.4（吸引を強めた 900_fan）。ターンは duty 0.2（RUN_DUTY）の設計を流用，直線は 900_fan と同じ値。実機で未試験"
+  },
+  "1500_fan40_s900": {
+    "turn_speed": 1500,
+    "speeds": {
+      "S90": 900
+    },
+    "max_speed": 2000,
+    "max_speed_dia": 1500,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": false,
+    "fan": true,
+    "fan_duty": 0.4,
+    "wall_edge": true,
+    "note": "ファン duty 0.4（吸引を強めた 1500_fan_s900）。ターンは duty 0.2（RUN_DUTY）の設計を流用，直線は 1500_fan_s900 と同じ値。実機で未試験"
+  },
+  "500_fan40_dia": {
+    "turn_speed": 500,
+    "max_speed": 1500,
+    "max_speed_dia": 1000,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "fan": true,
+    "fan_duty": 0.4,
+    "wall_edge": true,
+    "diag_control": true,
+    "note": "ファン duty 0.4（吸引を強めた 500_fan_dia）。ターンは duty 0.2（RUN_DUTY）の設計を流用，直線は 500_fan_dia と同じ値。実機で未試験"
+  },
+  "1200_fan40_dia": {
+    "turn_speed": 1200,
+    "max_speed": 1500,
+    "max_speed_dia": 1200,
+    "accel": 3000,
+    "decel": 3000,
+    "diagonal": true,
+    "fan": true,
+    "fan_duty": 0.4,
+    "wall_edge": true,
+    "note": "ファン duty 0.4（吸引を強めた 1200_fan_dia）。ターンは duty 0.2（RUN_DUTY）の設計を流用，直線は 1200_fan_dia と同じ値。実機で未試験"
+  },
+  "1500_fan40_dia": {
+    "turn_speed": 1500,
+    "speeds": {
+      "S90": 900
+    },
+    "max_speed": 2000,
+    "max_speed_dia": 1500,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": true,
+    "fan": true,
+    "fan_duty": 0.4,
+    "wall_edge": true,
+    "note": "ファン duty 0.4（吸引を強めた 1500_fan_dia）。ターンは duty 0.2（RUN_DUTY）の設計を流用，直線は 1500_fan_dia と同じ値。実機で未試験"
   }
 }
