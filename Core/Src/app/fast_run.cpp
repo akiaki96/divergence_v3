@@ -117,6 +117,7 @@ void initTraceLog(bool diagonal) {
     logger.add<&Odometry::positionX>("current_distance_x", odometry);
     logger.add<&PlanProfile::getTargetVelocityX>("target_velocity_x", planProfile);
     logger.add<&Odometry::velocityX>("current_velocity_x", odometry);
+    logger.add<&Motor::getDuty>("left_duty", motorLeft);
     logger.add<&PlanProfile::getTargetAngle>("target_angle", planProfile);
     logger.add<&Odometry::angle>("current_angle", odometry);
     logger.add<&WallEdge::totalShift>("edge_shift", wallEdge);
