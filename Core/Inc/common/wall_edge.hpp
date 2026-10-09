@@ -40,7 +40,9 @@ public:
     // 止めて記録・待ちの境界を消す。ISR が update() を呼んでいない間か，active() でない間に呼ぶ
     void reset();
 
-    // 検出を始める。correct が false なら記録だけ。window は対応づけの幅 [mm]（既定 config::wall_edge::WINDOW_MM）
+    // 検出を始める。correct が false なら記録だけ。対応づけの幅 [mm]：予想より前は window_mm，後ろは window_late_mm
+    // （既定 config::wall_edge::WINDOW_MM / WINDOW_LATE_MM。幅を1つだけ渡すと前後とも同じ）
+    void start(bool correct, float window_mm, float window_late_mm);
     void start(bool correct, float window_mm);
     void start(bool correct);
     void stop() {
@@ -51,9 +53,12 @@ public:
         return active_;
     }
 
-    // 対応づけの幅 [mm]（start() で決めた値）
+    // 対応づけの幅 [mm]（start() で決めた値）。window() は予想より前（補正が正），windowLate() は後ろ（補正が負）
     float window() const {
         return window_;
+    }
+    float windowLate() const {
+        return window_late_;
     }
 
     // メイン側：経路に沿った距離 boundary_mm に区画境界がある（次に通る順に積む）。キューが一杯なら false
@@ -95,6 +100,7 @@ private:
     volatile bool active_ = false;
     bool correct_ = false;
     float window_ = 0.f;
+    float window_late_ = 0.f;
 
     etl::queue_spsc_atomic<float, QUEUE_SIZE> queue_;   // メイン → ISR
     float pending_[MAX_PENDING] = {};                    // ISR だけ

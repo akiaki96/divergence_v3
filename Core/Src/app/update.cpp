@@ -3,6 +3,7 @@
 #include "menu/menuInstance.hpp"
 #include "app/update.hpp"
 #include "tim.h"
+#include <algorithm>
 
 namespace {
 volatile uint32_t g_last_cycles = 0;   // 0：まだ測っていない
@@ -45,8 +46,8 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
                                           planProfile.getTargetVelocityX(), planProfile.getTargetOmega());
             if (shift != 0.f) {
                 odometry.shiftPositionX(shift);
-                // 補正の程度を LED に出す（前へ足したら下位8個，後ろへ戻したら上位8個に点灯数で。窓の幅で全点灯）。次の補正まで残す
-                ledBar16.set(shift, LedBarValMode::pmlinear8, wallEdge.window());
+                // 補正の程度を LED に出す（前へ足したら下位8個，後ろへ戻したら上位8個に点灯数で。広い方の窓の幅で全点灯）。次の補正まで残す
+                ledBar16.set(shift, LedBarValMode::pmlinear8, std::max(wallEdge.window(), wallEdge.windowLate()));
             }
         }
         // 斜めの直線の切れ目からの距離（有効なときだけ）
