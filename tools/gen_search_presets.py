@@ -37,6 +37,8 @@ search_presets.json の形:
                                             （false でも推定したずれはログに残す。config::front_correction）
         "goal": [7, 7],                   … 任意（省略で config::search::GOAL_X/Y）。ゴール区画 [x, y]。
                                             試験用に近いゴール（例 [1, 0]）で往復させるときに書く
+        "one_way": false,                 … 任意（省略で false＝往復）。true ならゴールに着いたらそこで止まる（片道）
+        "reset_walls": true,              … 任意（省略で true）。false なら壁を消さず，保存した最新の迷路を引き継いで探索する
         "menu": "search",                 … 任意（省略で "search"）。並べるメニュー。
                                             "search" … Run → Search（config::search::PRESETS）
                                             "test"   … Test → Search（config::search::TEST_PRESETS）
@@ -60,7 +62,8 @@ from slalom_presets import PRESET_LIST, make_speed_key, parse_slalom_key, slalom
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["speed", "accel", "turns", "pivot"]
-OPTIONAL_KEYS = ["straight_speed", "slalom", "fan", "wall_control", "front_correction", "goal", "menu", "note"]
+OPTIONAL_KEYS = ["straight_speed", "slalom", "fan", "wall_control", "front_correction", "goal", "one_way",
+                 "reset_walls", "menu", "note"]
 # "menu" の値 → 生成する配列の名前（menu/menu.hpp がそれぞれのメニューに並べる）
 MENU_ARRAYS = {"search": "PRESETS", "test": "TEST_PRESETS"}
 MAZE_SIZE = 16
@@ -115,7 +118,10 @@ def build_entries(presets, slalom_params):
         fan = preset.get("fan", key.fan if slalom is not None else False)
         wall_control = preset.get("wall_control", False)
         front_correction = preset.get("front_correction", False)
-        for key, value in [("fan", fan), ("wall_control", wall_control), ("front_correction", front_correction)]:
+        one_way = preset.get("one_way", False)
+        reset_walls = preset.get("reset_walls", True)
+        for key, value in [("fan", fan), ("wall_control", wall_control), ("front_correction", front_correction),
+                           ("one_way", one_way), ("reset_walls", reset_walls)]:
             if not isinstance(value, bool):
                 raise GenError(f"{where}: {key} は true / false です")
         if slalom is None:
@@ -166,6 +172,8 @@ def build_entries(presets, slalom_params):
             "fan": fan,
             "wall_control": wall_control,
             "front_correction": front_correction,
+            "one_way": one_way,
+            "reset_walls": reset_walls,
             "goal": goal,
             "menu": menu,
             "values": preset,
@@ -203,10 +211,11 @@ def render(entries):
         wall = (("，ファンON" if e["fan"] else "") + ("，横壁の補正あり" if e["wall_control"] else "")
                 + ("，前壁でS90の入口を補正" if e["front_correction"] else ""))
         goal_note = f"，ゴール ({e['goal'][0]}, {e['goal'][1]})" if e["goal"] else ""
+        mode_note = ("，片道" if e["one_way"] else "") + ("，壁を引き継ぐ" if not e["reset_walls"] else "")
         goal = f"{e['goal'][0]}, {e['goal'][1]}" if e["goal"] else "GOAL_X, GOAL_Y"
         straight = f"（既知の直進 {e['straight_speed']:g}mm/s）" if e["straight_speed"] > float(v["speed"]) else ""
         out.append(f"// {e['name']}: {v['speed']:g}mm/s{straight}，ターンは組「{e['slalom']}」の{labels}"
-                   f"{wall}{goal_note}{note}")
+                   f"{wall}{goal_note}{mode_note}{note}")
         if e["diag_ident"]:
             out.append(f"inline constexpr DiagonalTurns {e['diag_ident']} = {turn_list(e, DIAGONAL_TURNS)};")
         out.append(
@@ -214,7 +223,8 @@ def render(entries):
             f"{turn_list(e, ORTHO_TURNS)}, {'&' + e['diag_ident'] if e['diag_ident'] else 'nullptr'}, "
             f"{{{fmt(e['pivot']['omega'])}, {fmt(e['pivot']['alpha'])}}}, "
             f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}, "
-            f"{'true' if e['front_correction'] else 'false'}, {goal}}};")
+            f"{'true' if e['front_correction'] else 'false'}, {goal}, "
+            f"{'true' if e['one_way'] else 'false'}, {'true' if e['reset_walls'] else 'false'}}};")
         out.append("")
     for menu, array in MENU_ARRAYS.items():
         listed = [e for e in entries if e["menu"] == menu]

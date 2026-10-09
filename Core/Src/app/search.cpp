@@ -187,7 +187,7 @@ void stepSave() {
 }
 
 enum class Stop : uint8_t {
-    finished,       // スタートに戻った（正常）
+    finished,       // 終わりの区画に着いた（往復ならスタート，片道ならゴール。正常）
     frontWall,      // 壁のある向きへ進もうとした（壁の誤読か，ソルバーの経路がない）
     pushRejected,   // 区間を積めなかった（加速度の上限など）
     profileError,   // PlanProfile が区間を落とした，または読む位置の前に止まった
@@ -348,8 +348,9 @@ bool stopAndSave(bool* saved) {
     return true;
 }
 
-// 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとに先読みしておいたソルバーの結果を取り出す
-Stop runSteps(const SearchPreset& p) {
+// 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとに先読みしておいたソルバーの結果を取り出す。
+// inherited が nullptr でなければ，その迷路の壁から探索を始める（壁を消さない）
+Stop runSteps(const SearchPreset& p, const maze_store::Record* inherited) {
     const float v = p.speed;
     const bool accelerate = p.straight_speed > v;
 
@@ -357,7 +358,10 @@ Stop runSteps(const SearchPreset& p) {
     solver_options.goal_x = p.goal_x;
     solver_options.goal_y = p.goal_y;
     solver_options.goal_size = config::search::goalSize(p.goal_x, p.goal_y);  // 最短経路の確定は最短走行と同じ領域で
-    uint8_vector first = adachi_return::solver_adachi_return_init();
+    // 往復（adachi_return と同じ）か片道（adachi と同じ）。どちらも1歩は adachi::search_step なので先読みは共通
+    const adachi::SearchKind kind = p.one_way ? adachi::SearchKind::to_goal : adachi::SearchKind::to_goal_and_back;
+    uint8_vector first = adachi::search_init(kind, true);
+    if (inherited != nullptr) maze_store::applyToSolver(*inherited);
     if (search_lookahead::firstMotion(first) != ACT_MOVE_FIRST_HALF_CELL) return Stop::unknownAction;
 
     float d_acc = accelDistance(p);
@@ -517,7 +521,7 @@ Stop runSteps(const SearchPreset& p) {
             // 行く間の壁切れが対応づいて間違った補正になる（2026-10-03 の探索で −23.8 mm）
             break;
         case ACT_FINISH:
-            // スタート区画の中央で止まる
+            // 終わりの区画（往復ならスタート，片道ならゴール）の中央で止まる
             if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
             return Stop::finished;
         default:
@@ -576,9 +580,10 @@ void runSearch(const SearchPreset& preset) {
     std::snprintf(g_log_name, sizeof(g_log_name), "%s", preset.name);
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
-    LOG("search %s: %.0f mm/s (known straights %.0f mm/s), turn %s, fan %s, wall control %s, front correction %s, goal (%u,%u)\r\n",
+    LOG("search %s: %.0f mm/s (known straights %.0f mm/s), turn %s, fan %s, wall control %s, front correction %s, goal (%u,%u), %s\r\n",
         preset.name, preset.speed, preset.straight_speed, preset.turns.s90->name, preset.fan ? "on" : "off",
-        preset.wall_control ? "on" : "off", preset.front_correction ? "on" : "off", preset.goal_x, preset.goal_y);
+        preset.wall_control ? "on" : "off", preset.front_correction ? "on" : "off", preset.goal_x, preset.goal_y,
+        preset.one_way ? "one way" : "round trip");
 
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -587,6 +592,21 @@ void runSearch(const SearchPreset& preset) {
         LOG("search not started: battery %.2f V < %.2f V\r\n", v0, config::search::MIN_BATTERY_V);
         blinkRefused();
         return;
+    }
+
+    // 壁を引き継ぐなら，保存した最新の迷路を RAM に写しておく（フラッシュの記録は走行中の追記で最新でなくなる）。
+    // 保存した迷路がなければ，壁を消して始める
+    maze_store::Record inherited{};
+    const maze_store::Record* saved = preset.reset_walls ? nullptr : maze_store::latest();
+    if (saved != nullptr) inherited = *saved;
+    if (preset.reset_walls) {
+        LOG("walls: reset\r\n");
+    } else if (saved != nullptr) {
+        LOG("walls: inherited saved maze sequence %lu (goal (%u,%u), %s)\r\n",
+            static_cast<unsigned long>(inherited.sequence), inherited.goal_x, inherited.goal_y,
+            (inherited.flags & maze_store::FLAG_COMPLETE) ? "complete" : "partial");
+    } else {
+        LOG("walls: no saved maze, starting from an empty map\r\n");
     }
 
     // 迷路を追記する面を用意する。空きが足りなければ面を消す（1〜2s CPU が止まる。止まっている今のうちに）
@@ -628,7 +648,7 @@ void runSearch(const SearchPreset& preset) {
     HAL_Delay(100);
     motorDriver.switchToVelocityX();
 
-    Stop stop = runSteps(preset);
+    Stop stop = runSteps(preset, saved != nullptr ? &inherited : nullptr);
     if (stop == Stop::finished) {
         planProfile.waitUntilIdle();
         HAL_Delay(SETTLE_MS);
@@ -647,9 +667,10 @@ void runSearch(const SearchPreset& preset) {
     uint32_t gap_us = control_timing::maxGapUs();
     maze_store::Result pending = maze_store::journal::flush();
     if (stop == Stop::finished) {
-        // スタートまで戻った迷路を「探索し終えた」として保存する。面が一杯などで積めなければ，面を消して書く
+        // 終わった迷路を保存する。「探索し終えた」（complete）はスタートまで戻った往復だけ。
+        // 面が一杯などで積めなければ，面を消して書く
         ledBar16.set(0xFFFF);
-        maze_store::Record done = maze_store::capture(preset.goal_x, preset.goal_y, true);
+        maze_store::Record done = maze_store::capture(preset.goal_x, preset.goal_y, !preset.one_way);
         pending = maze_store::journal::append(done) ? maze_store::journal::flush() : maze_store::save(done);
         ledBar16.set(0x0000);
     }

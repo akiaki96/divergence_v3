@@ -26,23 +26,16 @@
     "wall_control": true,
     "note": ""
   },
-  "500_fan": {
+  "500_oneway": {
     "speed": 500,
     "accel": 3000,
+    "straight_speed": 1000,
     "turns": ["S90", "L90", "T180"],
     "pivot": {"omega": 360, "alpha": 2500},
-    "fan": true,
     "wall_control": true,
-    "note": "ターンはファンOFFの設計を写した初期値（ファンONの滑りは未同定）"
-  },
-  "700_fan": {
-    "speed": 700,
-    "accel": 4000,
-    "turns": ["S90", "L90", "T180"],
-    "pivot": {"omega": 360, "alpha": 2500},
-    "fan": true,
-    "wall_control": true,
-    "note": "ターンはファンOFFの設計を写した初期値（ファンONの滑りは未同定）"
+    "one_way": true,
+    "reset_walls": false,
+    "note": "変則：保存した最新の迷路を引き継ぎ（壁を消さない），ゴールに着いたらそこで止まる（片道）"
   },
   "500_goal10": {
     "speed": 500,
@@ -51,6 +44,7 @@
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
     "goal": [1, 0],
+    "menu": "test",
     "note": "試験用：スタート(0,0)からゴール(1,0)へ行き，スタートへ戻る"
   },
   "500_fc_goal10": {
@@ -61,6 +55,7 @@
     "wall_control": true,
     "front_correction": true,
     "goal": [1, 0],
+    "menu": "test",
     "note": "試験用：500_goal10 と同じで，S90 の入口を前壁の距離で補正する（500_goal10 と比べる用）"
   },
   "700_goal10": {
@@ -70,6 +65,7 @@
     "pivot": {"omega": 360, "alpha": 2500},
     "wall_control": true,
     "goal": [1, 0],
+    "menu": "test",
     "note": "試験用：700 で，スタート(0,0)からゴール(1,0)へ行き，スタートへ戻る"
   },
   "500_goal01": {

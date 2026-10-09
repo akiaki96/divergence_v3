@@ -44,4 +44,6 @@ struct SearchPreset {
                                      // false でも推定したずれは探索のログに残す（config::front_correction）
     uint8_t goal_x;                  // ゴール区画（JSONで省略すると config::search::GOAL_X/Y）。
     uint8_t goal_y;                  // 試験用に近いゴールで往復させるときに変える
+    bool one_way;                    // ゴールに着いたらそこで止まる（片道）。false ならスタートへ戻る探索を続ける（往復）
+    bool reset_walls;                // 始めに壁を消す。false なら保存した最新の迷路（maze_store）を引き継ぐ
 };
