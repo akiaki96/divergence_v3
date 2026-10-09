@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include "common/trapezoid.hpp"
 #include "common/wall_edge.hpp"
 
@@ -14,28 +15,27 @@ constexpr float HALF_MM = CELL_MM / 2.f;
 constexpr float DIAG_STEP_MM = HALF_MM * 1.41421356f;   // 斜めの1歩（辺の中点から隣の中点まで）
 static_assert(MAX_SEGMENTS_PER_STEP >= trapezoid::MAX_PARTS, "a straight step is split into trapezoid::MAX_PARTS");
 
-// ACT_S* / ACT_V90_* → プリセットのターンと向き。ターンでなければ false
-bool turnOf(uint8_t a, const RunPreset& p, const slalom::Param** turn, slalom::TurnDir* dir) {
-    const DiagonalTurns* d = p.diagonal;
+// ACT_S* / ACT_V90_* / ACT_TURN_*_MOVE → ターンの種類と向き。ターンでなければ false
+bool turnOf(uint8_t a, TurnKind* kind, slalom::TurnDir* dir) {
     using slalom::TurnDir;
     switch (a) {
-    case ACT_TURN_LEFT_MOVE:  *turn = p.turns.s90; *dir = TurnDir::left;  return true;
-    case ACT_TURN_RIGHT_MOVE: *turn = p.turns.s90; *dir = TurnDir::right; return true;
-    case ACT_S90_LEFT:       *turn = p.turns.l90;  *dir = TurnDir::left;  return true;
-    case ACT_S90_RIGHT:      *turn = p.turns.l90;  *dir = TurnDir::right; return true;
-    case ACT_S180_LEFT:      *turn = p.turns.t180; *dir = TurnDir::left;  return true;
-    case ACT_S180_RIGHT:     *turn = p.turns.t180; *dir = TurnDir::right; return true;
-    case ACT_S45_in_LEFT:    *turn = d ? d->in45 : nullptr;   *dir = TurnDir::left;  return true;
-    case ACT_S45_in_RIGHT:   *turn = d ? d->in45 : nullptr;   *dir = TurnDir::right; return true;
-    case ACT_S45_out_LEFT:   *turn = d ? d->out45 : nullptr;  *dir = TurnDir::left;  return true;
-    case ACT_S45_out_RIGHT:  *turn = d ? d->out45 : nullptr;  *dir = TurnDir::right; return true;
-    case ACT_V90_LEFT:       *turn = d ? d->v90 : nullptr;    *dir = TurnDir::left;  return true;
-    case ACT_V90_RIGHT:      *turn = d ? d->v90 : nullptr;    *dir = TurnDir::right; return true;
-    case ACT_S135_in_LEFT:   *turn = d ? d->in135 : nullptr;  *dir = TurnDir::left;  return true;
-    case ACT_S135_in_RIGHT:  *turn = d ? d->in135 : nullptr;  *dir = TurnDir::right; return true;
-    case ACT_S135_out_LEFT:  *turn = d ? d->out135 : nullptr; *dir = TurnDir::left;  return true;
-    case ACT_S135_out_RIGHT: *turn = d ? d->out135 : nullptr; *dir = TurnDir::right; return true;
-    default:                 return false;
+    case ACT_TURN_LEFT_MOVE:  *kind = TURN_S90;    *dir = TurnDir::left;  return true;
+    case ACT_TURN_RIGHT_MOVE: *kind = TURN_S90;    *dir = TurnDir::right; return true;
+    case ACT_S90_LEFT:        *kind = TURN_L90;    *dir = TurnDir::left;  return true;
+    case ACT_S90_RIGHT:       *kind = TURN_L90;    *dir = TurnDir::right; return true;
+    case ACT_S180_LEFT:       *kind = TURN_180;    *dir = TurnDir::left;  return true;
+    case ACT_S180_RIGHT:      *kind = TURN_180;    *dir = TurnDir::right; return true;
+    case ACT_S45_in_LEFT:     *kind = TURN_IN45;   *dir = TurnDir::left;  return true;
+    case ACT_S45_in_RIGHT:    *kind = TURN_IN45;   *dir = TurnDir::right; return true;
+    case ACT_S45_out_LEFT:    *kind = TURN_OUT45;  *dir = TurnDir::left;  return true;
+    case ACT_S45_out_RIGHT:   *kind = TURN_OUT45;  *dir = TurnDir::right; return true;
+    case ACT_V90_LEFT:        *kind = TURN_V90;    *dir = TurnDir::left;  return true;
+    case ACT_V90_RIGHT:       *kind = TURN_V90;    *dir = TurnDir::right; return true;
+    case ACT_S135_in_LEFT:    *kind = TURN_IN135;  *dir = TurnDir::left;  return true;
+    case ACT_S135_in_RIGHT:   *kind = TURN_IN135;  *dir = TurnDir::right; return true;
+    case ACT_S135_out_LEFT:   *kind = TURN_OUT135; *dir = TurnDir::left;  return true;
+    case ACT_S135_out_RIGHT:  *kind = TURN_OUT135; *dir = TurnDir::right; return true;
+    default:                  return false;
     }
 }
 
@@ -47,16 +47,32 @@ Error addStraight(Steps* out, bool diagonal, float distance) {
         return Error::none;
     }
     if (out->full()) return Error::tooManySteps;
-    out->push_back(Step{nullptr, slalom::TurnDir::left, diagonal, distance});
+    out->push_back(Step{nullptr, slalom::TurnDir::left, diagonal, TURN_L90, distance});
     return Error::none;
 }
 
-// 手順 i の直線の始めと終わりの速度
-float startSpeed(std::size_t i, const RunPreset& p) {
-    return (i == 0) ? 0.f : p.turn_speed;
+constexpr float SPEED_EPS = 1e-3f;   // [mm/s] 速度の比較の許容差（候補の速度は設計値そのもの）
+constexpr std::size_t NO_TURN = SIZE_MAX;
+
+// 候補のうち速度 v 以下でいちばん速いもの。無ければ nullptr
+const slalom::Param* fastestAtMost(const TurnLadder& l, float v) {
+    for (uint8_t i = 0; i < l.count; ++i) {
+        if (l.list[i]->speed <= v + SPEED_EPS) return l.list[i];
+    }
+    return nullptr;
+}
+
+// 手順 i の直線の始めと終わりの速度：隣のターンの速度（ターンごとに違ってよい。最初と最後は0）。
+// 直線どうしは build() でつなぐので，直線の隣はターンか端
+float startSpeed(const Steps& steps, std::size_t i, const RunPreset& p) {
+    if (i == 0) return 0.f;
+    const slalom::Param* t = steps[i - 1].turn;
+    return (t != nullptr) ? t->speed : p.turn_speed;
 }
 float endSpeed(const Steps& steps, std::size_t i, const RunPreset& p) {
-    return (i + 1 == steps.size()) ? 0.f : p.turn_speed;
+    if (i + 1 == steps.size()) return 0.f;
+    const slalom::Param* t = steps[i + 1].turn;
+    return (t != nullptr) ? t->speed : p.turn_speed;
 }
 
 } // namespace
@@ -68,8 +84,57 @@ const char* errorName(Error e) {
     case Error::unknownAction: return "unknown action";
     case Error::turnMissing:   return "turn not in preset";
     case Error::tooManySteps:  return "too many steps";
+    case Error::speedUnfit:    return "turn speeds cannot be bridged";
     }
     return "unknown";
+}
+
+Error fitSpeeds(Steps* steps, const RunPreset& p) {
+    // 短い直線は trapezoid::split が始めから終わりの速度へ1区間で変える（プリセットの accel・decel を超えてよい）ので，
+    // 合わせる基準は validate() と同じ機体の上限
+    using config::profile_limit::MAX_ACCEL_X;
+    using config::profile_limit::MAX_DECEL_X;
+    Steps& s = *steps;
+    const std::size_t n = s.size();
+    // 最後がターンなら，build() がその速度から止まれる直線を後ろに足すので，終わりの停止とは比べない
+    const bool stop_after = (n > 0 && s[n - 1].turn == nullptr);
+    for (bool changed = true; changed;) {
+        changed = false;
+        // 隣り合う2つ（prev：前のターン，NO_TURN なら始めの停止。i：次のターン，n なら終わりの停止）と，あいだの直線の長さ d
+        std::size_t prev = NO_TURN;
+        float d = 0.f;
+        for (std::size_t i = 0; i <= n; ++i) {
+            if (i < n && s[i].turn == nullptr) {
+                d += s[i].distance;
+                continue;
+            }
+            if (i == n && !stop_after) break;
+            const float va = (prev == NO_TURN) ? 0.f : s[prev].turn->speed;
+            const float vb = (i == n) ? 0.f : s[i].turn->speed;
+            if (vb > va + SPEED_EPS) {
+                // 加速しきれない：次のターンを落とす
+                const float lim = std::sqrt(va * va + 2.f * MAX_ACCEL_X * d);
+                if (vb > lim + SPEED_EPS) {
+                    const slalom::Param* slow = fastestAtMost(p.turns[s[i].kind], lim);
+                    if (slow == nullptr) return Error::speedUnfit;
+                    s[i].turn = slow;
+                    changed = true;
+                }
+            } else if (va > vb + SPEED_EPS) {
+                // 減速しきれない：前のターンを落とす（始めの停止は 0 なのでここに来ない）
+                const float lim = std::sqrt(vb * vb + 2.f * MAX_DECEL_X * d);
+                if (va > lim + SPEED_EPS) {
+                    const slalom::Param* slow = fastestAtMost(p.turns[s[prev].kind], lim);
+                    if (slow == nullptr) return Error::speedUnfit;
+                    s[prev].turn = slow;
+                    changed = true;
+                }
+            }
+            prev = i;
+            d = 0.f;
+        }
+    }
+    return Error::none;
 }
 
 Error build(const uint8_vector& actions, const RunPreset& p, float start_offset, Steps* out) {
@@ -77,16 +142,17 @@ Error build(const uint8_vector& actions, const RunPreset& p, float start_offset,
     for (uint8_t a : actions) {
         if (a == ACT_FINISH) break;
         Error e = Error::none;
-        const slalom::Param* turn = nullptr;
+        TurnKind kind = TURN_L90;
         slalom::TurnDir dir = slalom::TurnDir::left;
         if (ACT_MOVE_0SEC <= a && a <= ACT_MOVE_32SEC) {
             e = addStraight(out, false, (a - ACT_MOVE_0SEC) * HALF_MM);
         } else if (ACT_MOVE_0SEC_DIA <= a && a <= ACT_MOVE_32SEC_DIA) {
             e = addStraight(out, true, (a - ACT_MOVE_0SEC_DIA) * DIAG_STEP_MM);
-        } else if (turnOf(a, p, &turn, &dir)) {
+        } else if (turnOf(a, &kind, &dir)) {
+            const slalom::Param* turn = p.top(kind);
             if (turn == nullptr) return Error::turnMissing;
             if (out->full()) return Error::tooManySteps;
-            out->push_back(Step{turn, dir, false, 0.f});
+            out->push_back(Step{turn, dir, false, kind, 0.f});
         } else {
             return Error::unknownAction;
         }
@@ -100,14 +166,17 @@ Error build(const uint8_vector& actions, const RunPreset& p, float start_offset,
             out->front().distance += start_offset;
         } else {
             if (out->full()) return Error::tooManySteps;
-            out->insert(out->begin(), Step{nullptr, slalom::TurnDir::left, false, start_offset});
+            out->insert(out->begin(), Step{nullptr, slalom::TurnDir::left, false, TURN_L90, start_offset});
         }
     }
+
+    Error fit = fitSpeeds(out, p);
+    if (fit != Error::none) return fit;
 
     // 終わり: 経路はゴール区画の中央で終わる。直線ならそこで止まり（台形の終速0）、
     // ターンならターンの速度のまま中央に着くので、止まれる距離だけ進んで止まる
     if (out->back().turn != nullptr) {
-        float v = p.turn_speed;
+        float v = out->back().turn->speed;
         Error e = addStraight(out, false, v * v / (2.f * p.decel));
         if (e != Error::none) return e;
     }
@@ -122,7 +191,7 @@ uint8_t segments(const Steps& steps, std::size_t i, const RunPreset& p, Segment 
     }
 
     const float d = s.distance;
-    const float v_in = startSpeed(i, p);
+    const float v_in = startSpeed(steps, i, p);
     const float v_out = endSpeed(steps, i, p);
     const float v_max = s.diagonal ? p.max_speed_dia : p.max_speed;
     trapezoid::Part parts[trapezoid::MAX_PARTS];
@@ -179,7 +248,8 @@ float estimatedTime(const Steps& steps, const RunPreset& p) {
     return t;
 }
 
-std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, float* out, std::size_t max) {
+std::size_t edgeBoundaries(const Steps& steps, const RunPreset& /*p*/, int per_turn, bool center, float* out,
+                           std::size_t max) {
     using namespace config::wall_edge;
     std::size_t n = 0;
     float x = 0.f;   // 手順 i の始めの位置
@@ -196,23 +266,56 @@ std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn,
         bool from_center = (s.turn->entry == slalom::Anchor::center);
         if (from_center && prev != nullptr && prev->turn == nullptr && !prev->diagonal) {
             const float straight_start = x - prev->distance;
+            // 境界 b の壁切れを直線の中で検出できるか：予想位置から窓の幅を引いたところまでに，
+            // 直線に入ってから MIN_WALL_MM 以上壁を見ていないと壁切れにならない
+            auto detectable = [&](float b) {
+                float earliest = std::min(WallEdge::expectedX(WallEdge::left, b, s.turn->speed),
+                                          WallEdge::expectedX(WallEdge::right, b, s.turn->speed)) - WINDOW_MM;
+                return earliest - MIN_WALL_MM >= straight_start;
+            };
             // 入口に近い境界から per_turn 個まで数えてから，位置の小さい順に入れる
             int k = 0;
-            while (k < per_turn) {
-                float b = x - HALF_MM - static_cast<float>(k) * CELL_MM;
-                float earliest = std::min(WallEdge::expectedX(WallEdge::left, b, p.turn_speed),
-                                          WallEdge::expectedX(WallEdge::right, b, p.turn_speed)) - WINDOW_MM;
-                // 直線に入ってから MIN_WALL_MM 以上壁を見ていないと壁切れにならない
-                if (earliest - MIN_WALL_MM < straight_start) break;
-                ++k;
-            }
+            while (k < per_turn && detectable(x - HALF_MM - static_cast<float>(k) * CELL_MM)) ++k;
             for (int j = k - 1; j >= 0 && n < max; --j) {
                 out[n++] = x - HALF_MM - static_cast<float>(j) * CELL_MM;
             }
+            // 入口の半区画先の境界：横のセンサーは車軸の約 91 mm 先を見るので，区画中央（入口）に着いたところで
+            // 検出する。ターンの先の区画は曲がる側の壁がないので，入口の区画に曲がる側の壁があれば必ず切れる
+            if (center && n < max && detectable(x + HALF_MM)) out[n++] = x + HALF_MM;
         }
         x += slalom::totalDistance(*s.turn, s.dir);
     }
     return n;
+}
+
+namespace {
+// 斜め（diagonal = true）か縦横の直線の範囲。diagonalRanges・orthogonalRanges の共通部分
+std::size_t straightRanges(const Steps& steps, bool diagonal, float* x0, float* x1, std::size_t max) {
+    std::size_t n = 0;
+    float x = 0.f;   // 手順 i の始めの位置
+    for (std::size_t i = 0; i < steps.size(); ++i) {
+        const Step& s = steps[i];
+        if (s.turn != nullptr) {
+            x += slalom::totalDistance(*s.turn, s.dir);
+            continue;
+        }
+        if (s.diagonal == diagonal && s.distance > 0.f && n < max) {
+            x0[n] = x;
+            x1[n] = x + s.distance;
+            ++n;
+        }
+        x += s.distance;
+    }
+    return n;
+}
+} // namespace
+
+std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max) {
+    return straightRanges(steps, true, x0, x1, max);
+}
+
+std::size_t orthogonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max) {
+    return straightRanges(steps, false, x0, x1, max);
 }
 
 } // namespace fast_plan

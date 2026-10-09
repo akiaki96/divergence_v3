@@ -29,7 +29,7 @@ import sys
 import numpy as np
 
 import slalom_sim as S
-from slalom_presets import PRESET_LIST, parse_speed_key
+from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 PARAMS_PATH = os.path.join(TOOLS_DIR, "slalom_params.json")
@@ -262,17 +262,102 @@ def write_params(data):
     os.replace(tmp, PARAMS_PATH)
 
 
+DEFAULT_SEED_RADIUS_MM = 90.0   # 種が無いときの初期値：この半径を回る ω（区画の半分）
+DEFAULT_SEED_RAMP_FRAC = 0.5    # 種が無いときの初期値：加減速の角度の割合
+DEFAULT_SEED = "既定の初期値"
+
+
+def seed_entry(preset, entries, speed, fan):
+    """新しく作るエントリの種 (説明, エントリ)。次の順に探す：
+      1. 同じターン・同じファンの中で速度がいちばん近いエントリ
+      2. 同じターンのもう一方のファンの中で速度がいちばん近いエントリ（ω・α の形を借りる）
+      3. どちらも無い（そのターンを初めて作る）：既定の初期値（半径 DEFAULT_SEED_RADIUS_MM 相当の ω，
+         加減速の割合 DEFAULT_SEED_RAMP_FRAC，オフセット0，幅 86mm）。形に意味が無いので optimize でだけ使う
+    1・2 は ω を速度比倍，α を速度比の2乗倍する（滑りがなければ同じ軌跡になる）"""
+    base_keys = [k for k in entries if k == make_speed_key(*parse_speed_key(k))]   # 組の名前の付いたものは使わない
+    for want_fan in (fan, not fan):
+        same = [k for k in base_keys if parse_speed_key(k)[1] == want_fan]
+        if not same:
+            continue
+        key = min(same, key=lambda k: abs(parse_speed_key(k)[0] - speed))
+        base = entries[key]
+        r = speed / base["Set_Speed"]
+        e = dict(base)
+        e.update({"Set_Speed": float(speed), "Set_low_AngVel": base["Set_low_AngVel"] * r,
+                  "Set_Low_AngAcl": base["Set_Low_AngAcl"] * r * r, "fan": fan})
+        for k in ("result", "saved_at", "autotune"):
+            e.pop(k, None)
+        return key, e
+    omega = math.degrees(speed / DEFAULT_SEED_RADIUS_MM)
+    return DEFAULT_SEED, {"Set_Speed": float(speed), "Set_low_AngVel": omega,
+                          "Set_Low_AngAcl": alpha_of(preset, omega, DEFAULT_SEED_RAMP_FRAC),
+                          "Set_pri_offset": 0.0, "Set_post_offset": 0.0, "Set_K_SP": 0.0, "Set_C_SP": 0.0,
+                          "Set_Width": 86.0, "fan": fan}
+
+
 def selected(args, params):
+    """(プリセット, 速度のキー, エントリ, 種のキー)。--create なら --speed のうち無いものを種から作る（種のキーは新規のときだけ）"""
     for p in PRESET_LIST:
         if args.turn and p.cpp_name not in args.turn:
             continue
-        for key, e in sorted(params.get(p.label, {}).items(), key=lambda kv: parse_speed_key(kv[0])):
+        entries = params.get(p.label, {})
+        items = [(key, e, None) for key, e in entries.items()]
+        if args.create:
+            fans = [False, True] if args.fan == "all" else [args.fan == "on"]
+            for speed in args.speed:
+                for fan in fans:
+                    key = make_speed_key(speed, fan)
+                    if key in entries:
+                        continue
+                    seed_key, e = seed_entry(p, entries, speed, fan)
+                    items.append((key, e, seed_key))
+        for key, e, seed_key in sorted(items, key=lambda it: parse_speed_key(it[0])):
             speed, fan = parse_speed_key(key)
             if args.speed and speed not in args.speed:
                 continue
             if args.fan != "all" and fan != (args.fan == "on"):
                 continue
-            yield p, key, e
+            yield p, key, e, seed_key
+
+
+# delta に書けるキーと Design の属性（gen_slalom_params.DELTA_KEYS と同じ4つ）
+SIDE_DELTA_KEYS = (("Set_low_AngVel", "omega"), ("Set_Low_AngAcl", "alpha"),
+                   ("Set_pri_offset", "pre"), ("Set_post_offset", "post"))
+
+
+def write_side_deltas(results, args):
+    """--side：その向きを設計し直した値と今の設計の差を slalom_tuning.json の delta_<side> に書く。
+    両方向の delta があれば，それを引いた残りを書く（その向きの値 = 設計値 + delta + delta_<side> = 設計し直した値）。
+    設計値（slalom_params.json）とその saved_at は変えないので，もう一方の向きは今のまま"""
+    tuning = load_json(TUNING_PATH)
+    field = f"delta_{args.side}"
+    note = f"{datetime.date.today().isoformat()} slalom_autotune refit --side {args.side}（c={args.c}, K={args.k}）"
+    written, skipped = 0, []
+    for p, key, e, d in results:
+        tune = tuning.setdefault(p.label, {}).setdefault(key, {})
+        if tune.get("base_saved_at") not in (None, e.get("saved_at")):
+            skipped.append(f"{p.label} / {key}（今の差分が古い設計に対するもの）")
+            continue
+        tune["base_saved_at"] = e.get("saved_at")
+        both = tune.get("delta", {})
+        delta = {}
+        for k, attr in SIDE_DELTA_KEYS:
+            v = round(float(getattr(d, attr)) - float(e[k]) - float(both.get(k, 0.0)), 2) + 0.0
+            if v != 0.0:
+                delta[k] = v
+        tune[field] = delta
+        old = tune.get("note", "")
+        tune["note"] = note if not old else (old if note in old else f"{old} / {note}")
+        written += 1
+    tmp = TUNING_PATH + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(tuning, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    os.replace(tmp, TUNING_PATH)
+    print(f"\n{written} 件の {field} を slalom_tuning.json に書きました（slalom_params.json は変えていません）")
+    for s_ in skipped:
+        print(f"  書かなかった: {s_}")
+    return 0
 
 
 def main():
@@ -290,23 +375,44 @@ def main():
     ap.add_argument("--slack", type=float, default=0.01,
                     help="optimize: 最短時間からこの割合だけ遅い候補まで含めて，α が最小のものを選ぶ（既定 0.01 = 1%%）")
     ap.add_argument("--omega-max", type=float, help="optimize: ω の上限 [dps]（既定 2000 まで探す）")
-    ap.add_argument("--write", action="store_true", help="slalom_params.json に書く")
+    ap.add_argument("--create", action="store_true",
+                    help="--speed のうち slalom_params.json に無い速度のエントリを作る（種は同じターンの近い速度，"
+                         "無ければ既定の初期値で optimize のみ）")
+    ap.add_argument("--side", choices=["left", "right"],
+                    help="refit: その向きの旋回だけを設計し直し，slalom_params.json は変えずに slalom_tuning.json の "
+                         "delta_<side> に書く（左右で滑りが違うとき。もう一方の向きは今の設計のまま）")
+    ap.add_argument("--write", action="store_true", help="slalom_params.json（--side なら slalom_tuning.json）に書く")
     args = ap.parse_args()
 
     if (args.c is not None or args.k is not None) and args.fan == "all":
         ap.error("--c / --k はファンの有無で違うので，--fan off か --fan on と一緒に指定する")
+    if args.create and not args.speed:
+        ap.error("--create は作る速度を --speed で指定する")
+    if args.side and (args.mode != "refit" or args.create):
+        ap.error("--side は refit で使う（--create とは一緒に使えない）")
     alpha_max = min(args.alpha_max or MAX_ALPHA, MAX_ALPHA, MAX_ALPHA_DECEL)
 
     params = load_json(PARAMS_PATH)
     results = []
-    for p, key, e in selected(args, params):
+    for p, key, e, seed_key in selected(args, params):
         c = e.get("Set_C_SP", 0.0) if args.c is None else args.c
         k = e.get("Set_K_SP", 0.0) if args.k is None else args.k
         width = e.get("Set_Width", 86.0)
         now = Design(p, e["Set_Speed"], e["Set_low_AngVel"], e["Set_Low_AngAcl"], e["Set_pri_offset"],
                      e["Set_post_offset"], c, k, width)
-        print(f"{p.cpp_name}_{key}  c={c:g}mm K={k:g}")
-        print(f"  今 {now.row()}")
+        if seed_key == DEFAULT_SEED:
+            note = f"  （新規：このターンの設計が無いので{DEFAULT_SEED}から）"
+        elif seed_key:
+            note = f"  （新規：{seed_key} を速度に合わせて伸ばした初期値）"
+        else:
+            note = ""
+        print(f"{p.cpp_name}_{key}  c={c:g}mm K={k:g}{note}")
+        print(f"  {'種' if seed_key else '今'} {now.row()}")
+        if seed_key == DEFAULT_SEED and args.mode == "refit":
+            print("  ✗ 形を保つ refit には元の設計が要る。optimize で ω・α から設計する")
+            continue
+        if seed_key == DEFAULT_SEED and args.c is None:
+            print("  （--c / --k が無いので，滑りなし c=0, K=0 で設計する）")
         try:
             new = refit(p, e, c, k) if args.mode == "refit" else optimize(p, e, c, k, args, alpha_max)
         except AutotuneError as ex:
@@ -326,19 +432,22 @@ def main():
         if not problems:
             results.append((p, key, e, new))
 
+    target = f"slalom_tuning.json の delta_{args.side}" if args.side else "slalom_params.json"
     if not args.write:
-        print(f"\n{len(results)} 件を書けます（--write で slalom_params.json に書く）")
+        print(f"\n{len(results)} 件を書けます（--write で {target} に書く）")
         return 0
     if not results:
         print("書くものがありません")
         return 1
+    if args.side:
+        return write_side_deltas(results, args)
 
     data = load_json(PARAMS_PATH)   # 他で編集された分を消さないよう，書く直前に読み直す
     tuning = load_json(TUNING_PATH)
     now_s = datetime.datetime.now().isoformat(timespec="seconds")
     stale = []
     for p, key, e, d in results:
-        entry = dict(data[p.label][key])
+        entry = dict(data.get(p.label, {}).get(key, e))   # 新しく作ったエントリは種から
         entry.update({
             "Set_low_AngVel": float(d.omega), "Set_Low_AngAcl": float(d.alpha),
             "Set_pri_offset": float(d.pre), "Set_post_offset": float(d.post),
@@ -348,7 +457,7 @@ def main():
             "saved_at": now_s,
             "autotune": args.mode,
         })
-        data[p.label][key] = entry
+        data.setdefault(p.label, {})[key] = entry
         if key in tuning.get(p.label, {}):
             stale.append(f"{p.label} / {key}")
     write_params(data)

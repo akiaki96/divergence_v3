@@ -14,6 +14,7 @@ public:
 
 private:
     void lock(uint32_t delay);
+    void select();
 
     MenuController& controller_;   // menuInstance.cpp の menuController（コピーするとメニュー全体が2つになる）
 

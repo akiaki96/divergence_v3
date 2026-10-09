@@ -32,7 +32,7 @@ struct Motion {
 
 struct Param {
     const char* name;         // 例 "S90_500"（生成ヘッダの定数名と同じ）
-    const char* speed_name;   // 例 "500" / "500 fan"（メニューで速度を選ぶときの表示）
+    const char* turn_name;    // 例 "S90"（メニューで速度の次に種類を選ぶときの表示）
     float angle;         // [deg] 旋回角の大きさ
     Anchor entry;
     Anchor exit;
@@ -44,10 +44,11 @@ struct Param {
     constexpr const Motion& motion(TurnDir dir) const { return (dir == TurnDir::left) ? left : right; }
 };
 
-// 生成ヘッダのALLの中で，同じ種類のターンのパラメータが並んでいる範囲（ALL[first]からcount個，速度の昇順）。
-// メニューで種類→速度の順に選ぶために使う
-struct TurnGroup {
-    const char* name;   // 例 "S90"
+// メニューの1つの段の子の範囲（生成ヘッダの FANS / SPEEDS）。メニューは Slalom → 向き → ファン → 速度 → 種類 の順で，
+//   FANS[f]   … ファン OFF / ON のノード。子は SPEEDS[first] から count 個
+//   SPEEDS[s] … 速度（と組）のノード。子は ALL[first] から count 個（種類の順）
+struct MenuGroup {
+    const char* name;   // 例 "fan on" / "500" / "500 b"
     uint8_t first;
     uint8_t count;
 };

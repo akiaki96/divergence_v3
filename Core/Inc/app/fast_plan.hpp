@@ -25,8 +25,10 @@ struct Step {
     const slalom::Param* turn;   // ターンのパラメータ。nullptr なら直線
     slalom::TurnDir dir;         // ターンの向き
     bool diagonal;               // 直線が斜めか（最高速度が max_speed_dia になる）
+    TurnKind kind;               // ターンの種類（RunPreset::turns の添字。速度を落とすときに候補を引く）。直線では使わない
     float distance;              // [mm] 直線の長さ
 };
+static_assert(sizeof(Step) == sizeof(void*) + 8, "Step is stored MAX_STEPS times; keep it packed");
 
 inline constexpr std::size_t MAX_STEPS = 128;
 using Steps = etl::vector<Step, MAX_STEPS>;
@@ -37,12 +39,24 @@ enum class Error : uint8_t {
     unknownAction,   // 最短走行では使わない動作がある
     turnMissing,     // プリセットにないターン（斜めを使わないプリセットに斜めのターンなど）
     tooManySteps,    // 手順が MAX_STEPS を超える
+    speedUnfit,      // いちばん遅い候補まで落としても，あいだの直線で速度を変えきれない
 };
 const char* errorName(Error e);
 
 // ACT の列を手順にする。start_offset [mm] は置いた位置（車軸）から (0,0) の区画中央まで。
-// ゼロの長さの直線は除き、続く直線はまとめる
+// ゼロの長さの直線は除き、続く直線はまとめる。ターンはまず各種類のいちばん速い候補にし，fitSpeeds で合わせる
 Error build(const uint8_vector& actions, const RunPreset& p, float start_offset, Steps* out);
+
+// ターンの速度を合わせる。隣り合うターン（または始めの停止・終わりの停止）のあいだの直線で，機体の上限
+// （config::profile_limit::MAX_ACCEL_X・MAX_DECEL_X。validate() と同じ）で速度を変えきれないところは，速い方のターンを同じ種類の下の候補（RunPreset::turns）に落とす。変わらなくなるまで繰り返す
+// （落とすだけなので必ず終わる）。いちばん遅い候補でも合わなければ Error::speedUnfit
+Error fitSpeeds(Steps* steps, const RunPreset& p);
+
+// ソルバー（time_based_dijkstra）の時間のコストを，このプリセットの速度と各ターンの経路長にそろえる（solver_options）。
+// 直線のコストは turn_speed で入って出る台形の近似，ターンはその種類のいちばん速い候補の経路長 / 速度。
+// 使わないターン（候補なし）はコストを DISABLED_TURN_MS にして選ばせない。ゴールは変えない。値が不正なら false
+inline constexpr uint16_t DISABLED_TURN_MS = 30000;
+bool applySolverCosts(const RunPreset& p);
 
 // PlanProfile に積む1つの区間
 struct Segment {
@@ -67,8 +81,19 @@ float estimatedTime(const Steps& steps, const RunPreset& p);
 
 // 壁切れの補正（common/wall_edge.hpp）に教える区画境界。入口が区画中央のターン（大回り90°・180°・入45°・入135°）の
 // 手前の縦横の直線にある境界（入口 − 半区画，さらに1区画ずつ手前）を，ターンごとに最大 per_turn 個。
-// 壁切れを検出する予想位置（窓の幅も含めて）が直線の中に収まる境界だけ（ターンの直後の短い直線では検出できない）。
+// center なら入口 + 半区画の境界も（壁切れは入口の約 1 mm 手前，区画中央に着いたところで起きる）。
+// 壁切れの予想位置から窓の幅を引いたところが直線の中に収まる境界だけ（ターンの直後の短い直線では検出できない）。
 // 位置は経路に沿った距離で，置いた位置が 0（Odometry::positionX と同じ座標）。小さい順に out に入れ，数を返す
-std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, float* out, std::size_t max);
+std::size_t edgeBoundaries(const Steps& steps, const RunPreset& p, int per_turn, bool center, float* out,
+                           std::size_t max);
+
+// 斜めの直線の位置の範囲（斜めの姿勢制御 common/diag_control.hpp に教える）。前のターンの出口の基準点から
+// 次のターンの入口の基準点まで（スラロームの入口・出口のオフセットは含まない）。座標は edgeBoundaries と同じ。
+// 小さい順に x0[i], x1[i] へ入れ，数を返す（max を超えた分は入れない）
+std::size_t diagonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max);
+
+// 縦横の直線の位置の範囲（横壁の補正 common/wall_control.hpp に教える）。diagonalRanges と同じく，前のターンの出口の
+// 基準点から次のターンの入口の基準点まで（スラロームのオフセットは含まない：入45°の出口側・出45°の入口側などは斜め）
+std::size_t orthogonalRanges(const Steps& steps, float* x0, float* x1, std::size_t max);
 
 } // namespace fast_plan

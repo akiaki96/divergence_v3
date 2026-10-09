@@ -8,6 +8,8 @@ public:
     void init();
     void update();
     void calibrate();
+    // calibrate() の後，config::imu::REFFERENCE_NUM 回（1ms ごと）の平均を取り終えるまで true
+    bool calibrating() const { return calibrating_; }
 
     float accelX() const { return accelX_; }
     float accelY() const { return accelY_; }
@@ -83,7 +85,7 @@ private:
 	int32_t sumGyroX_ = 0;
 	int32_t sumGyroY_ = 0;
 	int32_t sumGyroZ_ = 0;
-    bool calibrating_ = false;
+    volatile bool calibrating_ = false;   // 割り込み（update）が下ろし，メインが待つ
     int32_t time_count_ = 0;
 
 };

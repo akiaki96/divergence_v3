@@ -44,6 +44,13 @@ c++ -std=c++20 -Wall -Wextra -O2 \
     -o "$OUT/test_search_lookahead"
 "$OUT/test_search_lookahead"
 
+# 最短走行のゴール領域（2×2 のゴールで、到達の最も遅い区画で経路を終える）
+c++ -std=c++20 -Wall -Wextra -O2 \
+    -I "$ROOT/external/etl/include" -I "$SOLVER/core" "${SOLVER_INC[@]}" \
+    "${SOLVER_SRC[@]}" "$ROOT/tools/host_test/test_goal_region.cpp" \
+    -o "$OUT/test_goal_region"
+"$OUT/test_goal_region"
+
 # 最短走行の手順（壁切れの補正に教える区画境界）。ACT_* と uint8_vector のためにソルバーの core を見る
 c++ -std=c++20 -Wall -Wextra -O1 \
     -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$SOLVER/core" \
@@ -58,3 +65,20 @@ c++ -std=c++20 -Wall -Wextra -O1 \
     "$SOLVER"/core/*.cpp "$ROOT/Core/Src/app/maze_store.cpp" "$ROOT/tools/host_test/test_maze_store.cpp" \
     -o "$OUT/test_maze_store"
 "$OUT/test_maze_store"
+
+# 斜めの直線の切れ目からの距離（Device → IR → Diagonal のデータ収集，tools/DIAGONAL.md）
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" \
+    "$ROOT/Core/Src/common/diag_edge.cpp" "$ROOT/tools/host_test/test_diag_edge.cpp" \
+    -o "$OUT/test_diag_edge"
+"$OUT/test_diag_edge"
+
+# 斜めの直線の向きの補正（表のヘッダはビルドと同じく JSON から生成する，tools/DIAGONAL.md）
+python3 "$ROOT/tools/gen_diag_table.py" --table "$ROOT/tools/diag_table.json" \
+    --out "$OUT/generated/config/diag_table.hpp"
+c++ -std=c++20 -Wall -Wextra -O1 \
+    -I "$ROOT/Core/Inc" -I "$OUT/generated" \
+    "$ROOT/Core/Src/common/diag_edge.cpp" "$ROOT/Core/Src/common/diag_control.cpp" \
+    "$ROOT/tools/host_test/test_diag_control.cpp" \
+    -o "$OUT/test_diag_control"
+"$OUT/test_diag_control"

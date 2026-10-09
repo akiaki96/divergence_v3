@@ -36,7 +36,7 @@ import json
 import os
 import sys
 
-from slalom_presets import PRESET_BY_LABEL, PRESET_LIST, parse_slalom_key, slalom_key_label, slalom_key_order
+from slalom_presets import PRESET_BY_LABEL, PRESET_LIST, parse_slalom_key, slalom_key_order
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -136,7 +136,8 @@ def build_entries(params, tuning):
 
             entries.append({
                 "ident": cpp_ident(preset.cpp_name, speed, fan, variant),
-                "speed_name": slalom_key_label(speed_key),
+                "speed_name": f"{speed:g}" + (f" {variant}" if variant else ""),   # ファンはメニューの1つ上の段
+                "turn_name": preset.cpp_name,
                 "variant": variant,
                 "label": label,
                 "preset": preset,
@@ -152,9 +153,10 @@ def build_entries(params, tuning):
                 "c_slip": design.get("Set_C_SP", 0.0),
             })
 
-    # メニューの並びを保存した順によらず一定にする：種類は slalom_presets.py の順，同じ種類の中は速度の昇順
+    # メニューの並びを保存した順によらず一定にする：ファンOFFが先，同じファンの中は速度の昇順（同じ速度は基本の組が先），
+    # 同じ速度・組の中は slalom_presets.py の種類の順（メニューは ファン → 速度 → 種類 の順に選ぶ）
     order = {p.label: i for i, p in enumerate(PRESET_LIST)}
-    entries.sort(key=lambda e: (order[e["label"]], e["speed"], e["fan"], e["variant"]))
+    entries.sort(key=lambda e: (e["fan"], e["speed"], e["variant"], order[e["label"]]))
 
     # 表にない調整は書き間違いの可能性が高いので止める
     for label, by_speed in tuning.items():
@@ -207,26 +209,37 @@ def render(entries):
         else:
             out.append("//   調整なし")
         out.append(
-            f"inline constexpr Param {e['ident']} = {{\"{e['ident']}\", \"{e['speed_name']}\", {fmt(p.angle)}, "
+            f"inline constexpr Param {e['ident']} = {{\"{e['ident']}\", \"{e['turn_name']}\", {fmt(p.angle)}, "
             f"Anchor::{ANCHOR[p.entry]}, Anchor::{ANCHOR[p.exit]}, {fmt(e['speed'])}, "
             f"{motion(v['left'])}, {motion(v['right'])}, {'true' if e['fan'] else 'false'}}};")
         out.append("")
-    out.append("// すべてのパラメータ（種類の順，同じ種類の中は速度の昇順）")
+    out.append("// すべてのパラメータ（速度の昇順，同じ速度はファンOFFが先，同じ速度の中は種類の順）")
     out.append(f"inline constexpr std::array<Param, {len(entries)}> ALL = {{")
     out += [f"    {e['ident']}," for e in entries]
     out += ["};", ""]
 
-    # ALLの中で同じ種類が並ぶ範囲（並べ替え済みなので連続している）
-    groups = []
+    # メニューの範囲（並べ替え済みなので，同じファン・同じ速度と組のものは連続している）：
+    #   FANS[f]   … SPEEDS[first] から count 個（ファン OFF / ON の段）
+    #   SPEEDS[s] … ALL[first] から count 個（速度の段。同じファンの中で速度と組ごと）
+    speeds = []   # [fan, name, first, count]
     for i, e in enumerate(entries):
-        name = e["preset"].cpp_name
-        if groups and groups[-1][0] == name:
-            groups[-1][2] += 1
+        if speeds and speeds[-1][0] == e["fan"] and speeds[-1][1] == e["speed_name"]:
+            speeds[-1][3] += 1
         else:
-            groups.append([name, i, 1])
-    out.append("// 種類ごとの範囲：ALL[first]からcount個（メニューで種類→速度の順に選ぶ）")
-    out.append(f"inline constexpr std::array<::slalom::TurnGroup, {len(groups)}> TURNS = {{{{")
-    out += [f"    {{\"{name}\", {first}, {count}}}," for name, first, count in groups]
+            speeds.append([e["fan"], e["speed_name"], i, 1])
+    fans = []     # [fan, first, count]
+    for j, (fan, _, _, _) in enumerate(speeds):
+        if fans and fans[-1][0] == fan:
+            fans[-1][2] += 1
+        else:
+            fans.append([fan, j, 1])
+    out.append("// ファンの段：SPEEDS[first]からcount個（メニューは ファン → 速度 → 種類 の順に選ぶ）")
+    out.append(f"inline constexpr std::array<::slalom::MenuGroup, {len(fans)}> FANS = {{{{")
+    out += [f"    {{\"{'fan on' if fan else 'fan off'}\", {first}, {count}}}," for fan, first, count in fans]
+    out += ["}};", ""]
+    out.append("// 速度の段：ALL[first]からcount個")
+    out.append(f"inline constexpr std::array<::slalom::MenuGroup, {len(speeds)}> SPEEDS = {{{{")
+    out += [f"    {{\"{name}\", {first}, {count}}},   // {'fan on' if fan else 'fan off'}" for fan, name, first, count in speeds]
     out += ["}};", "", "} // namespace config::slalom", ""]
     return "\n".join(out)
 

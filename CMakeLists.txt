@@ -137,6 +137,24 @@ add_custom_command(
     VERBATIM
 )
 
+# Diagonal straight table: side IR reference value and lateral sensitivity
+# against the distance since the last pillar edge, from the diagonal sensor
+# runs (tools/diag_table.json). Used by the diagonal attitude control
+# (common/diag_control).
+set(DIAG_TABLE_HPP ${GENERATED_INC_DIR}/config/diag_table.hpp)
+add_custom_command(
+    OUTPUT ${DIAG_TABLE_HPP}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_diag_table.py
+            --table ${CMAKE_SOURCE_DIR}/tools/diag_table.json
+            --out ${DIAG_TABLE_HPP}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/tools/gen_diag_table.py
+        ${CMAKE_SOURCE_DIR}/tools/gen_slalom_params.py
+        ${CMAKE_SOURCE_DIR}/tools/diag_table.json
+    COMMENT "Generating config/diag_table.hpp"
+    VERBATIM
+)
+
 # Run presets: shortest-run speeds and whether to use diagonals, chosen
 # from the menu (Run > Fast). Like the search presets, a preset naming a
 # slalom that is not designed in slalom_params.json stops the build.
@@ -164,6 +182,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${SEARCH_PRESETS_HPP}
     ${RUN_PRESETS_HPP}
     ${FRONT_DISTANCE_HPP}
+    ${DIAG_TABLE_HPP}
 )
 
 # Add include paths

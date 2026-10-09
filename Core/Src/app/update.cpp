@@ -3,6 +3,7 @@
 #include "menu/menuInstance.hpp"
 #include "app/update.hpp"
 #include "tim.h"
+#include <algorithm>
 
 namespace {
 volatile uint32_t g_last_cycles = 0;   // 0：まだ測っていない
@@ -43,12 +44,25 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
             wall::Snapshot ws = wall::read();
             float shift = wallEdge.update(ws.value[wall::left], ws.value[wall::right], odometry.positionX(),
                                           planProfile.getTargetVelocityX(), planProfile.getTargetOmega());
-            if (shift != 0.f) odometry.shiftPositionX(shift);
+            if (shift != 0.f) {
+                odometry.shiftPositionX(shift);
+                // 補正の程度を LED に出す（前へ足したら下位8個，後ろへ戻したら上位8個に点灯数で。広い方の窓の幅で全点灯）。次の補正まで残す
+                ledBar16.set(shift, LedBarValMode::pmlinear8, std::max(wallEdge.window(), wallEdge.windowLate()));
+            }
         }
-        // 横壁の補正を回転の目標に足す（直進中で有効なときだけ。それ以外はそのまま）
+        // 斜めの直線の切れ目からの距離（有効なときだけ）
+        wall::Snapshot side = wall::read();
+        if (diagEdge.active()) {
+            diagEdge.update(side.value[wall::left], side.value[wall::right], odometry.positionX());
+        }
+        // 横壁の補正を回転の目標に足す（直進中で有効なときだけ。最短走行では縦横の直線の範囲だけ。それ以外はそのまま）
         AxisReference rot_ref = wallControl.apply(
-            planProfile.rotReference(), planProfile.getTargetOmega(), planProfile.getTargetVelocityX()
+            planProfile.rotReference(), planProfile.getTargetOmega(), planProfile.getTargetVelocityX(),
+            planProfile.getTargetPositionX()
         );
+        // 斜めの直線では切れ目からの距離の表で向きを補正する（教えた斜めの直線の中で有効なときだけ）
+        rot_ref = diagControl.apply(rot_ref, planProfile.getTargetOmega(), planProfile.getTargetVelocityX(),
+                                    odometry.positionX(), side.value[wall::left], side.value[wall::right], diagEdge);
         motorDriver.update(
             planProfile.transReference(), odometry.translation(),
             rot_ref, odometry.rotation()

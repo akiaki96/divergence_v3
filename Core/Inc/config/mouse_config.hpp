@@ -41,7 +41,9 @@ inline constexpr float IIR_ALPHA = 0.1f;
 // 吸引ファンを回して走るときのduty（スラロームの試験など。plan_profile_testの高速試験と同じ20%）
 namespace config::fan {
 inline constexpr float RUN_DUTY = 0.20f;
-inline constexpr uint32_t SPINUP_MS = 1000;   // ファンのスピンアップ待ち（吸着力が立ち上がるまで）
+// ファンを回してから IMU を校正するまでの待ち。回転・振動・電源電圧（ファンの電流で電池の電圧が下がる）が
+// 定常になってからジャイロのオフセットを測る（device_test の imu_*_fan で試した 2s）
+inline constexpr uint32_t STEADY_MS = 2000;
 }
 
 namespace config::motor {
@@ -104,9 +106,12 @@ inline constexpr float MAX_DECEL_X = 2.0f * G;         // [mm/s^2] 減速の上�
 
 // 回転の角加速度の上限（積むときに検査する）。[要調整] 同定していない。桁違いの指定を弾くための上限で，
 // その場旋回の試験は2500dps/s，スラロームの設計値は最大10750dps/s（小回り90° 700mm/s）。
-// スラロームが収まるよう10000から20000へ上げた（2026-10-02）
-inline constexpr float MAX_ALPHA = 20000.f;   // [dps/s] 増速の上限
-inline constexpr float MAX_ALPHA_DECEL = 20000.f;   // [dps/s] 減速の上限（大きさ）
+// スラロームが収まるよう10000から20000へ上げた（2026-10-02）。V90 1500mm/s（ω 約1350〜1440dps，α 約23000〜23700dps/s。
+// 20000以下では入口のオフセットが負になり，柱までの余裕8mmも取れない）が収まるよう25000へ上げた（2026-10-07）。
+// 2400・2700mm/s のスラローム（L90・T180 2700 は約32000，OUT45 2700 は約38700，IN135・OUT135 2400 は約39500dps/s）が
+// 収まるよう40000へ上げた（2026-10-07）。入45° 2400 以上（約44000〜）と 135° の 2700（約58000，ω も 2000dps 超）は入らない
+inline constexpr float MAX_ALPHA = 40000.f;   // [dps/s] 増速の上限
+inline constexpr float MAX_ALPHA_DECEL = 40000.f;   // [dps/s] 減速の上限（大きさ）
 }
 
 // 位置のP制御（並進の外側ループ）：v_cmd = v_ref + kp(x_ref − x)。積分は持たない（AxisControllerの外側PIをki=0で使う）
@@ -191,6 +196,9 @@ inline constexpr float KP_PER_VELOCITY = 5.5e-4f;   // [dps/count per mm/s] 中�
 // 補正の角速度の上限も v に比例させる（曲率の上限。500 mm/s で前と同じ 90 dps）
 inline constexpr float MAX_OMEGA_PER_VELOCITY = 0.18f;   // [dps per mm/s]
 inline constexpr float MIN_VELOCITY = 100.f;    // [mm/s] これより遅いとき（停止・超信地旋回）は補正しない
+// 最短走行でも縦横の直線（fast_plan::orthogonalRanges。斜めの直線・スラロームのオフセットは除く）で補正するか。
+// 補正で蛇行するとエンコーダの距離ほど前へ進まず，ターンの入口に届かなくなりがち → 壁切れの補正（config::wall_edge）で合わせる
+inline constexpr bool FAST_RUN_CONTROL = true;
 }
 
 // 壁切れによる距離の補正（common/wall_edge.hpp）。直進中に横のセンサー（左・右）の値が下がった
@@ -219,6 +227,10 @@ inline constexpr float MIN_WALL_MM = 20.f;     // [mm] これより短く見え�
 // [試験中 2026-10-03] 30 にしたら，探索で間違った壁切れが 24〜26 mm のずれで2回受け入れられ，機体が約 50 mm
 // 前にずれて横壁を読み落とし衝突した。探索で使う S90 の出口のずれ（約 10 mm）に余裕を足して 20 にする
 inline constexpr float WINDOW_MM = 20.f;
+// [mm] 最短走行だけ：予想より後ろで壁切れを見たとき（機体がエンコーダの距離ほど前へ進んでいない＝補正が足りない向き。
+// 補正は負）はここまで受け入れる。蛇行・スリップで足りなくなるのはこの向きなので広く取る（2026-10-09 ユーザーの指定で 40）。
+// 予想より前（補正が正）は WINDOW_MM のまま。探索は前後とも WINDOW_MM（後ろへの誤対応で衝突したことがあるため）
+inline constexpr float FAST_WINDOW_LATE_MM = 40.f;
 inline constexpr float MIN_VELOCITY = 100.f;   // [mm/s] これより遅いとき（加速の始め・停止・超信地旋回）は見ない
 
 // 探索で補正をかけるか。false でも壁切れは検出してログ（search/<preset>_edges）に残す。
@@ -228,6 +240,61 @@ inline constexpr bool SEARCH_CORRECTION = true;
 // 最短走行（app/fast_run.cpp）：入口が区画中央のターン（L90・T180・IN45・IN135）の手前の区画境界をいくつ教えるか。
 // 直前の境界で横壁が切れなくても，その1つ前で合わせられるように2つ。補正をかけるかはプリセットの "wall_edge"
 inline constexpr int FAST_BOUNDARIES_PER_TURN = 2;
+// 最短走行：入口の半区画先の境界（入口 + 90）も教えるか。横のセンサーは約 91 mm 先を見るので，壁切れは区画中央（入口）の
+// 約 1 mm 手前で起きる。ターンの先の区画は曲がる側の壁がないので，入口の区画に曲がる側の壁があれば必ず切れる
+// （手前の境界は「1区画手前まで壁があり入口の区画で壁がない」ときだけ）。直前の直線が 41 mm 以上なら教える。
+// 窓の後ろ半分はターンが始まった後（入口オフセットは 900 mm/s の L90 で約 1 mm）なので，遅れた壁切れは検出できない
+inline constexpr bool FAST_CENTER_BOUNDARY = true;
+}
+
+// 斜めの直線の柱・壁の切れ目（common/diag_edge.hpp，試験は test/diag_sensor_test.hpp，手順は tools/DIAGONAL.md）。
+// 斜めの直線（区画の辺の中点を結ぶ線）では，柱が経路から 90/√2 ≈ 63.6 mm 横に，内側・外側が交互に
+// 90√2 ≈ 127.3 mm おきに並ぶ（同じ側の柱は 180√2 ≈ 254.6 mm おき）。
+// 横のセンサー（irL / irR，前へ約45°）は斜めの直線では迷路の縦横の向きを向き，前の壁の面が柱で切れるところで値が下がる
+namespace config::diag {
+inline constexpr float PITCH_MM = 127.27922f;                 // [mm] 90√2：辺の中点（＝柱の並び）の間隔
+inline constexpr float PILLAR_PERIOD_MM = 2.f * PITCH_MM;     // [mm] 同じ側の柱の間隔
+inline constexpr float PILLAR_LATERAL_MM = 63.63961f;         // [mm] 90/√2：経路から柱の中心まで
+
+// 切れ目とみなす値（ヒステリシス）。切れ目の位置は OFF を下回った位置（tick 間を補間）。
+// [要調整] 仮の値（config::wall_edge と同じ）。Device → IR → Diagonal のログから tools/diag_sensor.py が出す提案値を入れる
+inline constexpr int16_t THRESH_ON_LEFT = 350;
+inline constexpr int16_t THRESH_OFF_LEFT = 250;
+inline constexpr int16_t THRESH_ON_RIGHT = 350;
+inline constexpr int16_t THRESH_OFF_RIGHT = 250;
+inline constexpr float MIN_WALL_MM = 10.f;   // [mm] これより短く見えた壁の後の切れ目は使わない（ノイズ）
+}
+
+// 斜めの直線の向きの補正（common/diag_control.hpp，表は tools/diag_table.json → config/diag_table.hpp，
+// 手順は tools/DIAGONAL.md）。切れ目からの距離 since で表の基準値・感度を引き，横のセンサーの値から横のずれ y [mm]
+// （左が正）を出す。両側が読めれば (左の寄り − 右の寄り)/2，片側ならその側だけ。
+// 表は柱の両側に壁がある並べ方（A）で取ったので，実際の迷路では壁が抜けると値は下がる側にしかずれない。
+// そこで「MAX_AWAY_MM より離れた」と読めた側は壁が抜けているとみなして使わない（壁の抜けで壁の側へ寄せない）。
+//
+// y を距離 FILTER_MM でならし，向きの目標を「斜めの直線に入ったときの向き + 積分 − KP·y」にする（横のずれ → 向き）。
+// 角度の制御が向きを追うので，横は y' = θ（走った距離あたり）で，KP だけなら距離 1/KP で指数的に戻る（振動しない）。
+// 入口の向きのずれ θ0 は積分 KI が打ち消す（KP だけだと y = θ0/KP が残る）。y'' + KP·y' + KI·y = 0（rad で）なので ζ = KP/(2√KI) = 1 にした。
+// [要調整] 実機で未試験。表は 500 mm/s の入45° の直後（並べ方 A）だけから作った
+namespace config::diag_control {
+inline constexpr float FILTER_MM = 20.f;           // [mm] 横のずれをならす距離（一次遅れ）
+// [mm] 読めない区間（切れ目の直後 約 36 mm と直前 約 15 mm）はこの距離まで最後の値を保つ。それより長く読めなければ
+// FILTER_MM で 0 へ戻す（向きは入ったとき＋積分へ戻る）
+inline constexpr float HOLD_MM = 60.f;
+// 斜めの直線は短いことが多い（2〜6 区間 = 254〜764 mm）ので，戻る距離は 120 mm にした
+inline constexpr float KP_DEG_PER_MM = 0.477f;     // [deg/mm] 横のずれ → 向き（1/KP = 120 mm で戻る）
+inline constexpr float KI_DEG_PER_MM2 = 9.9e-4f;   // [deg/mm^2] 横のずれの積分（走った距離で）→ 向き。ζ ≈ 1
+inline constexpr float MAX_INTEGRAL_DEG = 2.f;     // [deg] 積分の上限
+inline constexpr float MAX_LATERAL_MM = 8.f;       // [mm] 片側の寄りの上限（外れ値）
+// [mm] 片側で「これより離れた」と読めたら，その側の壁が抜けているとみなして使わない。
+// 表の走行間のばらつきは横に換算して約 3 mm（R4）。壁が抜けると値は数十 mm ぶん下がる
+inline constexpr float MAX_AWAY_MM = 4.f;
+// 向きの目標の変わる速さの上限も v に比例（config::wall と同じ。500 mm/s で 90 dps）
+inline constexpr float MAX_OMEGA_PER_VELOCITY = 0.18f;   // [dps per mm/s]
+inline constexpr float MIN_VELOCITY = 100.f;             // [mm/s] これより遅いときは補正しない
+// [mm] 斜めの直線の始まりのこれだけ手前からの切れ目を使う。入45°の外側の最初の切れ目は旋回の終わり
+// （出口の基準点の約 −59 mm）の直後に出る（R2）。それより前の切れ目（旋回の前の縦横の壁）は使わない
+inline constexpr float EDGE_BEFORE_MM = 70.f;
+inline constexpr uint8_t MAX_RANGES = 32;      // 1回の走行で覚えておける斜めの直線の数
 }
 
 // 前壁の距離による S90 の入口の補正（common/front_correction.hpp）。探索で S90 を積むとき，読み位置
@@ -260,6 +327,15 @@ namespace config::search {
 inline constexpr float READ_LEAD_MM = 10.f;
 inline constexpr uint8_t GOAL_X = 7;
 inline constexpr uint8_t GOAL_Y = 7;
+// ゴール領域の一辺（ソルバーの solver_options.goal_size）。ゴールが (GOAL_X, GOAL_Y) のとき，
+// (GOAL_X, GOAL_Y)〜(GOAL_X+GOAL_SIZE-1, GOAL_Y+GOAL_SIZE-1) をゴールとして，最短走行は領域の区画のうち
+// 到達の最も遅い区画で止まる（領域へは減速せずに入る）。探索が「着いた」と見るのは (goal_x, goal_y) の
+// 1区画のままで，最短経路の確定は領域までの時間で比べる。試験用の近いゴールは1区画
+inline constexpr uint8_t GOAL_SIZE = 2;
+// ゴール (x, y) のときの goal_size。ソルバーの既定（2）に任せず，探索・最短走行で必ずこれを設定する
+inline constexpr uint8_t goalSize(uint8_t x, uint8_t y) {
+    return (x == GOAL_X && y == GOAL_Y) ? GOAL_SIZE : 1;
+}
 inline constexpr uint16_t MAX_STEPS = 2048;     // 壁を読む回数の上限（ログの行数。往復でも16×16なら足りる）
 inline constexpr float MIN_BATTERY_V = 7.4f;    // [V] これより低ければ走らない
 
@@ -286,7 +362,10 @@ inline constexpr uint32_t RESERVE_SLOTS = 160;  // 探索を始めるとき，�
 }
 
 namespace config::menu {
-inline constexpr uint8_t MAX_CHILDREN = 10;  // 子ノード数の上限（現在の最大はFanの9項目）
+inline constexpr uint8_t MAX_CHILDREN = 12;  // 子ノード数の上限（現在の最大はスラロームの速度の11項目：300〜2700）
+// 全ノードの子の数の合計の上限（MenuNode が子へのポインタを詰めて置く共有の表の大きさ。1つ 4 バイト）。
+// 足りなければ起動時に "menu: child pool full" と出て，あふれた子が出なくなる
+inline constexpr uint16_t MAX_CHILD_LINKS = 512;
 }
 
 namespace config::mode_selector {

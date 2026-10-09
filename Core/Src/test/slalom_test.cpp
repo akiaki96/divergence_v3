@@ -19,7 +19,8 @@ namespace {
 using config::maze::CELL_MM;
 using config::maze::START_MM;
 
-constexpr float RUNUP_ACCEL = 0.5f * config::profile_limit::G;   // [mm/s^2] 入口までの加速
+constexpr float RUNUP_ACCEL = 0.5f * config::profile_limit::G;   // [mm/s^2] 入口までの加速（足りれば）
+constexpr float RUNUP_CRUISE_FRAC = 0.3f;   // 助走のうち，入口の前に等速で走る割合（加速を上げるときに残す分）
 constexpr float STOP_DECEL_LIMIT = config::profile_limit::MAX_DECEL_X;
 constexpr uint32_t SETTLE_MS = 500;            // 止まってから最終位置を読むまで
 
@@ -33,13 +34,20 @@ constexpr float stopDistance(slalom::Anchor exit) {
     return (exit == slalom::Anchor::edge) ? (CELL_MM / 2.f) : CELL_MM;
 }
 
-constexpr float accelDistance(float speed) {
-    return speed * speed / (2.f * RUNUP_ACCEL);
+// 入口までの加速度 [mm/s^2]：RUNUP_ACCEL で助走に収まればそれ，収まらない（高速）なら助走の RUNUP_CRUISE_FRAC を
+// 等速に残せる最小の加速度。config::profile_limit::MAX_ACCEL_X を超えるなら走らない（checkRunnable）
+constexpr float runupAccel(const slalom::Param& p) {
+    float need = p.speed * p.speed / (2.f * (1.f - RUNUP_CRUISE_FRAC) * runupDistance(p.entry));
+    return (need > RUNUP_ACCEL) ? need : RUNUP_ACCEL;
+}
+
+constexpr float accelDistance(const slalom::Param& p) {
+    return p.speed * p.speed / (2.f * runupAccel(p));
 }
 
 // 走行時間 [ms]：静止100ms・助走（加速＋等速）・入口〜出口・停止・整定。低速ほど長い（200mm/s の L90 で約5s）
 constexpr float runMs(const slalom::Param& p, slalom::TurnDir dir) {
-    float accel = accelDistance(p.speed);
+    float accel = accelDistance(p);
     float s = (2.f * accel + (runupDistance(p.entry) - accel) + slalom::totalDistance(p, dir) + 2.f * stopDistance(p.exit)) / p.speed;
     return 100.f + s * 1000.f + SETTLE_MS;
 }
@@ -91,7 +99,7 @@ void slalom_init_log() {
 
 void slalom_profile() {
     const slalom::Param& p = *g_param;
-    float accel = accelDistance(p.speed);
+    float accel = accelDistance(p);
     planProfile.straight(p.speed, accel);
     planProfile.straight(p.speed, runupDistance(p.entry) - accel);
     slalom::push(planProfile, p, g_dir);
@@ -110,10 +118,15 @@ bool checkRunnable(const slalom::Param& p, slalom::TurnDir dir) {
         LOG("slalom test: %s has a diagonal entry/exit (not supported)\r\n", p.name);
         return false;
     }
-    float accel = accelDistance(p.speed);
+    float accel = accelDistance(p);
     float runup = runupDistance(p.entry);
     if (runup - accel <= 0.f) {
         LOG("slalom test: run-up %.1f mm is shorter than the acceleration %.1f mm\r\n", runup, accel);
+        return false;
+    }
+    if (runupAccel(p) > MAX_ACCEL_X) {
+        LOG("slalom test: run-up accel %.0f mm/s^2 for %.0f mm/s exceeds MAX_ACCEL_X %.0f\r\n",
+            runupAccel(p), p.speed, MAX_ACCEL_X);
         return false;
     }
     SegmentResult r = slalom::validate(p, dir);
@@ -148,7 +161,8 @@ void runSlalomTest(const slalom::Param& p, slalom::TurnDir dir) {
     g_param = &p;
     g_dir = dir;
     g_log_ms = logMs(p, dir);
-    LOG("  run about %.1f s, log %.1f s\r\n", runMs(p, dir) / 1000.f, g_log_ms / 1000.f);
+    LOG("  run about %.1f s, log %.1f s, run-up accel %.2f G\r\n", runMs(p, dir) / 1000.f, g_log_ms / 1000.f,
+        runupAccel(p) / config::profile_limit::G);
     g_result = {0.f, 0.f};
     std::snprintf(g_file_name, sizeof(g_file_name), "%s_%s", p.name, dir_name);
 

@@ -18,6 +18,7 @@ void WallEdge::reset() {
     active_ = false;
     correct_ = false;
     window_ = WINDOW_MM;
+    window_late_ = WINDOW_MM;
     queue_.clear();
     pending_count_ = 0;
     for (auto& s : side_) s = SideState{};
@@ -25,16 +26,21 @@ void WallEdge::reset() {
     total_shift_ = 0.f;
 }
 
-void WallEdge::start(bool correct, float window_mm) {
+void WallEdge::start(bool correct, float window_mm, float window_late_mm) {
     correct_ = correct;
     window_ = window_mm;
+    window_late_ = window_late_mm;
     for (auto& s : side_) s = SideState{};
     std::atomic_signal_fence(std::memory_order_seq_cst);   // 上の書き込みを ISR が active_ より先に見るように
     active_ = true;
 }
 
+void WallEdge::start(bool correct, float window_mm) {
+    start(correct, window_mm, window_mm);
+}
+
 void WallEdge::start(bool correct) {
-    start(correct, WINDOW_MM);
+    start(correct, WINDOW_MM, WINDOW_MM);
 }
 
 bool WallEdge::expect(float boundary_mm) {
@@ -61,17 +67,19 @@ void WallEdge::expire(float x, float v) {
     std::size_t keep = 0;
     for (std::size_t i = 0; i < pending_count_; ++i) {
         float latest = std::max(expectedX(left, pending_[i], v), expectedX(right, pending_[i], v));
-        if (x <= latest + window_) pending_[keep++] = pending_[i];
+        if (x <= latest + window_late_) pending_[keep++] = pending_[i];
     }
     pending_count_ = keep;
 }
 
 float WallEdge::onFallingEdge(Side side, float x_edge, float v) {
-    // 予想位置が最も近い境界（窓の中）
+    // 予想位置が最も近い境界（窓の中。予想より後ろ（x_edge が先）は window_late_ まで，前は window_ まで）
     std::size_t best = pending_count_;
-    float best_error = window_;
+    float best_error = INFINITY;
     for (std::size_t i = 0; i < pending_count_; ++i) {
-        float error = std::fabs(expectedX(side, pending_[i], v) - x_edge);
+        float late = x_edge - expectedX(side, pending_[i], v);
+        if (late > window_late_ || -late > window_) continue;
+        float error = std::fabs(late);
         if (error <= best_error) {
             best = i;
             best_error = error;

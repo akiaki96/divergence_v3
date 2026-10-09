@@ -58,6 +58,7 @@ struct Run {
     std::vector<float> boundaries;
     bool correct = true;
     float window = WINDOW_MM;
+    float window_late = -1.f;    // 0 以上なら予想より後ろの窓（start(correct, window, window_late)）
 };
 
 struct Outcome {
@@ -68,7 +69,13 @@ struct Outcome {
 Outcome simulate(WallEdge& we, const Run& r) {
     we.reset();
     for (float b : r.boundaries) we.expect(b);
-    we.start(r.correct, r.window);
+    if (r.window < 0.f) {
+        we.start(r.correct);   // 既定の窓（前後とも WINDOW_MM。探索）
+    } else if (r.window_late >= 0.f) {
+        we.start(r.correct, r.window, r.window_late);
+    } else {
+        we.start(r.correct, r.window);
+    }
     float err = r.err0;
     int tick = 0;
     for (float x = r.x_start; x < r.x_end; x += r.v * config::control::DT_S, ++tick) {
@@ -129,14 +136,37 @@ void testCorrectionRemovesError() {
 }
 
 void testOutsideWindowIgnored() {
-    std::printf("window: an error larger than WINDOW_MM is not corrected\n");
+    std::printf("window: an edge earlier than expected by more than WINDOW_MM is not corrected\n");
     Run r;
     r.left = {{0.f, 312.f}};
     r.boundaries = {312.f};
-    r.err0 = WINDOW_MM + 5.f;
+    r.err0 = -(WINDOW_MM + 5.f);   // 実測が遅れている → 壁切れが予想より前に見える（補正は正）
+    r.window = -1.f;               // 既定の窓（start(correct)）
     Outcome o = simulate(g_we, r);
     check(o.events.size() == 1 && std::isnan(o.events[0].boundary), "edge recorded without a boundary");
     check(near(o.err_end, r.err0, 1e-4f), "no correction");
+}
+
+void testLateWindowWider() {
+    std::printf("late window (fast run): an edge later than expected is corrected up to FAST_WINDOW_LATE_MM\n");
+    Run r;
+    r.left = {{0.f, 312.f}};
+    r.boundaries = {312.f};
+    r.window = -1.f;   // 既定（探索）は後ろも WINDOW_MM
+    r.err0 = WINDOW_MM + 5.f;
+    Outcome o = simulate(g_we, r);
+    check(o.events.size() == 1 && std::isnan(o.events[0].boundary), "default (search): late beyond WINDOW_MM not matched");
+    check(near(o.err_end, r.err0, 1e-4f), "default (search): no correction");
+    r.window = WINDOW_MM;
+    r.window_late = FAST_WINDOW_LATE_MM;
+    r.err0 = FAST_WINDOW_LATE_MM - 5.f;   // 実測が進みすぎ（機体が足りない）→ 壁切れが予想より後ろに見える（補正は負）
+    o = simulate(g_we, r);
+    check(o.events.size() == 1 && o.events[0].boundary == 312.f, "matched beyond WINDOW_MM");
+    check(near(o.err_end, 0.f, 0.3f), "corrected to ~0");
+    r.err0 = FAST_WINDOW_LATE_MM + 5.f;
+    o = simulate(g_we, r);
+    check(o.events.size() == 1 && std::isnan(o.events[0].boundary), "beyond FAST_WINDOW_LATE_MM: no boundary");
+    check(near(o.err_end, r.err0, 1e-4f), "beyond FAST_WINDOW_LATE_MM: no correction");
 }
 
 void testTurningIgnored() {
@@ -222,6 +252,7 @@ int main() {
     testCalibRecordsOffset();
     testCorrectionRemovesError();
     testOutsideWindowIgnored();
+    testLateWindowWider();
     testTurningIgnored();
     testSlowIgnored();
     testShortWallIgnored();

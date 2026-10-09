@@ -12,6 +12,8 @@
 #include "app/logger.hpp"
 #include "common/wall_control.hpp"
 #include "common/wall_edge.hpp"
+#include "common/diag_edge.hpp"
+#include "common/diag_control.hpp"
 
 extern float globalTime;
 
@@ -43,3 +45,5 @@ extern Logger logger;
 
 extern WallControl wallControl;
 extern WallEdge wallEdge;
+extern DiagEdge diagEdge;
+extern DiagControl diagControl;

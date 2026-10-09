@@ -18,14 +18,18 @@ void Menu::buildTree() {
 
         run_.setChildren(std::array{&search_, &fast_, &maze_});
             search_.setChildren(pointersOf(search_presets_));
-            fast_.setChildren(pointersOf(fast_presets_));
+            fast_.setChildren(pointersOf(fast_fans_));
+                linkGroups(fast_fans_, config::run::FANS, fast_kinds_);
+                linkGroups(fast_kinds_, config::run::KINDS, fast_presets_);
             maze_.setChildren(std::array{&maze_show_, &maze_clear_});
 
         device_.setChildren(std::array{&imu_, &encoder_, &motor_, &fan_, &ir_, &battery_, &led_});
             fan_.setChildren(std::array{&fan_run_010_, &fan_run_020_, &fan_run_030_, &fan_run_040_, &fan_bringup_, &fan_hold_010_, &fan_hold_020_, &fan_hold_030_, &fan_hold_040_});
-            ir_.setChildren(std::array{&ir_wall_check_, &ir_front_check_, &ir_wall_edge_, &ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
+            ir_.setChildren(std::array{&ir_wall_check_, &ir_front_check_, &ir_wall_edge_, &ir_diag_, &ir_r_, &ir_fr_, &ir_fl_, &ir_l_});
                 ir_front_check_.setChildren(std::array{&front_check_wall_, &front_check_no_wall_, &front_check_show_, &front_check_reset_});
                 ir_wall_edge_.setChildren(std::array{&wall_edge_calib_300_, &wall_edge_calib_500_, &wall_edge_calib_700_, &wall_edge_verify_500_, &wall_edge_inject_500_});
+                ir_diag_.setChildren(std::array{&diag_left_n4_, &diag_right_n4_, &diag_left_n8_, &diag_right_n8_,
+                                                &diag_left_ctrl_, &diag_right_ctrl_, &diag_left_inj_, &diag_right_inj_});
             encoder_.setChildren(std::array{&encoder_r_, &encoder_l_});
             imu_.setChildren(std::array{&imu_gyro_, &imu_acc_, &imu_gyro_fan_, &imu_acc_fan_});
             motor_.setChildren(std::array{&motor_r_, &motor_l_, &motor_velocity_x_, &plan_profile_, &plan_rotation_, &rotation_});
@@ -35,11 +39,11 @@ void Menu::buildTree() {
                 plan_rotation_.setChildren(std::array{&plan_turn_pos430_, &plan_turn_neg430_});
                 rotation_.setChildren(std::array{&rot_angle_hold_, &rot_pivot_pos90_, &rot_pivot_neg90_, &rot_pivot_pos180_, &rot_pivot_neg180_});
 
-    // 種類・速度のノードは生成ヘッダから並べる（menu.hppのslalomTurnNodes() / slalomSpeedNodes()）
+    // ファン・速度・種類のノードは生成ヘッダから並べる（menu.hppのgroupNodes() / slalomTurnNodes()）
     slalom_.setChildren(std::array{&slalom_left_, &slalom_right_, &axle_check_});
         axle_check_.setChildren(std::array{&axle_check_n1_, &axle_check_n2_, &axle_check_n4_, &axle_check_n8_});
-        linkSlalom(slalom_left_, slalom_left_turns_, slalom_left_speeds_);
-        linkSlalom(slalom_right_, slalom_right_turns_, slalom_right_speeds_);
+        linkSlalom(slalom_left_, slalom_left_fans_, slalom_left_speeds_, slalom_left_turns_);
+        linkSlalom(slalom_right_, slalom_right_fans_, slalom_right_speeds_, slalom_right_turns_);
 
     // 試験用の探索のプリセットは生成ヘッダから並べる（menu.hppのtestSearchNodes()）
     test_.setChildren(std::array{&test_search_});
