@@ -511,5 +511,103 @@
     "fan_duty": 0.4,
     "wall_edge": true,
     "note": "ファン duty 0.4（吸引を強めた 1500_fan_dia）。ターンは duty 0.2（RUN_DUTY）の設計を流用，直線は 1500_fan_dia と同じ値。実機で未試験"
+  },
+  "500_free": {
+    "turn_speed": 500,
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": false,
+    "wall_edge": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3431mm/s）。ターンは 500 と同じ。実機で未試験"
+  },
+  "500_free_dia": {
+    "turn_speed": 500,
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": true,
+    "wall_edge": true,
+    "diag_control": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3431mm/s）。ターンは 500_dia と同じ。実機で未試験"
+  },
+  "1500_free_s900": {
+    "turn_speed": 1500,
+    "speeds": {
+      "S90": 900
+    },
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": false,
+    "wall_edge": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3711mm/s）。ターンは 1500_s900 と同じ。実機で未試験"
+  },
+  "1500_free_dia": {
+    "turn_speed": 1500,
+    "speeds": {
+      "S90": 900
+    },
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": true,
+    "wall_edge": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3711mm/s）。ターンは 1500_dia と同じ。実機で未試験"
+  },
+  "500_fan_free": {
+    "turn_speed": 500,
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3431mm/s）。ターンは 500_fan と同じ。実機で未試験"
+  },
+  "500_fan_free_dia": {
+    "turn_speed": 500,
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": true,
+    "fan": true,
+    "wall_edge": true,
+    "diag_control": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3431mm/s）。ターンは 500_fan_dia と同じ。実機で未試験"
+  },
+  "1500_fan_free_s900": {
+    "turn_speed": 1500,
+    "speeds": {
+      "S90": 900
+    },
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": false,
+    "fan": true,
+    "wall_edge": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3711mm/s）。ターンは 1500_fan_s900 と同じ。実機で未試験"
+  },
+  "1500_fan_free_dia": {
+    "turn_speed": 1500,
+    "speeds": {
+      "S90": 900
+    },
+    "max_speed": 9000,
+    "max_speed_dia": 9000,
+    "accel": 8000,
+    "decel": 8000,
+    "diagonal": true,
+    "fan": true,
+    "wall_edge": true,
+    "note": "直線の最高速度の上限なし（9000 は届かない値。直線は全部 8000mm/s^2 の加速・減速に使う三角の速度。8区画で約 3711mm/s）。ターンは 1500_fan_dia と同じ。実機で未試験"
   }
 }
