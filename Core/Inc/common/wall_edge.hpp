@@ -31,7 +31,9 @@ public:
         uint8_t side;     // Side
     };
 
-    static constexpr std::size_t MAX_EVENTS = 64;
+    // 記録の上限（超えた分は記録しないが補正は続ける）。5×7 の探索で 55 件まで出たので，16×16 の長い経路でも
+    // 足りるように 128（1件 20 B，2.5 KB）
+    static constexpr std::size_t MAX_EVENTS = 128;
     static constexpr std::size_t QUEUE_SIZE = 8;     // expect() のキュー
     static constexpr std::size_t MAX_PENDING = 4;    // ISR が同時に待つ区画境界
 
