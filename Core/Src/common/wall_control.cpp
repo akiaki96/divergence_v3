@@ -28,9 +28,11 @@ bool WallControl::inRange(float x) {
     return range_index_ < range_count_ && x >= x0_[range_index_];
 }
 
-AxisReference WallControl::apply(const AxisReference& rot, float omega_target, float v_target, float x_target) {
+AxisReference WallControl::apply(const AxisReference& rot, float omega_target, float v_target, float x_target,
+                                 bool stopping) {
     omega_ = 0.f;
-    if (enabled_ && omega_target == 0.f && v_target > config::wall::MIN_VELOCITY && inRange(x_target)) {
+    if (enabled_ && omega_target == 0.f && v_target > config::wall::MIN_VELOCITY && inRange(x_target)
+        && (config::wall::CONTROL_WHILE_STOPPING || !stopping)) {
         wall::Snapshot s = wall::read();
         // 左に寄る（左の値が大きい）ほど正。両側に壁があれば差，片側なら2倍して同じ重みにする
         float error_left = static_cast<float>(s.value[wall::left] - config::wall::REF_LEFT);

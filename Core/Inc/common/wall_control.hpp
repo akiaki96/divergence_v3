@@ -12,7 +12,11 @@
 //
 // 最短走行では縦横の直線の範囲（経路に沿った目標の並進位置 [x0, x1)）を教え，その中だけで補正する。
 // 斜めの直線や，スラロームのオフセットの直進（入45°の出口側・出45°の入口側などは斜め）も目標の角速度は0なので，
-// 角速度だけでは見分けられない。範囲を教えなければ（探索）直進中ならいつでも補正する
+// 角速度だけでは見分けられない。範囲を教えなければ（探索）直進中ならいつでも補正する。
+//
+// 止まる区間（速度0へ減速する区間）では補正しない（config::wall::CONTROL_WHILE_STOPPING）：横のずれは
+// 向きを変えて直すので，直し終える（約1.5区画）前に止まると曲げた向きが残り，その場旋回の後もそのまま走る
+// （2026-10-10 500_fc_4：行き止まりの半区画で −10.9°，−13.4° 積もり，その後に衝突）
 class WallControl {
 public:
     // 走行の開始時（PlanProfile::reset() と同時）に呼ぶ。補正を0に戻して止め，範囲も外す
@@ -28,8 +32,10 @@ public:
     void setRanges(const float* x0, const float* x1, uint16_t n);
 
     // ISRから毎tick呼ぶ。rot は PlanProfile の回転の目標，omega_target / v_target / x_target は今の目標の
-    // 角速度・並進速度・並進位置（直進中か，教えた範囲の中かの判定に使う）。補正を足した回転の目標を返す
-    AxisReference apply(const AxisReference& rot, float omega_target, float v_target, float x_target);
+    // 角速度・並進速度・並進位置（直進中か，教えた範囲の中かの判定に使う），stopping は止まる区間か
+    // （PlanProfile::stoppingX()）。補正を足した回転の目標を返す
+    AxisReference apply(const AxisReference& rot, float omega_target, float v_target, float x_target,
+                        bool stopping = false);
 
     // ---- ログ用 ----
     float omega() const {

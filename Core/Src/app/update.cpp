@@ -55,10 +55,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
         if (diagEdge.active()) {
             diagEdge.update(side.value[wall::left], side.value[wall::right], odometry.positionX());
         }
-        // 横壁の補正を回転の目標に足す（直進中で有効なときだけ。最短走行では縦横の直線の範囲だけ。それ以外はそのまま）
+        // 横壁の補正を回転の目標に足す（直進中で有効なときだけ。最短走行では縦横の直線の範囲だけ。
+        // 止まる区間では足さない。それ以外はそのまま）
         AxisReference rot_ref = wallControl.apply(
             planProfile.rotReference(), planProfile.getTargetOmega(), planProfile.getTargetVelocityX(),
-            planProfile.getTargetPositionX()
+            planProfile.getTargetPositionX(), planProfile.stoppingX()
         );
         // 斜めの直線では切れ目からの距離の表で向きを補正する（教えた斜めの直線の中で有効なときだけ）
         rot_ref = diagControl.apply(rot_ref, planProfile.getTargetOmega(), planProfile.getTargetVelocityX(),

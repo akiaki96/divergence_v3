@@ -69,6 +69,11 @@ public:
     // 積分で詰めてから次の区間へ進む
     SegmentResult hold(float seconds, float angle_ki_scale = 1.f);
 
+    // 並進が速度0へ減速して止まる区間（終速0の区間，brake() の減速）を実行中か（割り込み側から読む）
+    bool stoppingX() const {
+        return active_ && segment_.axis == &trans_ && segment_.v_end == 0.f && segment_.v0 != 0.f;
+    }
+
     // 回転の角度PIのKiに掛ける倍率（割り込み側：hold() の区間の実行中はその倍率，それ以外は1）
     float angleKiScale() const {
         return angle_ki_scale_;
