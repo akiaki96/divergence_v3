@@ -367,7 +367,8 @@ bool stopAndSave(bool* saved) {
     return true;
 }
 
-// 最短走行の経路で確かめる探索の確認の歩（adachi::search_check_pending()）：読んだ区画の中央まで減速して止まり，
+// 最短走行の経路で確かめる探索の確認の歩（adachi::search_check_pending()。ソルバーが予約した確認を，直線の途中か
+// 行き止まりの歩まで先送りして出す。ゴール領域では出さない）：読んだ区画の中央まで減速して止まり，
 // 止まったまま経路計算をして（adachi::search_check()），次の1手をその場から積む。経路計算は先読みの8通りでは
 // 回せない重さ（未知の壁を通れるとみなした迷路で time_based_dijkstra を1回）なので，走りながらはしない。
 // 止まって書くとき（config::maze_save::WHILE_RUNNING = false）は，止まったついでに迷路も書く。

@@ -6,7 +6,8 @@
 // 1歩ごとに search_lookahead::prepare()（既知の直進も数える）し，壁を読んだら take() で取り出し，確認の歩
 // （adachi::search_check_pending()）なら止まったつもりで adachi::search_check() を呼ぶ。
 // 毎歩の動作・位置が一致すること，加速区間の途中で確認が来ないこと，スタートに戻って終わったときに
-// 最後の確認で確かめる壁が0（未知の壁を通れるとみなした最短走行の経路に未知の壁がない）であることを確かめる。
+// 最後の確認で確かめる壁が0（未知の壁を通れるとみなした最短走行の経路に未知の壁がない）であること，
+// 確認がゴール領域（ゴールした直後）で来ないことを確かめる。
 // 確認1回の経路計算の時間（ホスト）も出す
 #include <algorithm>
 #include <chrono>
@@ -54,6 +55,7 @@ struct Run {
     bool finished = false;
     int checks = 0;
     int check_in_run = 0;      // 加速区間の途中で確認が来た（あってはならない）
+    int check_in_goal = 0;     // ゴール領域の区画で確認が来た（あってはならない）
     int plan_mismatch = 0;     // 加速区間の途中で直進以外が返った（あってはならない）
     double check_us_max = 0.;
     double check_us_total = 0.;
@@ -110,6 +112,7 @@ void searchFirmware(const Wall& maze, Run* run) {
         uint8_t action = search_lookahead::take(w[0], w[1], w[2]);
         if (adachi::search_check_pending()) {
             if (committed > 0) ++run->check_in_run;
+            if (7 <= mousePos.x && mousePos.x <= 8 && 7 <= mousePos.y && mousePos.y <= 8) ++run->check_in_goal;
             auto t0 = clock::now();
             action = search_lookahead::firstMotion(adachi::search_check());
             double us = std::chrono::duration<double, std::micro>(clock::now() - t0).count();
@@ -151,7 +154,7 @@ Run g_direct, g_firmware;
 void testMazes(const char* name, float density, int count) {
     std::mt19937 rng(2026);
     int same = 0, finished = 0, fixed = 0, bounds_equal = 0, total_steps = 0, total_checks = 0, max_checks = 0;
-    int check_in_run = 0, plan_mismatch = 0, overflowed = 0;
+    int check_in_run = 0, check_in_goal = 0, plan_mismatch = 0, overflowed = 0;
     double check_us_max = 0., check_us_total = 0.;
     for (int k = 0; k < count; ++k) {
         Wall maze = makeMaze(rng, density);
@@ -161,6 +164,7 @@ void testMazes(const char* name, float density, int count) {
         searchFirmware(maze, &g_firmware);
         if (sameSteps(g_direct, g_firmware) && g_direct.checks == g_firmware.checks) ++same;
         check_in_run += g_firmware.check_in_run;
+        check_in_goal += g_firmware.check_in_goal;
         plan_mismatch += g_firmware.plan_mismatch;
         if (g_firmware.last.overflowed) ++overflowed;
         if (g_firmware.finished) {
@@ -187,6 +191,7 @@ void testMazes(const char* name, float density, int count) {
                   same);
     check(same == count, what);
     check(check_in_run == 0, "no check arrives inside an accelerated known straight");
+    check(check_in_goal == 0, "no check in the goal region (not right after the goal)");
     check(plan_mismatch == 0, "accelerated known straights get only straight moves");
     check(overflowed == 0, "the optimistic path search never overflows its queue");
     std::snprintf(what, sizeof(what), "every finished search ends with no unknown wall on the path (%d of %d)", fixed,
