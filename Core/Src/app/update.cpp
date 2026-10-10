@@ -65,7 +65,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
                                     odometry.positionX(), side.value[wall::left], side.value[wall::right], diagEdge);
         motorDriver.update(
             planProfile.transReference(), odometry.translation(),
-            rot_ref, odometry.rotation()
+            rot_ref, odometry.rotation(), planProfile.angleKiScale()
         );
 
         logger.sample();

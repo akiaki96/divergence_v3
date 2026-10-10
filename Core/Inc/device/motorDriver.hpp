@@ -15,9 +15,10 @@ class MotorDriver {
 public:
     MotorDriver(Motor& left, Motor& right);
 
-    // 並進・回転の目標値（PlanProfile）と実測値（Odometry）を受け取り，制御出力を更新する
+    // 並進・回転の目標値（PlanProfile）と実測値（Odometry）を受け取り，制御出力を更新する。
+    // angle_ki_scaleは回転の角度PIのKiに掛ける倍率（PlanProfile::angleKiScale()，止まって向きを合わせる間だけ大きい）
     void update(const AxisReference& trans_ref, const AxisMeasurement& trans,
-                const AxisReference& rot_ref, const AxisMeasurement& rot);
+                const AxisReference& rot_ref, const AxisMeasurement& rot, float angle_ki_scale = 1.f);
 
     void enable();
     void disable();

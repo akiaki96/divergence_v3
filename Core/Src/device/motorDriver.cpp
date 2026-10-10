@@ -49,7 +49,7 @@ void MotorDriver::switchToVelocityX() {
 }
 
 void MotorDriver::update(const AxisReference& trans_ref, const AxisMeasurement& trans,
-                         const AxisReference& rot_ref, const AxisMeasurement& rot) {
+                         const AxisReference& rot_ref, const AxisMeasurement& rot, float angle_ki_scale) {
     if (state != MotorDriverState::setVelocity) return;
 
     // ---- 電圧FF：目標軌道だけから作る（実測値を通さない）----
@@ -65,7 +65,8 @@ void MotorDriver::update(const AxisReference& trans_ref, const AxisMeasurement& 
     // ---- 追従制御：並進・回転とも 外側（位置/角度）→ 内側（速度/角速度）のカスケード ----
     float vbatt = battery.voltage();
     float base_batt = trans_.update(trans_ref, trans, trans_ff, config::pid_velocity_x::voltage_limit_ratio * vbatt);
-    float diff_batt = rot_.update(rot_ref, rot, rot_ff, config::pid_rotation::VOLTAGE_LIMIT_RATIO * vbatt);
+    float diff_batt = rot_.update(rot_ref, rot, rot_ff, config::pid_rotation::VOLTAGE_LIMIT_RATIO * vbatt,
+                                   angle_ki_scale);
 
     // diff = R − L（正でω正）。v_L = v − diff/2, v_R = v + diff/2 のkinematic配分
     float half_diff = diff_batt / 2.f;

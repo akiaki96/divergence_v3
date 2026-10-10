@@ -267,13 +267,17 @@ uint16_t prepareNext(const SearchPreset& p, bool chains) {
     return elapsedUs(t0);
 }
 
-// 超信地旋回（angle は符号つき，正で左）。並進が止まっていること（直前の区間が速度0で終わる）
+// 超信地旋回（angle は符号つき，正で左）。並進が止まっていること（直前の区間が速度0で終わる）。
+// 180°なら回った後に角度PIのKiを大きくして待ち，向きを合わせてから次の区間へ進む
 bool pivot(const PivotParam& p, float angle) {
+    using namespace config::search;
     float dir = (angle > 0.f) ? 1.f : -1.f;
     float ramp = pivotRamp(p);
     return planProfile.turn(dir * p.omega, dir * ramp) == SegmentResult::ok
         && planProfile.turn(dir * p.omega, angle - dir * 2.f * ramp) == SegmentResult::ok
-        && planProfile.turn(0.f, dir * ramp) == SegmentResult::ok;
+        && planProfile.turn(0.f, dir * ramp) == SegmentResult::ok
+        && (std::fabs(angle) != 180.f
+            || planProfile.hold(PIVOT180_HOLD_S, PIVOT180_ANGLE_KI_SCALE) == SegmentResult::ok);
 }
 
 bool profileBroken() {

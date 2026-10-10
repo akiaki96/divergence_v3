@@ -6,6 +6,7 @@ void PlanProfile::reset() {
     // update()が呼ばれていない（ISRがキューを読まない）間に呼ぶので，キューを直接空にしてよい
     queue_.clear();
     active_ = false;
+    angle_ki_scale_ = 1.f;
     applied_generation_ = generation_.load(std::memory_order_relaxed);
 
     trans_.pos = 0.f;
@@ -33,6 +34,20 @@ SegmentResult PlanProfile::setVelocityX(float velocity_x) {
     SegmentResult r = push({EntryKind::setVelocity, axis, velocity_x, 0.f, generation_.load(std::memory_order_relaxed)});
     if (r == SegmentResult::ok) planned_vel_[static_cast<int>(axis)] = velocity_x;
     return r;
+}
+
+SegmentResult PlanProfile::hold(float seconds, float angle_ki_scale) {
+    // 動いている途中では待てない（目標位置が進み続ける）。時間が1tick未満なら積まない
+    if (planned_vel_[0] != 0.f || planned_vel_[1] != 0.f) {
+        ++rejected_count_;
+        return SegmentResult::directionMismatch;
+    }
+    if (!(seconds >= config::control::DT_S) || !(angle_ki_scale > 0.f)) {
+        ++rejected_count_;
+        return SegmentResult::tooShort;
+    }
+    return push({EntryKind::hold, AxisId::rotation, angle_ki_scale, seconds,
+                 generation_.load(std::memory_order_relaxed)});
 }
 
 void PlanProfile::stop() {
@@ -99,6 +114,7 @@ void PlanProfile::applyStop() {
     if (generation == applied_generation_) return;
     applied_generation_ = generation;
     active_ = false;
+    angle_ki_scale_ = 1.f;
     float decel = brake_decel_;
     float v0 = trans_.vel;
     trans_.vel = 0.f;
@@ -126,6 +142,7 @@ void PlanProfile::applyStop() {
 // キューから次の要素を取り出す。速度のステップはその場で反映して続けて取り出し，
 // 区間が見つかったら今の目標値（位置・速度）を始点・初速として始める
 void PlanProfile::startNextEntry() {
+    angle_ki_scale_ = 1.f;   // 待つ区間が終わった（または実行中の区間がない）
     Entry e;
     while (queue_.pop(e)) {
         if (e.generation != applied_generation_) continue;   // stop()より前に積まれた（取り消し済み）
@@ -135,6 +152,25 @@ void PlanProfile::startNextEntry() {
             ax.vel = e.v_end;
             ax.acc = 0.f;
             continue;
+        }
+        if (e.kind == EntryKind::hold) {
+            // 回転の軸の区間として，速度0のまま e.distance [s] 進める（位置は変わらない）。
+            // 実際の目標速度が0でなければ（積んだ後にずれた）待てないので捨てる
+            if (trans_.vel != 0.f || rot_.vel != 0.f) {
+                dropped_count_ = dropped_count_ + 1;
+                continue;
+            }
+            segment_.axis = &rot_;
+            segment_.t = 0.f;
+            segment_.x0 = rot_.pos;
+            segment_.v0 = 0.f;
+            segment_.a = 0.f;
+            segment_.T = e.distance;
+            segment_.x_end = rot_.pos;
+            segment_.v_end = 0.f;
+            angle_ki_scale_ = e.v_end;
+            active_ = true;
+            return;
         }
 
         // 念のための再検査：積んだときの計画上の速度と実際の目標速度は通常一致するが，

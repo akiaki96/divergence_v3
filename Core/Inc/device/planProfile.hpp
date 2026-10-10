@@ -64,6 +64,16 @@ public:
     // 続けてstraight(v, d)を積めば「vへステップしてd進む」になる
     SegmentResult setVelocityX(float velocity_x);
 
+    // 止まったまま seconds [s] 待つ区間（目標位置・目標角度を保持）。並進・回転とも計画上の速度が0のときだけ積める。
+    // 待つ間は回転の角度PIのKiを angle_ki_scale 倍にする（angleKiScale()）：その場旋回の後に残った向きのずれを
+    // 積分で詰めてから次の区間へ進む
+    SegmentResult hold(float seconds, float angle_ki_scale = 1.f);
+
+    // 回転の角度PIのKiに掛ける倍率（割り込み側：hold() の区間の実行中はその倍率，それ以外は1）
+    float angleKiScale() const {
+        return angle_ki_scale_;
+    }
+
     // 実行中の区間と積んである区間をすべて取り消し，並進・回転の目標速度・加速度を0にする
     // （目標位置・目標角度はその場で保持）。次のtickで反映され，待たずに戻る。
     // stop()の後に積んだ区間は取り消されない
@@ -134,6 +144,7 @@ private:
     enum class EntryKind : uint8_t {
         segment,       // 等加速度でdistance進む区間（終わりまで次へ進まない）
         setVelocity,   // 目標速度のステップ（取り出したtickで反映して次へ進む）
+        hold,          // 止まったまま distance [s] 待つ（v_end は角度PIのKiの倍率）
         // 将来：イベント（壁切れ等）で終わる区間。until（判定）とd_max（打ち切り距離）を持たせる
     };
 
@@ -169,6 +180,7 @@ private:
     etl::queue_spsc_atomic<Entry, QUEUE_SIZE> queue_;
     Segment segment_;
     volatile bool active_ = false;   // 区間の実行中
+    volatile float angle_ki_scale_ = 1.f;   // 角度PIのKiの倍率（hold の区間の実行中だけ1以外）
 
     // stop()の世代：メイン側がstop()で進め，割り込み側が反映したらapplied_generation_をそろえる
     std::atomic<uint32_t> generation_{0};

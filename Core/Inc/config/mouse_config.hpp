@@ -345,6 +345,12 @@ inline constexpr float BRAKE_DECEL = 8000.f;        // [mm/s^2] 止まるとき�
 inline constexpr float BACK_SPEED = 200.f;          // [mm/s] 下がるときの最高速度
 inline constexpr float BACK_ACCEL = 1000.f;         // [mm/s^2] 下がるときの加速度・減速度
 inline constexpr uint32_t RECHECK_SETTLE_MS = 200;  // [ms] 止まった・下がった後に待つ時間
+// 止まってその場で180°回った後，角度PIのKiを大きくしてこれだけ待ち，残った向きのずれを詰めてから走り出す。
+// 倍率は外側を積分器とみた s² + KP·s + KI·scale で ζ = 1（KI·scale = KP²/4，ωn = KP/2 ≈ 17 rad/s）になる値（≈ 29）。
+// [要調整] 待つ時間は行き止まりごとに探索の時間へ足される（0.3 s で ωn·t ≈ 5，残りのずれ約4%）
+inline constexpr float PIVOT180_HOLD_S = 0.3f;      // [s]
+inline constexpr float PIVOT180_ANGLE_KI_SCALE =
+    config::pid_rotation::ANGLE_KP * config::pid_rotation::ANGLE_KP / (4.f * config::pid_rotation::ANGLE_KI);
 inline constexpr uint8_t MAX_MISMATCH_LOG = 32;     // 食い違いを覚えておく件数（終わりに LOG で出す）
 // 既知の区間の直進を数える先読みにかけてよい時間（次の壁を読むまでの時間に対する割合）。
 // 超えたら数えるのをやめる（加速する区間が短くなるだけ）
