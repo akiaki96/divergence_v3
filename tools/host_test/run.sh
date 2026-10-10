@@ -44,6 +44,13 @@ c++ -std=c++20 -Wall -Wextra -O2 \
     -o "$OUT/test_search_lookahead"
 "$OUT/test_search_lookahead"
 
+# 最短走行の経路で確かめる探索（実機の流れ：先読み＋確認の歩で止まって search_check）がシミュレータのソルバーと一致するか
+c++ -std=c++20 -Wall -Wextra -O2 \
+    -I "$ROOT/Core/Inc" -I "$ROOT/external/etl/include" -I "$SOLVER/core" "${SOLVER_INC[@]}" \
+    "${SOLVER_SRC[@]}" "$ROOT/Core/Src/app/search_lookahead.cpp" "$ROOT/tools/host_test/test_search_confirm.cpp" \
+    -o "$OUT/test_search_confirm"
+"$OUT/test_search_confirm"
+
 # 最短走行のゴール領域（2×2 のゴールで、到達の最も遅い区画で経路を終える）
 c++ -std=c++20 -Wall -Wextra -O2 \
     -I "$ROOT/external/etl/include" -I "$SOLVER/core" "${SOLVER_INC[@]}" \

@@ -2,6 +2,7 @@
 """探索のプリセットのヘッダ（config/search_presets.hpp）を生成する。
 
   search_presets.json … プリセット名 → 探索速度・使うターンの集合・加速度など（手で書く）
+  run_presets.json    … "confirm" で名前を書いた最短走行のプリセットがあるかを確かめる
 
 "turns" には使うターンの種類（slalom_presets.py の cpp_name）を並べる。探索中でも既知区間では
 大回りなどを使うので，複数のターンを持てる。種類ごとに SearchPreset の集合へ振り分ける：
@@ -39,6 +40,11 @@ search_presets.json の形:
                                             試験用に近いゴール（例 [1, 0]）で往復させるときに書く
         "one_way": false,                 … 任意（省略で false＝往復）。true ならゴールに着いたらそこで止まる（片道）
         "reset_walls": true,              … 任意（省略で true）。false なら壁を消さず，保存した最新の迷路を引き継いで探索する
+        "confirm": "1200_dia",            … 任意（省略で使わない）。最短走行の経路で確かめる探索にする。値は最短走行の
+                                            プリセット（run_presets.json のキー）で，経路計算のコスト（速度・ターン・斜め）に使う。
+                                            ゴールに着いたら止まって，未知の壁を通れるとみなした最短走行の経路を求め，その経路の
+                                            未知の壁を確かめに行く（崩れるかすべて分かったら，また止まって求め直す）。経路に未知の
+                                            壁がなくなったらスタートへ戻る。one_way とは一緒に使えない
         "menu": "search",                 … 任意（省略で "search"）。並べるメニュー。
                                             "search" … Run → Search（config::search::PRESETS）
                                             "test"   … Test → Search（config::search::TEST_PRESETS）
@@ -63,7 +69,7 @@ TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 REQUIRED_KEYS = ["speed", "accel", "turns", "pivot"]
 OPTIONAL_KEYS = ["straight_speed", "slalom", "fan", "wall_control", "front_correction", "goal", "one_way",
-                 "reset_walls", "menu", "note"]
+                 "reset_walls", "confirm", "menu", "note"]
 # "menu" の値 → 生成する配列の名前（menu/menu.hpp がそれぞれのメニューに並べる）
 MENU_ARRAYS = {"search": "PRESETS", "test": "TEST_PRESETS"}
 MAZE_SIZE = 16
@@ -75,7 +81,7 @@ DIAGONAL_TURNS = ["IN45", "OUT45", "V90", "IN135", "OUT135"]
 REQUIRED_TURN = "S90"
 
 
-def build_entries(presets, slalom_params):
+def build_entries(presets, slalom_params, run_presets):
     by_cpp_name = {p.cpp_name: p for p in PRESET_LIST}
     entries = []
     for name, preset in presets.items():
@@ -139,6 +145,14 @@ def build_entries(presets, slalom_params):
             if goal == [0, 0]:
                 raise GenError(f"{where}: goal をスタート区画 (0, 0) にはできません")
 
+        confirm = preset.get("confirm")  # None なら最短走行の経路で確かめない
+        if confirm is not None:
+            if not isinstance(confirm, str) or confirm not in run_presets:
+                raise GenError(f"{where}: confirm は最短走行のプリセットの名前（run_presets.json のキー）です"
+                               f"（「{confirm}」はありません）")
+            if one_way:
+                raise GenError(f"{where}: confirm（ゴールの後も確かめてからスタートへ戻る）と one_way は一緒に使えません")
+
         menu = preset.get("menu", "search")
         if menu not in MENU_ARRAYS:
             raise GenError(f"{where}: menu は {' / '.join(MENU_ARRAYS)} のどれかです")
@@ -174,6 +188,7 @@ def build_entries(presets, slalom_params):
             "front_correction": front_correction,
             "one_way": one_way,
             "reset_walls": reset_walls,
+            "confirm": confirm,
             "goal": goal,
             "menu": menu,
             "values": preset,
@@ -199,6 +214,7 @@ def render(entries):
         "#include <array>",
         '#include "app/search_preset.hpp"',
         '#include "config/mouse_config.hpp"',
+        '#include "config/run_presets.hpp"',
         '#include "config/slalom_params.hpp"',
         "",
         "namespace config::search {",
@@ -211,7 +227,8 @@ def render(entries):
         wall = (("，ファンON" if e["fan"] else "") + ("，横壁の補正あり" if e["wall_control"] else "")
                 + ("，前壁でS90の入口を補正" if e["front_correction"] else ""))
         goal_note = f"，ゴール ({e['goal'][0]}, {e['goal'][1]})" if e["goal"] else ""
-        mode_note = ("，片道" if e["one_way"] else "") + ("，壁を引き継ぐ" if not e["reset_walls"] else "")
+        mode_note = (("，片道" if e["one_way"] else "") + ("，壁を引き継ぐ" if not e["reset_walls"] else "")
+                     + (f"，最短走行（{e['confirm']}）の経路で確かめる" if e["confirm"] else ""))
         goal = f"{e['goal'][0]}, {e['goal'][1]}" if e["goal"] else "GOAL_X, GOAL_Y"
         straight = f"（既知の直進 {e['straight_speed']:g}mm/s）" if e["straight_speed"] > float(v["speed"]) else ""
         out.append(f"// {e['name']}: {v['speed']:g}mm/s{straight}，ターンは組「{e['slalom']}」の{labels}"
@@ -224,7 +241,8 @@ def render(entries):
             f"{{{fmt(e['pivot']['omega'])}, {fmt(e['pivot']['alpha'])}}}, "
             f"{'true' if e['fan'] else 'false'}, {'true' if e['wall_control'] else 'false'}, "
             f"{'true' if e['front_correction'] else 'false'}, {goal}, "
-            f"{'true' if e['one_way'] else 'false'}, {'true' if e['reset_walls'] else 'false'}}};")
+            f"{'true' if e['one_way'] else 'false'}, {'true' if e['reset_walls'] else 'false'}, "
+            f"{'&config::run::P_' + e['confirm'] if e['confirm'] else 'nullptr'}}};")
         out.append("")
     for menu, array in MENU_ARRAYS.items():
         listed = [e for e in entries if e["menu"] == menu]
@@ -240,11 +258,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--presets", default=os.path.join(TOOLS_DIR, "search_presets.json"))
     ap.add_argument("--slalom-params", default=os.path.join(TOOLS_DIR, "slalom_params.json"))
+    ap.add_argument("--run-presets", default=os.path.join(TOOLS_DIR, "run_presets.json"))
     ap.add_argument("--out", help="出力先（省略で標準出力）")
     args = ap.parse_args()
 
     try:
-        entries = build_entries(load_json(args.presets), load_json(args.slalom_params))
+        entries = build_entries(load_json(args.presets), load_json(args.slalom_params), load_json(args.run_presets))
     except GenError as e:
         print(f"gen_search_presets: エラー: {e}", file=sys.stderr)
         return 1

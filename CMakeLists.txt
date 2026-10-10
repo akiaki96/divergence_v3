@@ -109,6 +109,7 @@ add_custom_command(
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/gen_search_presets.py
             --presets ${CMAKE_SOURCE_DIR}/tools/search_presets.json
             --slalom-params ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
+            --run-presets ${CMAKE_SOURCE_DIR}/tools/run_presets.json
             --out ${SEARCH_PRESETS_HPP}
     DEPENDS
         ${CMAKE_SOURCE_DIR}/tools/gen_search_presets.py
@@ -116,6 +117,7 @@ add_custom_command(
         ${CMAKE_SOURCE_DIR}/tools/slalom_presets.py
         ${CMAKE_SOURCE_DIR}/tools/slalom_params.json
         ${CMAKE_SOURCE_DIR}/tools/search_presets.json
+        ${CMAKE_SOURCE_DIR}/tools/run_presets.json
     COMMENT "Generating config/search_presets.hpp"
     VERBATIM
 )

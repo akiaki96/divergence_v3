@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include "app/run_preset.hpp"
 #include "common/slalom.hpp"
 
 // 探索のプリセット。tools/search_presets.json から tools/gen_search_presets.py が
@@ -46,4 +47,8 @@ struct SearchPreset {
     uint8_t goal_y;                  // 試験用に近いゴールで往復させるときに変える
     bool one_way;                    // ゴールに着いたらそこで止まる（片道）。false ならスタートへ戻る探索を続ける（往復）
     bool reset_walls;                // 始めに壁を消す。false なら保存した最新の迷路（maze_store）を引き継ぐ
+    const RunPreset* confirm_run;    // nullptr でなければ最短走行の経路で確かめる探索（adachi::SearchKind::to_goal_fast_confirm_back）。
+                                     // 経路計算のコストはこの最短走行のプリセットから（fast_plan::applySolverCosts）。
+                                     // ゴールに着いたときと，確かめる壁のどれかが有る／すべて分かったときに，区画の中央に
+                                     // 止まって経路を求め直す（app/search.hpp）
 };
