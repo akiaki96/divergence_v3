@@ -85,3 +85,12 @@ onenter(battery,
         ledBar16.set(battery.voltage(), LedBarValMode::pmbit8, 12.f);
     }
 )
+
+// LEDの点灯確認：基板上のLED（6個）とLEDバー（16個）をすべて点灯したままにする。抜けるときはリセット
+void led_all_on_onenter() {
+    while (true) {
+        ledManager.setall(true, true, true, true, true, true);
+        ledBar16.set(static_cast<uint16_t>(0xFFFF));
+        HAL_Delay(100);
+    }
+}

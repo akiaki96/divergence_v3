@@ -94,6 +94,7 @@ void Menu::setFunction() {
     imu_.setOnSelected(imu_onselect);
 
     battery_.setOnEnter(battery_onenter);
+    led_.setOnEnter(led_all_on_onenter);
     ir_wall_check_.setOnEnter(wall_check_onenter);
 
     // ---------------------------

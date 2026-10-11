@@ -11,3 +11,4 @@ void encoder_right_onenter();
 void encoder_left_onenter();
 void battery_onenter();
 void wall_check_onenter();
+void led_all_on_onenter();
