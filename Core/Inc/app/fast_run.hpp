@@ -16,7 +16,20 @@
 //
 // 走り終わったら機体を持ち上げて（haltByAccZ）待ち，置くと壁切れの記録（fast/<preset>_edges）と
 // 時系列のログ（fast/<preset>_trace，edge_shift 列は補正の累計）を送る
+//
+// 直線（最高速度・加減速度）は，メニューの Run → Fast → straight で選んでいればそれ（config::run::STRAIGHTS），
+// 選んでいなければプリセットの既定の直線（RunPreset::straight）で走る。選んだ直線はログのファイル名にも付く
+// （fast/<preset>_<straight>_trace）
 void runFastRun(const RunPreset& preset);
+
+// 最短走行の直線を選ぶ（index は config::run::STRAIGHTS の番号，負ならプリセットの既定の直線に戻す）。電源を切るまで覚えておく
+void selectFastStraight(int index);
+
+// メニューから呼ぶ（S = -1 は "preset"＝既定の直線）
+template <int S>
+void fast_straight_onenter() {
+    selectFastStraight(S);
+}
 
 // メニューから呼ぶ（config::run::PRESETS[I] で走る）
 template <std::size_t I>

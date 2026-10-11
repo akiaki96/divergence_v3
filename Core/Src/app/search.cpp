@@ -4,6 +4,7 @@
 #include <cstdio>
 #include "adachi.hpp"
 #include "adachi_return.hpp"
+#include "app/fast_plan.hpp"
 #include "app/maze_store.hpp"
 #include "app/search_lookahead.hpp"
 #include "app/update.hpp"
@@ -16,6 +17,7 @@
 #include "device/device_instance.hpp"
 #include "device/uart.hpp"
 #include "stm32f4xx_hal.h"
+#include "time_based_dijkstra.hpp"
 #include "device/imu_calibration.hpp"
 
 namespace {
@@ -67,8 +69,9 @@ constexpr bool presetRunnable(const SearchPreset& p) {
         // 行き止まり・ゴール：半区画で止まり，半区画で加速する
         && validateSegment(v, 0.f, HALF_MM, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok
         && validateSegment(0.f, v, HALF_MM, MAX_ACCEL_X, MAX_DECEL_X) == SegmentResult::ok
-        // 超信地旋回の180°に加速・減速が収まる
-        && p.pivot.alpha <= MAX_ALPHA && 2.f * pivotRamp(p.pivot) < 180.f
+        // 超信地旋回の180°に加速・減速が収まる（最短走行の経路で確かめる探索は，止まった区画から90°も回る）
+        && p.pivot.alpha <= MAX_ALPHA && 2.f * pivotRamp(p.pivot) < (p.confirm_run != nullptr ? 90.f : 180.f)
+        && !(p.confirm_run != nullptr && p.one_way)
         // 既知の直進の加速：accel で上げ下げでき，最高速度から読んだ区画の中央より手前で止まれる（前壁に当たらない）
         && p.straight_speed >= v && config::search::BRAKE_DECEL <= MAX_DECEL_X
         && p.straight_speed * p.straight_speed / (2.f * config::search::BRAKE_DECEL) + config::search::READ_LEAD_MM
@@ -128,13 +131,24 @@ static_assert(sizeof(SearchStep) * config::search::MAX_STEPS <= 64 * 1024, "sear
 __attribute__((section(".ccmram"))) SearchStep g_steps[config::search::MAX_STEPS];
 uint16_t g_step_count = 0;
 
+// 最短走行の経路で確かめる探索の確認（止まって経路を求め直した歩）ごとに1行。行は少ないので SearchStep に
+// 列を足さず（2048 行ぶん CCMRAM が増える），別に持って書き出すときに step で合わせる
+struct CheckRecord {
+    uint16_t step;            // その歩の g_steps の番号
+    uint16_t us;              // [us] adachi::search_check() の時間（止まってから）
+    uint16_t optimistic_ms;   // 未知の壁を通れるとみなした最短走行の推定時間 [ms]
+    uint8_t targets;          // 確かめる壁の数（0 なら確定）
+};
+constexpr uint16_t MAX_CHECK_LOG = 128;
+__attribute__((section(".ccmram"))) CheckRecord g_check_log[MAX_CHECK_LOG];
+
 // 位置の2列は末尾に足している（replay.py は列を名前で読むので，知らない列は無視される）
 constexpr const char* STEP_COLUMNS[] = {"step", "x", "y", "dir", "left", "front", "right", "action",
                                         "returning", "ir_l", "ir_fl", "ir_fr", "ir_r",
                                         "pos_target", "pos_measured", "front_err", "front_corr",
                                         "prepare_us", "take_us",
                                         "sensor_left", "sensor_front", "sensor_right", "known", "rechecked",
-                                        "run_cells", "saved"};
+                                        "run_cells", "saved", "check", "check_targets", "check_ms", "check_us"};
 constexpr uint32_t STEP_COLUMN_COUNT = sizeof(STEP_COLUMNS) / sizeof(STEP_COLUMNS[0]);
 
 // ---- 走行中の迷路の保存（config::maze_save）----
@@ -187,7 +201,7 @@ void stepSave() {
 }
 
 enum class Stop : uint8_t {
-    finished,       // スタートに戻った（正常）
+    finished,       // 終わりの区画に着いた（往復ならスタート，片道ならゴール。正常）
     frontWall,      // 壁のある向きへ進もうとした（壁の誤読か，ソルバーの経路がない）
     pushRejected,   // 区間を積めなかった（加速度の上限など）
     profileError,   // PlanProfile が区間を落とした，または読む位置の前に止まった
@@ -253,13 +267,17 @@ uint16_t prepareNext(const SearchPreset& p, bool chains) {
     return elapsedUs(t0);
 }
 
-// 超信地旋回（angle は符号つき，正で左）。並進が止まっていること（直前の区間が速度0で終わる）
+// 超信地旋回（angle は符号つき，正で左）。並進が止まっていること（直前の区間が速度0で終わる）。
+// 180°なら回った後に角度PIのKiを大きくして待ち，向きを合わせてから次の区間へ進む
 bool pivot(const PivotParam& p, float angle) {
+    using namespace config::search;
     float dir = (angle > 0.f) ? 1.f : -1.f;
     float ramp = pivotRamp(p);
     return planProfile.turn(dir * p.omega, dir * ramp) == SegmentResult::ok
         && planProfile.turn(dir * p.omega, angle - dir * 2.f * ramp) == SegmentResult::ok
-        && planProfile.turn(0.f, dir * ramp) == SegmentResult::ok;
+        && planProfile.turn(0.f, dir * ramp) == SegmentResult::ok
+        && (std::fabs(angle) != 180.f
+            || planProfile.hold(PIVOT180_HOLD_S, PIVOT180_ANGLE_KI_SCALE) == SegmentResult::ok);
 }
 
 bool profileBroken() {
@@ -291,6 +309,11 @@ uint16_t g_mismatch_count = 0;     // 食い違いの回数（記録しきれな
 uint16_t g_map_updates = 0;        // 読み直しても食い違い，センサーの壁で地図を書き換えた回数
 uint16_t g_runs = 0;               // 加速して積んだ区間の数
 uint16_t g_run_cells = 0;          // その区画数の合計
+uint16_t g_checks = 0;             // 最短走行の経路で確かめる探索で，止まって確認した回数（g_check_log の行数は MAX_CHECK_LOG まで）
+uint32_t g_check_us_max = 0;       // その計算の最大 [us]
+uint32_t g_check_us_total = 0;     // その計算の合計 [us]
+uint16_t g_check_peak = 0;         // 経路計算の優先度付きキューが最も長かったとき
+bool g_check_overflowed = false;   // 経路計算のキューが溢れたことがある（確かめようがないので確定として帰った）
 
 // 3辺とも既知の区画で壁が地図と食い違った：止まって，1つ手前の区画の中央まで下がり，
 // そこから探索速度まで加速して同じ境界へ向かう（戻るとループが同じ読む位置で壁を読み直す）。
@@ -348,16 +371,95 @@ bool stopAndSave(bool* saved) {
     return true;
 }
 
-// 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとに先読みしておいたソルバーの結果を取り出す
-Stop runSteps(const SearchPreset& p) {
+// 最短走行の経路で確かめる探索の確認の歩（adachi::search_check_pending()。ソルバーが予約した確認を，直線の途中か
+// 行き止まりの歩まで先送りして出す。ゴール領域では出さない）：読んだ区画の中央まで減速して止まり，
+// 止まったまま経路計算をして（adachi::search_check()），次の1手をその場から積む。経路計算は先読みの8通りでは
+// 回せない重さ（未知の壁を通れるとみなした迷路で time_based_dijkstra を1回）なので，走りながらはしない。
+// 止まって書くとき（config::maze_save::WHILE_RUNNING = false）は，止まったついでに迷路も書く。
+// 呼ぶ前の1歩は区画境界 step_end で終わっている（その先は積んでいない）。*action に確認の後の1手を返す
+Stop stopAndCheck(const SearchPreset& p, float* step_end, SearchStep* rec, uint8_t* action) {
+    const float v = p.speed;
+    const bool left = (rec->walls & 1) != 0;
+    const bool front = (rec->walls & 2) != 0;
+    const bool right = (rec->walls & 4) != 0;
+    if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
+    while (!planProfile.isIdle()) {
+        if (profileBroken()) return Stop::profileError;
+        stepSave();
+    }
+    if (!config::maze_save::WHILE_RUNNING && g_save.due) {
+        if (queueSave()) rec->flags |= FLAG_SAVED;
+        while (maze_store::journal::busy()) stepSave();
+    }
+
+    uint32_t t0 = DWT->CYCCNT;
+    *action = search_lookahead::firstMotion(adachi::search_check());
+    uint32_t us = (DWT->CYCCNT - t0) / (SystemCoreClock / 1000000u);
+    const adachi::CheckResult c = adachi::search_last_check();
+    ++g_checks;
+    g_check_us_total += us;
+    if (us > g_check_us_max) g_check_us_max = us;
+    uint16_t peak = time_based_dijkstra::last_queue_peak();
+    if (peak > g_check_peak) g_check_peak = peak;
+    g_check_overflowed = g_check_overflowed || c.overflowed;
+    if (g_checks <= MAX_CHECK_LOG) {
+        g_check_log[g_checks - 1] = {static_cast<uint16_t>(g_step_count - 1),
+                                     static_cast<uint16_t>(us > UINT16_MAX ? UINT16_MAX : us), c.optimistic_ms,
+                                     static_cast<uint8_t>(c.targets > UINT8_MAX ? UINT8_MAX : c.targets)};
+    }
+    rec->action = *action;
+    if (adachi::search_returning()) rec->flags |= FLAG_RETURNING;
+
+    // 区画中央から：直進は半区画，左右は超信地旋回で90°回ってから半区画，行き止まりは180°回ってから半区画で
+    // 次の区画境界へ（区画境界から中央までの半区画と合わせて，経路に沿った距離はいつもの1歩と同じ1区画）
+    float angle = 0.f;
+    switch (*action) {
+    case ACT_MOVE_1CELL:
+        if (front) return Stop::frontWall;
+        break;
+    case ACT_TURN_LEFT_MOVE:
+        if (left) return Stop::frontWall;
+        angle = 90.f;
+        break;
+    case ACT_TURN_RIGHT_MOVE:
+        if (right) return Stop::frontWall;
+        angle = -90.f;
+        break;
+    case ACT_TURN_BACK:
+        angle = 180.f;
+        break;
+    case ACT_FINISH:
+        return Stop::finished;   // 終わりの区画の中央に止まっている
+    default:
+        return Stop::unknownAction;
+    }
+    if (angle != 0.f && !pivot(p.pivot, angle)) return Stop::pushRejected;
+    if (planProfile.straight(v, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
+    *step_end += CELL_MM;
+    // 直進で着く境界だけ壁切れを教える（旋回した後は ACT_TURN_BACK と同じく教えない）
+    if (angle == 0.f) wallEdge.expect(*step_end);
+    return Stop::finished;   // 続けてよい
+}
+
+// 探索の本体。PlanProfile に区間を積みながら，壁を読む位置ごとに先読みしておいたソルバーの結果を取り出す。
+// inherited が nullptr でなければ，その迷路の壁から探索を始める（壁を消さない）
+Stop runSteps(const SearchPreset& p, const maze_store::Record* inherited) {
     const float v = p.speed;
     const bool accelerate = p.straight_speed > v;
 
     solver_options_reset();
+    // 最短走行の経路で確かめるなら，経路計算のコストを最短走行のプリセットにそろえる（ゴールは下で決める）
+    if (p.confirm_run != nullptr && !fast_plan::applySolverCosts(*p.confirm_run)) return Stop::pushRejected;
     solver_options.goal_x = p.goal_x;
     solver_options.goal_y = p.goal_y;
     solver_options.goal_size = config::search::goalSize(p.goal_x, p.goal_y);  // 最短経路の確定は最短走行と同じ領域で
-    uint8_vector first = adachi_return::solver_adachi_return_init();
+    // 往復（adachi_return と同じ）か片道（adachi と同じ）か最短走行の経路で確かめる（adachi_fast_confirm と同じ）。
+    // どれも1歩は adachi::search_step なので先読みは共通
+    const adachi::SearchKind kind = p.confirm_run != nullptr ? adachi::SearchKind::to_goal_fast_confirm_back
+                                    : p.one_way              ? adachi::SearchKind::to_goal
+                                                             : adachi::SearchKind::to_goal_and_back;
+    uint8_vector first = adachi::search_init(kind, true);
+    if (inherited != nullptr) maze_store::applyToSolver(*inherited);
     if (search_lookahead::firstMotion(first) != ACT_MOVE_FIRST_HALF_CELL) return Stop::unknownAction;
 
     float d_acc = accelDistance(p);
@@ -435,6 +537,15 @@ Stop runSteps(const SearchPreset& p) {
 
         // 加速した区間の中の読みも1歩と数える（保存を積むのは，その区間を抜けて動作を積む歩）
         updateSaveDue();
+        if (adachi::search_check_pending()) {
+            // 確認の歩：ソルバーは壁を記録しただけ（動作なし）。止まって確認してから次の1手を積む。
+            // 加速した区間は確認の手前で終わる（先読みが数えるのは直進が返る区画だけ）ので，ここでは積んでいない
+            if (committed > 0) return Stop::planMismatch;
+            Stop r = stopAndCheck(p, &step_end, &rec, &action);
+            if (r != Stop::finished || action == ACT_FINISH) return r;
+            prepare_us = prepareNext(p, accelerate);
+            continue;
+        }
         if (committed > 0) {
             // 加速して積んだ区間の途中：動作は積まず，境界を進めるだけ（ソルバーの答えは直進のはず）
             if (action != ACT_MOVE_1CELL) return Stop::planMismatch;
@@ -517,7 +628,7 @@ Stop runSteps(const SearchPreset& p) {
             // 行く間の壁切れが対応づいて間違った補正になる（2026-10-03 の探索で −23.8 mm）
             break;
         case ACT_FINISH:
-            // スタート区画の中央で止まる
+            // 終わりの区画（往復ならスタート，片道ならゴール）の中央で止まる
             if (planProfile.straight(0.f, HALF_MM) != SegmentResult::ok) return Stop::pushRejected;
             return Stop::finished;
         default:
@@ -539,8 +650,13 @@ Stop runSteps(const SearchPreset& p) {
 void dumpSteps(const char* file, bool corrected) {
     bin_table::begin("search", file, false, g_step_count * STEP_COLUMN_COUNT * sizeof(float),
                      STEP_COLUMNS, STEP_COLUMN_COUNT);
+    uint16_t next_check = 0;   // g_check_log の次の行（step の小さい順に並んでいる）
     for (uint16_t i = 0; i < g_step_count; ++i) {
         const SearchStep& r = g_steps[i];
+        const CheckRecord* check = nullptr;
+        if (next_check < g_checks && next_check < MAX_CHECK_LOG && g_check_log[next_check].step == i) {
+            check = &g_check_log[next_check++];
+        }
         float front_err = (r.front_err == FRONT_ERR_NONE) ? NAN : static_cast<float>(r.front_err) / 10.f;
         float row[STEP_COLUMN_COUNT] = {
             static_cast<float>(i), static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.dir),
@@ -557,6 +673,10 @@ void dumpSteps(const char* file, bool corrected) {
             static_cast<float>((r.flags & FLAG_RECHECKED) ? 1 : 0),
             static_cast<float>((r.flags >> RUN_CELLS_SHIFT) & RUN_CELLS_MASK),
             static_cast<float>((r.flags & FLAG_SAVED) ? 1 : 0),
+            static_cast<float>(check != nullptr ? 1 : 0),
+            check != nullptr ? static_cast<float>(check->targets) : NAN,
+            check != nullptr ? static_cast<float>(check->optimistic_ms) : NAN,
+            check != nullptr ? static_cast<float>(check->us) : NAN,
         };
         uart_write(reinterpret_cast<const uint8_t*>(row), sizeof(row));
     }
@@ -576,9 +696,11 @@ void runSearch(const SearchPreset& preset) {
     std::snprintf(g_log_name, sizeof(g_log_name), "%s", preset.name);
     std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
     std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
-    LOG("search %s: %.0f mm/s (known straights %.0f mm/s), turn %s, fan %s, wall control %s, front correction %s, goal (%u,%u)\r\n",
+    LOG("search %s: %.0f mm/s (known straights %.0f mm/s), turn %s, fan %s, wall control %s, front correction %s, goal (%u,%u), %s%s%s\r\n",
         preset.name, preset.speed, preset.straight_speed, preset.turns.s90->name, preset.fan ? "on" : "off",
-        preset.wall_control ? "on" : "off", preset.front_correction ? "on" : "off", preset.goal_x, preset.goal_y);
+        preset.wall_control ? "on" : "off", preset.front_correction ? "on" : "off", preset.goal_x, preset.goal_y,
+        preset.one_way ? "one way" : "round trip", preset.confirm_run != nullptr ? ", confirm with fast run " : "",
+        preset.confirm_run != nullptr ? preset.confirm_run->name : "");
 
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);
@@ -587,6 +709,21 @@ void runSearch(const SearchPreset& preset) {
         LOG("search not started: battery %.2f V < %.2f V\r\n", v0, config::search::MIN_BATTERY_V);
         blinkRefused();
         return;
+    }
+
+    // 壁を引き継ぐなら，保存した最新の迷路を RAM に写しておく（フラッシュの記録は走行中の追記で最新でなくなる）。
+    // 保存した迷路がなければ，壁を消して始める
+    maze_store::Record inherited{};
+    const maze_store::Record* saved = preset.reset_walls ? nullptr : maze_store::latest();
+    if (saved != nullptr) inherited = *saved;
+    if (preset.reset_walls) {
+        LOG("walls: reset\r\n");
+    } else if (saved != nullptr) {
+        LOG("walls: inherited saved maze sequence %lu (goal (%u,%u), %s)\r\n",
+            static_cast<unsigned long>(inherited.sequence), inherited.goal_x, inherited.goal_y,
+            (inherited.flags & maze_store::FLAG_COMPLETE) ? "complete" : "partial");
+    } else {
+        LOG("walls: no saved maze, starting from an empty map\r\n");
     }
 
     // 迷路を追記する面を用意する。空きが足りなければ面を消す（1〜2s CPU が止まる。止まっている今のうちに）
@@ -620,6 +757,11 @@ void runSearch(const SearchPreset& preset) {
     g_map_updates = 0;
     g_runs = 0;
     g_run_cells = 0;
+    g_checks = 0;
+    g_check_us_max = 0;
+    g_check_us_total = 0;
+    g_check_peak = 0;
+    g_check_overflowed = false;
     startCycleCounter();
     control_timing::reset();
 
@@ -628,7 +770,7 @@ void runSearch(const SearchPreset& preset) {
     HAL_Delay(100);
     motorDriver.switchToVelocityX();
 
-    Stop stop = runSteps(preset);
+    Stop stop = runSteps(preset, saved != nullptr ? &inherited : nullptr);
     if (stop == Stop::finished) {
         planProfile.waitUntilIdle();
         HAL_Delay(SETTLE_MS);
@@ -647,9 +789,10 @@ void runSearch(const SearchPreset& preset) {
     uint32_t gap_us = control_timing::maxGapUs();
     maze_store::Result pending = maze_store::journal::flush();
     if (stop == Stop::finished) {
-        // スタートまで戻った迷路を「探索し終えた」として保存する。面が一杯などで積めなければ，面を消して書く
+        // 終わった迷路を保存する。「探索し終えた」（complete）はスタートまで戻った往復だけ。
+        // 面が一杯などで積めなければ，面を消して書く
         ledBar16.set(0xFFFF);
-        maze_store::Record done = maze_store::capture(preset.goal_x, preset.goal_y, true);
+        maze_store::Record done = maze_store::capture(preset.goal_x, preset.goal_y, !preset.one_way);
         pending = maze_store::journal::append(done) ? maze_store::journal::flush() : maze_store::save(done);
         ledBar16.set(0x0000);
     }
@@ -668,6 +811,16 @@ void runSearch(const SearchPreset& preset) {
         wallEdge.totalShift());
     LOG("known straights: %u runs, %u cells; wall mismatches %u (map rewritten %u)\r\n", g_runs, g_run_cells,
         g_mismatch_count, g_map_updates);
+    if (preset.confirm_run != nullptr) {
+        // 確認（止まって最短走行の経路を求め直す）の回数と計算時間。最後の確認で確かめる壁が0なら最短経路は確定
+        const adachi::CheckResult c = adachi::search_last_check();
+        // last: 未知の壁を通れるとみなした時間 / 壁とみなした時間（経路の壁がすべて既知だった確認だけ。ほかは 65535）
+        LOG("fast-run confirm: %u checks (%s), compute max %lu us, mean %lu us, queue peak %u%s; last: %u / %u ms, %u walls to check\r\n",
+            g_checks, (stop == Stop::finished && c.targets == 0) ? "path fixed" : "not fixed",
+            static_cast<unsigned long>(g_check_us_max),
+            static_cast<unsigned long>(g_checks > 0 ? g_check_us_total / g_checks : 0), g_check_peak,
+            g_check_overflowed ? ", OVERFLOWED" : "", c.optimistic_ms, c.pessimistic_ms, c.targets);
+    }
     for (uint16_t i = 0; i < g_mismatch_count && i < config::search::MAX_MISMATCH_LOG; ++i) {
         const Mismatch& m = g_mismatches[i];
         // 壁は LFR の順に 1/0。読み直しの前に止まったときは second が "-"

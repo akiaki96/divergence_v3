@@ -52,10 +52,6 @@ constexpr bool ladderUsable(const TurnLadder& l, uint8_t k, const RunPreset& p) 
     return true;
 }
 
-constexpr bool isDiagonalKind(uint8_t k) {
-    return k == TURN_IN45 || k == TURN_OUT45 || k == TURN_V90 || k == TURN_IN135 || k == TURN_OUT135;
-}
-
 constexpr bool presetUsable(const RunPreset& p) {
     bool ok = p.accel > 0.f && p.accel <= config::profile_limit::MAX_ACCEL_X
            && p.decel > 0.f && p.decel <= config::profile_limit::MAX_DECEL_X
@@ -64,7 +60,9 @@ constexpr bool presetUsable(const RunPreset& p) {
            && p.turns[TURN_L90].count > 0 && p.turns[TURN_180].count > 0
            && (p.diagonal || p.turns[TURN_S90].count > 0)
            // ファンを回すなら duty は (0, 1]，回さないなら 0
-           && (p.fan ? (p.fan_duty > 0.f && p.fan_duty <= 1.f) : p.fan_duty == 0.f);
+           && (p.fan ? (p.fan_duty > 0.f && p.fan_duty <= 1.f) : p.fan_duty == 0.f)
+           // ファンを回す前提の直線は，ファンを回すプリセットとだけ
+           && (p.straight == nullptr || !p.straight->fan_only || p.fan);
     for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
         const TurnLadder& l = p.turns[k];
         ok = ok && ladderUsable(l, k, p);
@@ -80,13 +78,20 @@ constexpr bool presetUsable(const RunPreset& p) {
     return ok;
 }
 
+// プリセット（既定の直線）と，メニューで選べる直線との組み合わせ（fan_only の直線はファンを回すプリセットだけ）がすべて走れるか
 constexpr bool allPresetsUsable() {
     for (const auto& p : config::run::PRESETS) {
         if (!presetUsable(p)) return false;
+        for (const RunStraight* s : config::run::STRAIGHTS) {
+            if ((!s->fan_only || p.fan) && !presetUsable(withStraight(p, *s))) return false;
+        }
     }
     return true;
 }
 static_assert(allPresetsUsable(), "a run preset cannot run: check tools/run_presets.json against the slaloms and limits");
+
+// メニューで選んだ直線（nullptr ならプリセットの既定の直線）。電源を切るまで覚えておく
+const RunStraight* g_straight = nullptr;
 
 // 経路の手順（スタックに置かない）
 fast_plan::Steps g_steps;
@@ -108,8 +113,8 @@ float g_ortho_x0[MAX_ORTHO_RANGES];
 float g_ortho_x1[MAX_ORTHO_RANGES];
 uint16_t g_ortho_count = 0;
 
-char g_trace_name[32];
-char g_edge_name[32];
+char g_trace_name[48];
+char g_edge_name[48];
 
 void initTraceLog(bool diagonal) {
     logger.initLoggedVal();
@@ -160,9 +165,9 @@ void printMaze(const RunPreset& p) {
 
 // プリセットの速度と，種類ごとのターンの候補（速い順。走る経路で直線が短いところは下の候補に落ちる）
 void printPreset(const RunPreset& p) {
-    LOG("fast %s: turn %.0f mm/s, straight %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %.2f\r\n",
-        p.name, p.turn_speed, p.max_speed, p.max_speed_dia, p.accel, p.decel,
-        p.diagonal ? "on" : "off", p.fan_duty);
+    LOG("fast %s: turn %.0f mm/s, straight %s %.0f / dia %.0f mm/s, accel %.0f / decel %.0f, diagonal %s, fan %.2f\r\n",
+        p.name, p.turn_speed, (p.straight != nullptr) ? p.straight->name : "-", p.max_speed, p.max_speed_dia,
+        p.accel, p.decel, p.diagonal ? "on" : "off", p.fan_duty);
     static const char* const KIND_NAMES[TURN_KIND_COUNT] = {"L90", "T180", "IN45", "OUT45", "IN135", "OUT135", "V90", "S90"};
     for (uint8_t k = 0; k < TURN_KIND_COUNT; ++k) {
         const TurnLadder& l = p.turns[k];
@@ -312,9 +317,31 @@ bool runSteps(const RunPreset& p) {
 }
 } // namespace
 
-void runFastRun(const RunPreset& preset) {
-    std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
-    std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
+void selectFastStraight(int index) {
+    g_straight = (index >= 0 && static_cast<std::size_t>(index) < config::run::STRAIGHTS.size())
+                     ? config::run::STRAIGHTS[index] : nullptr;
+    LOG("fast straight: %s\r\n", (g_straight != nullptr) ? g_straight->name : "preset default");
+    // 選んだ番号の分だけ LED を点ける（既定の直線なら1つ）
+    ledBar16.set(static_cast<uint16_t>((1u << (index + 2)) - 1u));
+    HAL_Delay(800);
+    ledBar16.set(0x0000);
+}
+
+void runFastRun(const RunPreset& base) {
+    // メニューで直線を選んでいれば，プリセットの直線をそれに替える（ログのファイル名にも付ける）
+    if (g_straight != nullptr && g_straight->fan_only && !base.fan) {
+        LOG("fast %s: straight %s needs the fan (fan_only)\r\n", base.name, g_straight->name);
+        blinkRefused();
+        return;
+    }
+    const RunPreset preset = (g_straight != nullptr) ? withStraight(base, *g_straight) : base;
+    if (g_straight != nullptr) {
+        std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_%s_trace", preset.name, g_straight->name);
+        std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_%s_edges", preset.name, g_straight->name);
+    } else {
+        std::snprintf(g_trace_name, sizeof(g_trace_name), "%s_trace", preset.name);
+        std::snprintf(g_edge_name, sizeof(g_edge_name), "%s_edges", preset.name);
+    }
     // 走る前は，走れないときの理由だけを出す（プリセット・経路の情報は haltByAccZ の後に printPlan で出す）
     motorDriver.state = MotorDriverState::setDuty;
     motorDriver.setDuty(0.f, 0.f);

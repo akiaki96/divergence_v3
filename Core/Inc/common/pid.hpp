@@ -15,8 +15,10 @@ public:
     void reset();
 
     // 飽和分はback-calculationで積分から引き戻す（feedforwardも飽和判定に含む）。
-    // hold_integral=trueのtickは積分しない（カスケードの下流が飽和しているときの条件付き積分に使う）
-    float update(float target, float current, float feedforward, float limit, bool hold_integral = false);
+    // hold_integral=trueのtickは積分しない（カスケードの下流が飽和しているときの条件付き積分に使う）。
+    // ki_scaleはこのtickだけKiに掛ける倍率（積分項は出力の単位で持つので，倍率を変えても出力は跳ばない）
+    float update(float target, float current, float feedforward, float limit, bool hold_integral = false,
+                 float ki_scale = 1.f);
 
     // 直近のupdate()の飽和の向き（+1:上限, −1:下限, 0:飽和なし）。次のupdate()まで保持する
     float saturation() const {

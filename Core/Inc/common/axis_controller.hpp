@@ -15,8 +15,9 @@ public:
 
     void reset();
 
-    // 出力は内側の電圧 [V]（±inner_limitで飽和）
-    float update(const AxisReference& ref, const AxisMeasurement& meas, float inner_ff, float inner_limit);
+    // 出力は内側の電圧 [V]（±inner_limitで飽和）。outer_ki_scaleはこのtickだけ外側のKiに掛ける倍率
+    float update(const AxisReference& ref, const AxisMeasurement& meas, float inner_ff, float inner_limit,
+                 float outer_ki_scale = 1.f);
 
     // 外側の出力（速度指令 [mm/s] / 角速度指令 [dps]）
     float command() const {
