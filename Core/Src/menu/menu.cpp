@@ -18,7 +18,14 @@ void Menu::buildTree() {
 
         run_.setChildren(std::array{&search_, &fast_, &maze_});
             search_.setChildren(pointersOf(search_presets_));
-            fast_.setChildren(pointersOf(fast_fans_));
+            {
+                // Fast の子：ファンの段（fan off / fan on / fan 0.4 …）の後ろに straight
+                std::array<MenuNode*, config::run::FANS.size() + 1> fast_children{};
+                for (std::size_t i = 0; i < config::run::FANS.size(); ++i) fast_children[i] = &fast_fans_[i];
+                fast_children.back() = &fast_straight_;
+                fast_.setChildren(fast_children);
+            }
+                fast_straight_.setChildren(pointersOf(fast_straights_));
                 linkGroups(fast_fans_, config::run::FANS, fast_kinds_);
                 linkGroups(fast_kinds_, config::run::KINDS, fast_presets_);
             maze_.setChildren(std::array{&maze_show_, &maze_clear_});

@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """最短走行のプリセットのヘッダ（config/run_presets.hpp）を生成する。
 
-  run_presets.json … プリセット名 → ターンの速度（種類ごとに変えてよい）・直線の最高速度・加減速度・斜めを使うか など（手で書く）
+  run_presets.json … 直線のプロファイル（"straights"：最高速度・加減速度）と，プリセット（"presets"：ターンの速度
+                     （種類ごとに変えてよい）・既定の直線・斜めを使うか など）（手で書く）
+
+直線とターンは別々に選べる：プリセットは既定の直線を名前で持ち（"straight"），メニューの Run → Fast → straight で
+別の直線を選べばどのプリセットにも組み合わせられる（config::run::STRAIGHTS）。直線の最高速度はターンの速度を下回れない
+ので，組み合わせたときにいちばん速いターン（斜めは斜めのターン）の速度まで引き上げる（RunPreset の withStraight）。
 
 最短走行の経路（time_based_dijkstra）は、直線が続くところは区画中央から大回り90°（L90）・180°（T180）で、
 1区画ずつ曲がるジグザグは区画の辺から小回り90°（S90）で曲がる。"diagonal": true なら斜めのターン
@@ -19,13 +24,21 @@
 run_presets.json の形:
 
     {
+      "straights": {
+        "2000_a8k": {
+          "max_speed": 2000,      … 縦横の直線の最高速度 [mm/s]（ターンの速度より遅ければ，そのターンの速度まで引き上げる）
+          "max_speed_dia": 1500,  … 斜めの直線の最高速度 [mm/s]（同じく斜めのターンの速度まで引き上げる）
+          "accel": 8000,          … 直線の加速度 [mm/s^2]（config::profile_limit::MAX_ACCEL_X 1.5G 以下）
+          "decel": 8000,          … 直線の減速度 [mm/s^2]（MAX_DECEL_X 2G 以下）
+          "fan_only": true,       … 任意（省略で false）。ファンを回すプリセットとだけ組み合わせる（吸引で滑りを抑える前提）
+          "note": ""              … 任意。ヘッダのコメントに出す
+        }
+      },
+      "presets": {
       "1500_dia": {
         "turn_speed": 1500,       … ターンの速度の既定 [mm/s]。ソルバーの直線のコストの始点・終点の速度にも使う
         "speeds": {"S90": 900},   … 任意。種類ごとのターンの速度 [mm/s]（S90 L90 T180 IN45 OUT45 V90 IN135 OUT135）
-        "max_speed": 2000,        … 縦横の直線の最高速度 [mm/s]（どのターンの速度以上）
-        "max_speed_dia": 1500,    … 斜めの直線の最高速度 [mm/s]（斜めのターンの速度以上。diagonal が false でも書く）
-        "accel": 8000,            … 直線の加速度 [mm/s^2]
-        "decel": 8000,            … 直線の減速度 [mm/s^2]
+        "straight": "2000_a8k",   … 既定の直線（"straights" の名前）。メニューで straight を選んでいなければこれで走る
         "diagonal": true,         … 斜めの経路を使うか
         "fan": false,             … 任意（省略で false）。ファンを回して走るか（ターンはファンONの設計を使う）
         "fan_duty": 0.4,          … 任意（"fan": true のときだけ。省略で config::fan::RUN_DUTY）。回すファンの duty。
@@ -35,6 +48,7 @@ run_presets.json の形:
         "s90": false,             … 任意（斜めありのときだけ。省略で true＝設計があれば使う）。小回り90°を使うか
         "v90": false,             … 任意（斜めありのときだけ。省略で true＝必ず使う）。V90 を使うか
         "note": ""                … 任意。ヘッダのコメントに出す
+      }
       }
     }
 
@@ -52,8 +66,11 @@ from slalom_presets import PRESET_LIST, make_speed_key, parse_speed_key
 
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 
-REQUIRED_KEYS = ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel", "diagonal"]
+REQUIRED_KEYS = ["turn_speed", "straight", "diagonal"]
 OPTIONAL_KEYS = ["speeds", "fan", "fan_duty", "wall_edge", "diag_control", "s90", "v90", "note"]
+STRAIGHT_REQUIRED_KEYS = ["max_speed", "max_speed_dia", "accel", "decel"]
+STRAIGHT_OPTIONAL_KEYS = ["fan_only", "note"]
+NAME_RE = r"[0-9A-Za-z_]+"
 
 ORTHO_TURNS = ["S90", "L90", "T180"]
 DIAGONAL_TURNS = ["IN45", "OUT45", "V90", "IN135", "OUT135"]
@@ -72,23 +89,58 @@ def designed_speeds(slalom_params, label, fan):
     return sorted(out, reverse=True)
 
 
-def build_entries(presets, slalom_params):
+def split_sections(data):
+    """run_presets.json を（直線，プリセット）に分ける"""
+    if not isinstance(data, dict) or set(data) != {"straights", "presets"}:
+        raise GenError("run_presets.json は {\"straights\": {…}, \"presets\": {…}} の形です"
+                       "（以前のプリセットの max_speed〜decel は \"straights\" に名前を付けて書き，プリセットは \"straight\" で参照する）")
+    return data["straights"], data["presets"]
+
+
+def build_straights(straights):
+    out = []
+    for name, s in straights.items():
+        where = f"run_presets.json の直線「{name}」"
+        if not re.fullmatch(NAME_RE, name):
+            raise GenError(f"{where}: 名前は英数字と _ だけにしてください（定数名とログのファイル名に使う）")
+        missing = [k for k in STRAIGHT_REQUIRED_KEYS if k not in s]
+        unknown = [k for k in s if k not in STRAIGHT_REQUIRED_KEYS + STRAIGHT_OPTIONAL_KEYS]
+        if missing or unknown:
+            raise GenError(f"{where}: 足りないキー {missing}，知らないキー {unknown}")
+        for key in STRAIGHT_REQUIRED_KEYS:
+            if isinstance(s[key], bool) or not isinstance(s[key], (int, float)) or s[key] <= 0:
+                raise GenError(f"{where}: {key} は正の値にしてください")
+        if not isinstance(s.get("fan_only", False), bool):
+            raise GenError(f"{where}: fan_only は true / false です")
+        out.append({"name": name, "ident": f"S_{name}", "values": s, "fan_only": s.get("fan_only", False)})
+    if not out:
+        raise GenError("run_presets.json に直線（\"straights\"）がありません")
+    return out
+
+
+def build_entries(presets, slalom_params, straights):
     by_cpp_name = {p.cpp_name: p for p in PRESET_LIST}
+    straight_by_name = {s["name"]: s for s in straights}
     entries = []
     for name, preset in presets.items():
         where = f"run_presets.json の「{name}」"
-        if not re.fullmatch(r"[0-9A-Za-z_]+", name):
+        if not re.fullmatch(NAME_RE, name):
             raise GenError(f"{where}: 名前は英数字と _ だけにしてください（定数名とログのファイル名に使う）")
         missing = [k for k in REQUIRED_KEYS if k not in preset]
         unknown = [k for k in preset if k not in REQUIRED_KEYS + OPTIONAL_KEYS]
         if missing or unknown:
-            hint = "（s90_speed・start_speed は無くなりました：\"speeds\": {\"S90\": …} を使う。スタート直後は自動で下の候補に落とす）" \
-                if {"s90_speed", "start_speed"} & set(unknown) else ""
+            hint = ""
+            if {"s90_speed", "start_speed"} & set(unknown):
+                hint = "（s90_speed・start_speed は無くなりました：\"speeds\": {\"S90\": …} を使う。スタート直後は自動で下の候補に落とす）"
+            elif set(STRAIGHT_REQUIRED_KEYS) & set(unknown):
+                hint = "（max_speed〜decel は \"straights\" に名前を付けて書き，\"straight\": \"<名前>\" で参照する）"
             raise GenError(f"{where}: 足りないキー {missing}，知らないキー {unknown}{hint}")
 
-        for key in ["turn_speed", "max_speed", "max_speed_dia", "accel", "decel"]:
-            if float(preset[key]) <= 0.0:
-                raise GenError(f"{where}: {key} は正の値にしてください")
+        if float(preset["turn_speed"]) <= 0.0:
+            raise GenError(f"{where}: turn_speed は正の値にしてください")
+        straight = straight_by_name.get(preset["straight"])
+        if straight is None:
+            raise GenError(f"{where}: straight は直線の名前（{', '.join(straight_by_name)}）です（「{preset['straight']}」はありません）")
         fan = preset.get("fan", False)
         diagonal = preset["diagonal"]
         wall_edge = preset.get("wall_edge", False)
@@ -140,19 +192,14 @@ def build_entries(presets, slalom_params):
                                + ("。斜めを使わないなら \"diagonal\": false" if cpp_name in DIAGONAL_TURNS else ""))
             ladders[cpp_name] = [(v, cpp_ident(turn.cpp_name, v, fan)) for v in have if v <= top]
 
-        tops = {k: l[0][0] for k, l in ladders.items()}
-        if float(preset["max_speed"]) < max(tops.values()):
-            raise GenError(f"{where}: max_speed は いちばん速いターン（{max(tops.values()):g}mm/s）以上にしてください")
-        dia_tops = [v for k, v in tops.items() if k in DIAGONAL_TURNS]
-        if dia_tops and float(preset["max_speed_dia"]) < max(dia_tops):
-            raise GenError(f"{where}: max_speed_dia は いちばん速い斜めのターン（{max(dia_tops):g}mm/s）以上にしてください")
-        if float(preset["max_speed_dia"]) < float(preset["turn_speed"]) or float(preset["max_speed"]) < float(preset["turn_speed"]):
-            raise GenError(f"{where}: max_speed・max_speed_dia は turn_speed 以上にしてください")
+        if straight["fan_only"] and not fan:
+            raise GenError(f"{where}: 直線「{straight['name']}」はファンを回すプリセットだけで使えます（fan_only）")
 
         entries.append({
             "name": name,
             "ident": f"P_{name}",
             "ladders": ladders,
+            "straight": straight,
             "fan": fan,
             "fan_duty": fan_duty,   # None なら config::fan::RUN_DUTY（fan が false なら使わない）
             "diagonal": diagonal,
@@ -201,7 +248,17 @@ def describe(e):
     return "，".join(parts) + " mm/s" + (f"（{'・'.join(gone)} なし）" if gone else "")
 
 
-def render(entries):
+def effective_straight(e):
+    """プリセットの既定の直線を，ターンの速度まで引き上げた値（RunPreset の withStraight と同じ。コメント用）"""
+    s = e["straight"]["values"]
+    tops = {k: l[0][0] for k, l in e["ladders"].items()}
+    turn = float(e["values"]["turn_speed"])
+    ortho = max([turn] + list(tops.values()))
+    dia = max([turn] + [v for k, v in tops.items() if k in DIAGONAL_TURNS])
+    return max(float(s["max_speed"]), ortho), max(float(s["max_speed_dia"]), dia)
+
+
+def render(entries, straights):
     out = [
         "// 自動生成ファイル：tools/gen_run_presets.py が tools/run_presets.json から生成する。",
         "// 編集しないこと（JSONを編集する）",
@@ -213,8 +270,21 @@ def render(entries):
         "",
         "namespace config::run {",
         "",
-        "// ターンの候補（速い順。いちばん速いものがプリセットの速度，下は fast_plan::fitSpeeds が落とす先）",
+        "// 直線のプロファイル（Run → Fast → straight で選ぶ。プリセットの既定は RunPreset::straight）",
     ]
+    for s in straights:
+        v = s["values"]
+        note = f"  メモ: {v['note']}" if v.get("note") else ""
+        out.append(f"// {s['name']}: 直線 {v['max_speed']:g} / 斜め {v['max_speed_dia']:g}mm/s，加速 {v['accel']:g} / 減速 {v['decel']:g}mm/s^2"
+                   + ("，ファンのときだけ" if s["fan_only"] else "") + note)
+        out.append(f"inline constexpr RunStraight {s['ident']} = {{\"{s['name']}\", {fmt(v['max_speed'])}, {fmt(v['max_speed_dia'])}, "
+                   f"{fmt(v['accel'])}, {fmt(v['decel'])}, {'true' if s['fan_only'] else 'false'}}};")
+    out.append("")
+    out.append("// メニューに並べる順（run_presets.json の \"straights\" に書いた順）")
+    out.append(f"inline constexpr std::array<const RunStraight*, {len(straights)}> STRAIGHTS = {{")
+    out += [f"    &{s['ident']}," for s in straights]
+    out += ["};", ""]
+    out.append("// ターンの候補（速い順。いちばん速いものがプリセットの速度，下は fast_plan::fitSpeeds が落とす先）")
     seen = set()
     for e in entries:
         for kind, ladder in e["ladders"].items():
@@ -230,17 +300,19 @@ def render(entries):
         note = f"  メモ: {v['note']}" if v.get("note") else ""
         extra = (("，斜めあり" if e["diagonal"] else "，斜めなし") + ((f"，ファンON（duty {e['fan_duty']:g}）" if e["fan_duty"] is not None else "，ファンON") if e["fan"] else "")
                  + ("，壁切れ補正" if e["wall_edge"] else "") + ("，斜めの姿勢制御" if e["diag_control"] else ""))
-        out.append(f"// {e['name']}: ターン {describe(e)}，直線 {v['max_speed']:g} / 斜め {v['max_speed_dia']:g}mm/s"
+        ms, md = effective_straight(e)
+        out.append(f"// {e['name']}: ターン {describe(e)}，直線 {e['straight']['name']}（{ms:g} / 斜め {md:g}mm/s）"
                    f"{extra}{note}")
         turns = []
         for kind, _ in KIND_ORDER:
             ladder = e["ladders"].get(kind)
             turns.append(f"{{{ladder_ident(kind, ladder, e['fan'])}, {len(ladder)}}}" if ladder else "{nullptr, 0}")
+        # 直線の4つの値は withStraight が既定の直線から入れる（ここでは 0）
         out.append(
-            f"inline constexpr RunPreset {e['ident']} = {{\"{e['name']}\", {fmt(v['turn_speed'])}, {fmt(v['max_speed'])}, "
-            f"{fmt(v['max_speed_dia'])}, {fmt(v['accel'])}, {fmt(v['decel'])}, {{{', '.join(turns)}}}, "
+            f"inline constexpr RunPreset {e['ident']} = withStraight({{\"{e['name']}\", {fmt(v['turn_speed'])}, 0.f, 0.f, 0.f, 0.f, "
+            f"{{{', '.join(turns)}}}, "
             f"{'true' if e['diagonal'] else 'false'}, {'true' if e['fan'] else 'false'}, {fan_duty_cpp(e)}, "
-            f"{'true' if e['wall_edge'] else 'false'}, {'true' if e['diag_control'] else 'false'}}};")
+            f"{'true' if e['wall_edge'] else 'false'}, {'true' if e['diag_control'] else 'false'}}}, {e['straight']['ident']});")
         out.append("")
     out.append("// メニューに並べる順（ファンOFF，ON，duty を変えたものの順，同じファンの中は斜めなしが先，同じ段の中は run_presets.json に書いた順）")
     out.append(f"inline constexpr std::array<RunPreset, {len(entries)}> PRESETS = {{")
@@ -281,12 +353,14 @@ def main():
     args = ap.parse_args()
 
     try:
-        entries = build_entries(load_json(args.presets), load_json(args.slalom_params))
+        straight_json, preset_json = split_sections(load_json(args.presets))
+        straights = build_straights(straight_json)
+        entries = build_entries(preset_json, load_json(args.slalom_params), straights)
     except GenError as e:
         print(f"gen_run_presets: エラー: {e}", file=sys.stderr)
         return 1
 
-    text = render(entries)
+    text = render(entries, straights)
     if args.out is None:
         sys.stdout.write(text)
         return 0

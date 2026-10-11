@@ -298,9 +298,23 @@ void testCenterBoundary() {
     other.push_back(straight(41.f));
     check(fast_plan::edgeBoundaries(other, P, 2, true, out, 8) == 0, "S90 / OUT45 / turn-to-turn: none");
 }
+// 直線のプロファイルを替える：最高速度はターンの速度（斜めは斜めのターン，下限は turn_speed）まで引き上げ，加減速度はそのまま
+void testWithStraight() {
+    static constexpr RunStraight SLOW{"slow", 1000.f, 300.f, 2000.f, 3000.f, false};
+    static constexpr RunStraight FREE{"free", 9000.f, 9000.f, 8000.f, 8000.f, false};
+    constexpr RunPreset m = withStraight(PM, SLOW);
+    check(near(m.max_speed, 1500.f) && near(m.max_speed_dia, 1500.f), "slow straight: lifted to the fastest turn (L90 1500)");
+    check(near(m.accel, 2000.f) && near(m.decel, 3000.f) && m.straight == &SLOW, "slow straight: accel / decel as given");
+    constexpr RunPreset d = withStraight(P, SLOW);
+    check(near(d.max_speed, 1000.f) && near(d.max_speed_dia, 500.f), "500 turns: ortho 1000 as given, diagonal lifted to 500");
+    constexpr RunPreset f = withStraight(PM, FREE);
+    check(near(f.max_speed, 9000.f) && near(f.max_speed_dia, 9000.f), "free straight: no lift");
+    check(PM.straight == nullptr && near(PM.max_speed, 2000.f), "the base preset is unchanged");
+}
 } // namespace
 
 int main() {
+    testWithStraight();
     testLongShortStraights();
     testOtherTurns();
     testDiagonalTurns();

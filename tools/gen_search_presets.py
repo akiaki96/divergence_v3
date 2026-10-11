@@ -41,7 +41,7 @@ search_presets.json の形:
         "one_way": false,                 … 任意（省略で false＝往復）。true ならゴールに着いたらそこで止まる（片道）
         "reset_walls": true,              … 任意（省略で true）。false なら壁を消さず，保存した最新の迷路を引き継いで探索する
         "confirm": "1200_dia",            … 任意（省略で使わない）。最短走行の経路で確かめる探索にする。値は最短走行の
-                                            プリセット（run_presets.json のキー）で，経路計算のコスト（速度・ターン・斜め）に使う。
+                                            プリセット（run_presets.json の "presets" のキー。直線はその既定の直線）で，経路計算のコスト（速度・ターン・斜め）に使う。
                                             ゴールに着いたら止まって，未知の壁を通れるとみなした最短走行の経路を求め，その経路の
                                             未知の壁を確かめに行く（崩れるかすべて分かったら，また止まって求め直す）。経路に未知の
                                             壁がなくなったらスタートへ戻る。one_way とは一緒に使えない
@@ -148,7 +148,7 @@ def build_entries(presets, slalom_params, run_presets):
         confirm = preset.get("confirm")  # None なら最短走行の経路で確かめない
         if confirm is not None:
             if not isinstance(confirm, str) or confirm not in run_presets:
-                raise GenError(f"{where}: confirm は最短走行のプリセットの名前（run_presets.json のキー）です"
+                raise GenError(f"{where}: confirm は最短走行のプリセットの名前（run_presets.json の \"presets\" のキー）です"
                                f"（「{confirm}」はありません）")
             if one_way:
                 raise GenError(f"{where}: confirm（ゴールの後も確かめてからスタートへ戻る）と one_way は一緒に使えません")
@@ -263,7 +263,7 @@ def main():
     args = ap.parse_args()
 
     try:
-        entries = build_entries(load_json(args.presets), load_json(args.slalom_params), load_json(args.run_presets))
+        entries = build_entries(load_json(args.presets), load_json(args.slalom_params), load_json(args.run_presets)["presets"])
     except GenError as e:
         print(f"gen_search_presets: エラー: {e}", file=sys.stderr)
         return 1

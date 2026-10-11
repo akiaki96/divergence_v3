@@ -38,9 +38,11 @@ constexpr bool fastFitsMenu() {
     for (const auto& kind : config::run::KINDS) {
         if (kind.count > config::menu::MAX_CHILDREN) return false;
     }
-    return config::run::FANS.size() <= config::menu::MAX_CHILDREN;
+    // Fast の子はファンの段と straight，straight の子は "preset" と直線
+    return config::run::FANS.size() + 1 <= config::menu::MAX_CHILDREN
+        && config::run::STRAIGHTS.size() + 1 <= config::menu::MAX_CHILDREN;
 }
-static_assert(fastFitsMenu(), "run presets (per fan and kind) exceed config::menu::MAX_CHILDREN");
+static_assert(fastFitsMenu(), "run presets (per fan and kind) or straights exceed config::menu::MAX_CHILDREN");
 
 class Menu {
 public:
@@ -77,6 +79,14 @@ private:
     template <std::size_t... I>
     static std::array<MenuNode, sizeof...(I)> fastNodes(std::index_sequence<I...>) {
         return {MenuNode(config::run::PRESETS[I].name, nullptr, &fast_onenter<I>)...};
+    }
+
+    // 最短走行の直線：Run → Fast → straight → "preset"（既定の直線に戻す）/ 直線（config::run::STRAIGHTS）。
+    // 選ぶとその後の最短走行はどのプリセットもその直線で走る
+    template <std::size_t... S>
+    static std::array<MenuNode, sizeof...(S) + 1> fastStraightNodes(std::index_sequence<S...>) {
+        return {MenuNode("preset", nullptr, &fast_straight_onenter<-1>),
+                MenuNode(config::run::STRAIGHTS[S]->name, nullptr, &fast_straight_onenter<static_cast<int>(S)>)...};
     }
 
     // 試験用の探索：Test → Search → プリセット（config::search::TEST_PRESETS，"menu": "test" のもの）
@@ -138,6 +148,9 @@ private:
                     groupNodes(config::run::KINDS, std::make_index_sequence<config::run::KINDS.size()>{});
                     std::array<MenuNode, config::run::PRESETS.size()> fast_presets_ =
                         fastNodes(std::make_index_sequence<config::run::PRESETS.size()>{});
+            MenuNode fast_straight_{"straight"};   // 直線のプロファイルを選ぶ（app/fast_run.hpp の selectFastStraight）
+                std::array<MenuNode, config::run::STRAIGHTS.size() + 1> fast_straights_ =
+                    fastStraightNodes(std::make_index_sequence<config::run::STRAIGHTS.size()>{});
         MenuNode maze_{"Maze"};   // 保存した迷路（app/maze_store.hpp）
             MenuNode maze_show_{"Show"};
             MenuNode maze_clear_{"Clear"};
